@@ -1,0 +1,10 @@
+﻿{
+  "name": "jarvis-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --prefix Jarvis/agent-starter-react",
+    "next:dev": "npm run next:dev --prefix Jarvis/agent-starter-react",
+    "backend": "npm run backend --prefix Jarvis/agent-starter-react"
+  }
+}

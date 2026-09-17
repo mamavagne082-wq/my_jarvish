@@ -1,0 +1,25 @@
+{
+  "user_name": "ALAMIN",
+  "assistant_name": "Jarvis",
+  "llm": {
+    "provider": "google",
+    "model": "gemini-2.5-flash-native-audio-preview-12-2025"
+  },
+  "api_keys": {
+    "google": "AQ.Ab8RN6J5DqZWWMu_uYj3bqaIpPOupHTQPFrx8dhwCWcQ8Ikf6w",
+    "openai": "",
+    "anthropic": "",
+    "livekit_url": "wss://jarvis-7soqwrrk.livekit.cloud",
+    "livekit_key": "APIWrZXxCGKineM",
+    "livekit_secret": "nHMUQnthS64WCxhLwgLv9eei0kqFqBeF8W47FOZu3rGB",
+    "mem0": "",
+    "google_search": "",
+    "search_engine_id": "",
+    "openweather": ""
+  },
+  "specialized_roles": {
+    "vision": "google",
+    "coding_reasoning": "google",
+    "data_processing": "google"
+  }
+}
