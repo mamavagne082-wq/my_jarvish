@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "jarvis-workspace",
   "version": "1.0.0",
   "private": true,
@@ -6,5 +6,8 @@
     "dev": "npm run dev --prefix Jarvis/agent-starter-react",
     "next:dev": "npm run next:dev --prefix Jarvis/agent-starter-react",
     "backend": "npm run backend --prefix Jarvis/agent-starter-react"
+  },
+  "dependencies": {
+    "livekit-client": "^2.22.3"
   }
 }
