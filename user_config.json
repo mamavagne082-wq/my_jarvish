@@ -3,19 +3,20 @@
   "assistant_name": "Jarvis",
   "llm": {
     "provider": "google",
-    "model": "gemini-2.5-flash-native-audio-preview-12-2025"
+    "model": "gemini-3.8-live"
   },
   "api_keys": {
     "google": "AQ.Ab8RN6J5DqZWWMu_uYj3bqaIpPOupHTQPFrx8dhwCWcQ8Ikf6w",
-    "openai": "",
+    "openai": "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",
     "anthropic": "",
     "livekit_url": "wss://jarvis-7soqwrrk.livekit.cloud",
     "livekit_key": "APIWrZXxCGKineM",
     "livekit_secret": "nHMUQnthS64WCxhLwgLv9eei0kqFqBeF8W47FOZu3rGB",
     "mem0": "",
-    "google_search": "",
+    "google_search": "AQ.Ab8RN6J5DqZWWMu_uYj3bqaIpPOupHTQPFrx8dhwCWcQ8Ikf6w",
     "search_engine_id": "",
-    "openweather": ""
+    "openweather": "",
+    "openrouter": "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"
   },
   "specialized_roles": {
     "vision": "google",
