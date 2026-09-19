@@ -1,0 +1,11 @@
+<resources>
+    <color name="primary">#0B132B</color>
+    <color name="primary_dark">#080C1B</color>
+    <color name="accent">#48CAE4</color>
+    <color name="cyan_bright">#00B4D8</color>
+    <color name="bg_dark">#10141E</color>
+    <color name="card_bg">#1C2541</color>
+    <color name="text_white">#FFFFFF</color>
+    <color name="text_muted">#94A3B8</color>
+    <color name="success_green">#10B981</color>
+</resources>

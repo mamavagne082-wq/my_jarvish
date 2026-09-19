@@ -19,8 +19,15 @@
     "openrouter": "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"
   },
   "specialized_roles": {
-    "vision": "google",
+    "vision": "openai",
     "coding_reasoning": "google",
-    "data_processing": "google"
+    "fast_survey": "google",
+    "backup": "openrouter"
+  },
+  "model_routing": {
+    "screenshot_vision": "gpt-4o",
+    "coding_reasoning": "gemini-2.5-pro",
+    "fast_survey": "gemini-3.8-flash",
+    "backup": "openrouter/google/gemini-2.5-flash"
   }
 }

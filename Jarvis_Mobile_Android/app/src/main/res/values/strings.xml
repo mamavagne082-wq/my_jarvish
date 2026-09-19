@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Jarvis AI Assistant</string>
+    <string name="accessibility_service_description">Jarvis AI Assistant Accessibility Service allows voice-activated device locking, survey auto-clicks, and application automation.</string>
+    <string name="service_running_title">Jarvis AI Active</string>
+    <string name="service_running_desc">Listening for voice commands &amp; ready to assist...</string>
+    <string name="btn_start_service">Start Jarvis Service</string>
+    <string name="btn_stop_service">Stop Jarvis Service</string>
+    <string name="btn_grant_accessibility">Enable Accessibility Permission</string>
+    <string name="btn_ignore_battery">Allow 24/7 Background Run</string>
+    <string name="status_connected">Status: Connected to Jarvis Cloud</string>
+    <string name="status_disconnected">Status: Disconnected</string>
+</resources>

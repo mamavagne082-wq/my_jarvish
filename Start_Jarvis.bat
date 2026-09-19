@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 title Jarvis AI Assistant - Auto Screen Vision
 color 0B
 
@@ -35,8 +35,25 @@ echo.
 echo Waiting for servers to initialize...
 timeout /t 4 /nobreak >nul
 
-echo Opening Jarvis Interface in browser...
-start https://localhost:3000
+echo Opening Jarvis Interface in browser with Voice Auto-Connect...
+set BROWSER_CMD=
+if exist "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" (
+    set BROWSER_CMD="%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"
+) else if exist "%ProgramFiles%\Microsoft\Edge\Application\msedge.exe" (
+    set BROWSER_CMD="%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"
+) else if exist "%ProgramFiles%\Google\Chrome\Application\chrome.exe" (
+    set BROWSER_CMD="%ProgramFiles%\Google\Chrome\Application\chrome.exe"
+) else if exist "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe" (
+    set BROWSER_CMD="%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
+) else if exist "%LocalAppData%\Google\Chrome\Application\chrome.exe" (
+    set BROWSER_CMD="%LocalAppData%\Google\Chrome\Application\chrome.exe"
+)
+
+if defined BROWSER_CMD (
+    start "" %BROWSER_CMD% --app=http://localhost:3000?auto=true --autoplay-policy=no-user-gesture-required
+) else (
+    start http://localhost:3000?auto=true
+)
 
 echo.
 echo =======================================================
