@@ -1,17 +1,29 @@
 package com.jarvis.assistant
 
+import android.Manifest
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Path
-import android.graphics.Rect
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
+import android.provider.ContactsContract
+import android.telecom.TelecomManager
+import android.telephony.SubscriptionManager
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 class JarvisAccessibilityService : AccessibilityService() {
@@ -24,6 +36,8 @@ class JarvisAccessibilityService : AccessibilityService() {
         val isServiceRunning: Boolean
             get() = instance != null
     }
+
+    private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -44,6 +58,7 @@ class JarvisAccessibilityService : AccessibilityService() {
         if (instance == this) {
             instance = null
         }
+        serviceScope.cancel()
     }
 
     /**
@@ -64,11 +79,344 @@ class JarvisAccessibilityService : AccessibilityService() {
             "survey_auto", "survey_tap" -> {
                 performSurveyAutomation()
             }
+            "call_phone", "dial_number", "make_call" -> {
+                val target = payload.optString("target", "")
+                val simSlot = payload.optInt("sim_slot", 1)
+                val openDialpad = payload.optBoolean("open_dialpad", false)
+                makePhoneCall(target, simSlot, openDialpad)
+            }
+            "whatsapp_message", "send_whatsapp" -> {
+                val target = payload.optString("target", "")
+                val message = payload.optString("message", "")
+                sendWhatsAppMessage(target, message)
+            }
+            "messenger_message", "send_messenger" -> {
+                val target = payload.optString("target", "")
+                val message = payload.optString("message", "")
+                sendMessengerMessage(target, message)
+            }
             "volume_up" -> adjustVolume(increase = true)
             "volume_down" -> adjustVolume(increase = false)
             "home" -> performGlobalAction(GLOBAL_ACTION_HOME)
             "back" -> performGlobalAction(GLOBAL_ACTION_BACK)
             else -> Log.w(TAG, "Unknown mobile action: $action")
+        }
+    }
+
+    /**
+     * Searches device contacts by name and returns phone number if found.
+     */
+    fun searchContactNumber(name: String): String? {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "READ_CONTACTS permission not granted")
+            return null
+        }
+        val cleanName = name.trim()
+        if (cleanName.isEmpty()) return null
+
+        val uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
+        val projection = arrayOf(
+            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+            ContactsContract.CommonDataKinds.Phone.NUMBER
+        )
+
+        try {
+            contentResolver.query(
+                uri,
+                projection,
+                "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?",
+                arrayOf("%$cleanName%"),
+                null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val numberIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                    if (numberIndex >= 0) {
+                        val number = cursor.getString(numberIndex)
+                        Log.d(TAG, "Found contact: $cleanName -> $number")
+                        return number
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error searching contact: ${e.message}")
+        }
+        return null
+    }
+
+    /**
+     * Dials or initiates a phone call with SIM 1 (or designated slot).
+     */
+    fun makePhoneCall(target: String, simSlot: Int = 1, openDialpad: Boolean = false): Boolean {
+        var phoneNumber = target.trim()
+        // If target has no digits, search contacts by name
+        if (!phoneNumber.any { it.isDigit() }) {
+            val lookedUp = searchContactNumber(phoneNumber)
+            if (lookedUp != null) {
+                phoneNumber = lookedUp
+            }
+        }
+
+        val cleanNumber = phoneNumber.replace(Regex("[^0-9+]"), "")
+        if (cleanNumber.isEmpty()) {
+            Log.w(TAG, "Cannot make call: invalid phone number for '$target'")
+            return false
+        }
+
+        val slotIndex = if (simSlot <= 1) 0 else 1
+        val hasCallPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
+
+        val action = if (openDialpad || !hasCallPermission) Intent.ACTION_DIAL else Intent.ACTION_CALL
+        val intent = Intent(action, Uri.parse("tel:$cleanNumber")).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+
+            // Multi-vendor dual SIM extras for SIM 1 (Slot 0)
+            putExtra("com.android.phone.extra.slot", slotIndex)
+            putExtra("simSlot", slotIndex)
+            putExtra("slot", slotIndex)
+            putExtra("sim_slot", slotIndex)
+            putExtra("Cdma_Supp", slotIndex)
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                try {
+                    val subManager = getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as? SubscriptionManager
+                    val subInfo = subManager?.getActiveSubscriptionInfoForSimSlotIndex(slotIndex)
+                    if (subInfo != null) {
+                        putExtra("phone_subscription", subInfo.subscriptionId)
+                        putExtra("subscription", subInfo.subscriptionId)
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "SubscriptionManager lookup: ${e.message}")
+                }
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                try {
+                    val telecomManager = getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+                    val accounts = telecomManager?.callCapablePhoneAccounts
+                    if (!accounts.isNullOrEmpty() && accounts.size > slotIndex) {
+                        putExtra(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, accounts[slotIndex])
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "TelecomManager lookup: ${e.message}")
+                }
+            }
+        }
+
+        try {
+            startActivity(intent)
+            Log.d(TAG, "Initiated call to $cleanNumber (SIM $simSlot, action=$action)")
+
+            if (openDialpad || !hasCallPermission) {
+                serviceScope.launch {
+                    delay(1200)
+                    clickSimCallButton(simSlot)
+                }
+            }
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch call intent: ${e.message}")
+            return false
+        }
+    }
+
+    private fun clickSimCallButton(simSlot: Int): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val keywords = if (simSlot <= 1) {
+            listOf("SIM 1", "SIM1", "Sim 1", "Call", "ডায়াল", "কল", "Dial")
+        } else {
+            listOf("SIM 2", "SIM2", "Sim 2", "Call 2", "Dial 2")
+        }
+
+        for (kw in keywords) {
+            val nodes = root.findAccessibilityNodeInfosByText(kw)
+            for (node in nodes) {
+                if (node.isClickable) {
+                    node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    Log.d(TAG, "Clicked call button with text '$kw'")
+                    return true
+                } else if (node.parent?.isClickable == true) {
+                    node.parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    Log.d(TAG, "Clicked parent call button with text '$kw'")
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    /**
+     * Sends WhatsApp message to a phone number or contact name.
+     */
+    fun sendWhatsAppMessage(target: String, message: String) {
+        var phoneNumber = target.trim()
+        if (!phoneNumber.any { it.isDigit() }) {
+            val lookedUp = searchContactNumber(phoneNumber)
+            if (lookedUp != null) {
+                phoneNumber = lookedUp
+            }
+        }
+
+        val cleanNumber = phoneNumber.replace(Regex("[^0-9]"), "")
+        if (cleanNumber.isNotEmpty()) {
+            val phoneForWa = if (cleanNumber.startsWith("0")) "88$cleanNumber" else cleanNumber
+            try {
+                val uri = Uri.parse("https://api.whatsapp.com/send?phone=$phoneForWa&text=" + Uri.encode(message))
+                val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                    setPackage("com.whatsapp")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                startActivity(intent)
+                Log.d(TAG, "Opened WhatsApp chat for $phoneForWa with pre-filled message")
+
+                serviceScope.launch {
+                    delay(2200)
+                    clickWhatsAppSendButton()
+                }
+                return
+            } catch (e: Exception) {
+                Log.e(TAG, "Error opening WhatsApp with phone: ${e.message}")
+            }
+        }
+
+        // Fallback: Contact name search in WhatsApp app
+        openApplication("whatsapp")
+        serviceScope.launch {
+            delay(2000)
+            searchAndMessageWhatsApp(target, message)
+        }
+    }
+
+    private fun clickWhatsAppSendButton(): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val sendNodes = root.findAccessibilityNodeInfosByViewId("com.whatsapp:id/send")
+        if (!sendNodes.isNullOrEmpty() && sendNodes[0].isClickable) {
+            sendNodes[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            Log.d(TAG, "Auto-tapped WhatsApp send button via id")
+            return true
+        }
+
+        val descriptions = listOf("Send", "পাঠান", "সেন্ড")
+        for (desc in descriptions) {
+            val nodes = root.findAccessibilityNodeInfosByText(desc)
+            for (node in nodes) {
+                if (node.isClickable) {
+                    node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    Log.d(TAG, "Auto-tapped WhatsApp send button via text: $desc")
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    private fun searchAndMessageWhatsApp(contactName: String, message: String) {
+        val root = rootInActiveWindow ?: return
+        val searchNodes = root.findAccessibilityNodeInfosByViewId("com.whatsapp:id/menuitem_search")
+        if (!searchNodes.isNullOrEmpty()) {
+            searchNodes[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        } else {
+            val searchTexts = root.findAccessibilityNodeInfosByText("Search")
+            for (n in searchTexts) {
+                if (n.isClickable) { n.performAction(AccessibilityNodeInfo.ACTION_CLICK); break }
+            }
+        }
+
+        serviceScope.launch {
+            delay(1500)
+            val searchRoot = rootInActiveWindow ?: return@launch
+            val editTexts = searchRoot.findAccessibilityNodeInfosByViewId("com.whatsapp:id/search_src_text")
+            if (!editTexts.isNullOrEmpty()) {
+                val args = Bundle().apply {
+                    putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, contactName)
+                }
+                editTexts[0].performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            }
+
+            delay(1500)
+            val resultRoot = rootInActiveWindow ?: return@launch
+            val contactNodes = resultRoot.findAccessibilityNodeInfosByText(contactName)
+            for (node in contactNodes) {
+                if (node.isClickable) {
+                    node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    break
+                } else if (node.parent?.isClickable == true) {
+                    node.parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    break
+                }
+            }
+
+            delay(1500)
+            val chatRoot = rootInActiveWindow ?: return@launch
+            val entryNodes = chatRoot.findAccessibilityNodeInfosByViewId("com.whatsapp:id/entry")
+            if (!entryNodes.isNullOrEmpty()) {
+                val args = Bundle().apply {
+                    putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, message)
+                }
+                entryNodes[0].performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                delay(800)
+                clickWhatsAppSendButton()
+            }
+        }
+    }
+
+    /**
+     * Sends message via Facebook Messenger.
+     */
+    fun sendMessengerMessage(target: String, message: String) {
+        try {
+            val cleanTarget = target.trim()
+            val uri = Uri.parse("https://m.me/$cleanTarget")
+            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                setPackage("com.facebook.orca")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(intent)
+            Log.d(TAG, "Launched Messenger for target: $cleanTarget")
+
+            serviceScope.launch {
+                delay(2500)
+                autoSendMessengerText(message)
+            }
+        } catch (e: Exception) {
+            openApplication("messenger")
+            serviceScope.launch {
+                delay(2000)
+                autoSendMessengerText(message)
+            }
+        }
+    }
+
+    private fun autoSendMessengerText(message: String) {
+        val root = rootInActiveWindow ?: return
+        val inputNodes = mutableListOf<AccessibilityNodeInfo>()
+        findNodesByClassName(root, "EditText", inputNodes)
+        if (inputNodes.isNotEmpty()) {
+            val input = inputNodes.first()
+            val args = Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, message)
+            }
+            input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            serviceScope.launch {
+                delay(800)
+                val currentRoot = rootInActiveWindow ?: return@launch
+                val sendTexts = listOf("Send", "পাঠান", "সেন্ড")
+                for (kw in sendTexts) {
+                    val nodes = currentRoot.findAccessibilityNodeInfosByText(kw)
+                    for (n in nodes) {
+                        if (n.isClickable) { n.performAction(AccessibilityNodeInfo.ACTION_CLICK); return@launch }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun findNodesByClassName(node: AccessibilityNodeInfo?, targetClass: String, result: MutableList<AccessibilityNodeInfo>) {
+        if (node == null) return
+        if (node.className?.toString()?.contains(targetClass, ignoreCase = true) == true) {
+            result.add(node)
+        }
+        for (i in 0 until node.childCount) {
+            findNodesByClassName(node.getChild(i), targetClass, result)
         }
     }
 
@@ -99,7 +447,10 @@ class JarvisAccessibilityService : AccessibilityService() {
             "camera" to "com.android.camera",
             "settings" to "com.android.settings",
             "gallery" to "com.google.android.apps.photos",
-            "playstore" to "com.android.vending"
+            "playstore" to "com.android.vending",
+            "dialer" to "com.google.android.dialer",
+            "phone" to "com.google.android.dialer",
+            "contacts" to "com.google.android.contacts"
         )
 
         val targetPackage = packageMap[appName.lowercase().trim()] ?: appName
@@ -109,7 +460,6 @@ class JarvisAccessibilityService : AccessibilityService() {
             startActivity(launchIntent)
             Log.d(TAG, "Launched application: $targetPackage")
         } else {
-            // Fallback generic search intent
             try {
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$appName"))
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -133,7 +483,6 @@ class JarvisAccessibilityService : AccessibilityService() {
             startActivity(intent)
             Log.d(TAG, "YouTube search launched for: $query")
         } catch (e: Exception) {
-            // Fallback to web YouTube
             val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=$query")).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
@@ -149,7 +498,6 @@ class JarvisAccessibilityService : AccessibilityService() {
         val root = rootInActiveWindow ?: return false
         var clicked = false
 
-        // 1. Look for Next / Submit / Continue buttons first if an option is already selected
         val nextKeywords = listOf("Next", "Continue", "Submit", "নেক্সট", "পরবর্তী", "Proceed", "Done", "Start")
         for (keyword in nextKeywords) {
             val nodes = root.findAccessibilityNodeInfosByText(keyword)
@@ -163,7 +511,6 @@ class JarvisAccessibilityService : AccessibilityService() {
             }
         }
 
-        // 2. Look for RadioButtons or CheckBoxes to answer questions
         clicked = clickFirstInteractiveOption(root)
         return clicked
     }

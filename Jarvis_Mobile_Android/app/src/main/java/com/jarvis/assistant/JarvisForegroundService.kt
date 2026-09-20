@@ -1,16 +1,20 @@
 package com.jarvis.assistant
 
+import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import io.livekit.android.LiveKit
@@ -33,28 +37,63 @@ class JarvisForegroundService : Service() {
         const val ACTION_START = "com.jarvis.assistant.START"
         const val ACTION_STOP = "com.jarvis.assistant.STOP"
 
+        const val PREFS_NAME = "jarvis_mobile_prefs"
+        const val KEY_SERVICE_ENABLED = "service_enabled"
+
         var isRunning = false
             private set
+
+        fun setServiceEnabled(context: Context, enabled: Boolean) {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean(KEY_SERVICE_ENABLED, enabled)
+                .apply()
+        }
+
+        fun isServiceEnabled(context: Context): Boolean {
+            return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getBoolean(KEY_SERVICE_ENABLED, true)
+        }
     }
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private var wakeLock: PowerManager.WakeLock? = null
     private var liveKitRoom: Room? = null
+    private var explicitlyStopped = false
+
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val action = intent?.action ?: return
+            Log.d(TAG, "Screen broadcast event: $action")
+            if (isServiceEnabled(this@JarvisForegroundService)) {
+                acquireWakeLock()
+                if (liveKitRoom == null || liveKitRoom?.state != Room.State.CONNECTED) {
+                    Log.d(TAG, "Screen event ($action) detected disconnected LiveKit. Reconnecting...")
+                    connectToLiveKitRoom()
+                }
+            }
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         acquireWakeLock()
+        registerScreenStateReceiver()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action ?: ACTION_START
 
         if (action == ACTION_STOP) {
+            explicitlyStopped = true
+            setServiceEnabled(this, false)
             stopForegroundService()
             return START_NOT_STICKY
         }
 
+        explicitlyStopped = false
+        setServiceEnabled(this, true)
         startAsForeground()
         connectToLiveKitRoom()
 
@@ -64,12 +103,71 @@ class JarvisForegroundService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        if (isServiceEnabled(this)) {
+            Log.d(TAG, "Jarvis task removed from Recents. Auto-restarting background service immediately...")
+            val restartServiceIntent = Intent(applicationContext, JarvisForegroundService::class.java).apply {
+                this.action = ACTION_START
+            }
+            val pendingIntent = PendingIntent.getService(
+                applicationContext, 1002, restartServiceIntent,
+                PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+            alarmManager?.set(
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                SystemClock.elapsedRealtime() + 1000,
+                pendingIntent
+            )
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         isRunning = false
+        unregisterScreenStateReceiver()
         disconnectLiveKit()
         releaseWakeLock()
+
+        if (!explicitlyStopped && isServiceEnabled(this)) {
+            Log.w(TAG, "Jarvis killed unexpectedly by OS. Auto-resurrecting...")
+            val restartServiceIntent = Intent(applicationContext, JarvisForegroundService::class.java).apply {
+                this.action = ACTION_START
+            }
+            val pendingIntent = PendingIntent.getService(
+                applicationContext, 1003, restartServiceIntent,
+                PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+            alarmManager?.set(
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                SystemClock.elapsedRealtime() + 1500,
+                pendingIntent
+            )
+        }
         Log.d(TAG, "JarvisForegroundService destroyed")
+    }
+
+    private fun registerScreenStateReceiver() {
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_USER_PRESENT)
+        }
+        try {
+            registerReceiver(screenReceiver, filter)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error registering screenReceiver: ${e.message}")
+        }
+    }
+
+    private fun unregisterScreenStateReceiver() {
+        try {
+            unregisterReceiver(screenReceiver)
+        } catch (e: Exception) {
+            // ignore if not registered
+        }
     }
 
     private fun startAsForeground() {
@@ -137,6 +235,11 @@ class JarvisForegroundService : Service() {
     private fun connectToLiveKitRoom() {
         serviceScope.launch {
             try {
+                if (liveKitRoom != null && liveKitRoom?.state == Room.State.CONNECTED) {
+                    Log.d(TAG, "LiveKit room already connected.")
+                    return@launch
+                }
+
                 Log.d(TAG, "Connecting to LiveKit room: ${MobileConfig.LIVEKIT_URL}...")
                 
                 val room = LiveKit.create(applicationContext)
@@ -150,11 +253,25 @@ class JarvisForegroundService : Service() {
                                 Log.d(TAG, "Successfully connected to LiveKit Room!")
                                 // Automatically enable local microphone
                                 room.localParticipant.setMicrophoneEnabled(true)
+                                // Send platform identity to Jarvis Agent
+                                try {
+                                    val identifyPayload = JSONObject().apply {
+                                        put("type", "PLATFORM_IDENTIFY")
+                                        put("platform", "mobile")
+                                    }.toString().toByteArray(Charsets.UTF_8)
+                                    serviceScope.launch {
+                                        room.localParticipant.publishData(identifyPayload, true)
+                                    }
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "Failed to send platform identify: ${e.message}")
+                                }
                             }
                             is RoomEvent.Disconnected -> {
                                 Log.w(TAG, "Room disconnected. Attempting auto-reconnect in 3s...")
                                 delay(3000)
-                                if (isRunning) connectToLiveKitRoom()
+                                if (isRunning && isServiceEnabled(this@JarvisForegroundService)) {
+                                    connectToLiveKitRoom()
+                                }
                             }
                             is RoomEvent.DataReceived -> {
                                 handleIncomingDataPacket(event.data)
@@ -164,14 +281,15 @@ class JarvisForegroundService : Service() {
                     }
                 }
 
-                // In LiveKit Cloud, client connects with token or credentials
                 val token = generateOrFetchToken()
                 room.connect(MobileConfig.LIVEKIT_URL, token)
 
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to connect to LiveKit: ${e.message}", e)
                 delay(5000)
-                if (isRunning) connectToLiveKitRoom()
+                if (isRunning && isServiceEnabled(this@JarvisForegroundService)) {
+                    connectToLiveKitRoom()
+                }
             }
         }
     }
@@ -198,7 +316,6 @@ class JarvisForegroundService : Service() {
     }
 
     private fun generateOrFetchToken(): String {
-        // Token provided or generated by backend token service
         return "jarvis-mobile-client-token"
     }
 

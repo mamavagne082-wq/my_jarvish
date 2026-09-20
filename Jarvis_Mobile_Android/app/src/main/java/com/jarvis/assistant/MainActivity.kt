@@ -40,6 +40,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (JarvisForegroundService.isServiceEnabled(this) && !JarvisForegroundService.isRunning) {
+            startJarvisService()
+        }
         updateUIState()
     }
 
@@ -107,6 +110,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startJarvisService() {
+        JarvisForegroundService.setServiceEnabled(this, true)
         val serviceIntent = Intent(this, JarvisForegroundService::class.java).apply {
             action = JarvisForegroundService.ACTION_START
         }
@@ -119,6 +123,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun stopJarvisService() {
+        JarvisForegroundService.setServiceEnabled(this, false)
         val serviceIntent = Intent(this, JarvisForegroundService::class.java).apply {
             action = JarvisForegroundService.ACTION_STOP
         }
@@ -157,10 +162,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkAudioPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        val requiredPermissions = mutableListOf(
+            Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.CALL_PHONE,
+            Manifest.permission.READ_CONTACTS
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            requiredPermissions.add(Manifest.permission.READ_PHONE_STATE)
+        }
+
+        val missing = requiredPermissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+
+        if (missing.isNotEmpty()) {
             ActivityCompat.requestPermissions(
                 this,
-                arrayOf(Manifest.permission.RECORD_AUDIO),
+                missing.toTypedArray(),
                 REQUEST_RECORD_AUDIO
             )
         }
@@ -169,10 +187,11 @@ class MainActivity : AppCompatActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_RECORD_AUDIO) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Microphone permission granted!", Toast.LENGTH_SHORT).show()
+            val allGranted = grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+            if (allGranted) {
+                Toast.makeText(this, "সব পারমিশন সক্রিয় হয়েছে (মাইক, কল, কন্টাক্ট)!", Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(this, "Microphone permission is required for voice commands", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "কল দেওয়া ও ভয়েস শোনার জন্য পারমিশন প্রয়োজন।", Toast.LENGTH_LONG).show()
             }
         }
     }
