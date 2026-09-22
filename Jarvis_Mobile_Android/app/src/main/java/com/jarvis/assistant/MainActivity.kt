@@ -1,12 +1,16 @@
 package com.jarvis.assistant
 
 import android.Manifest
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Button
@@ -29,6 +33,33 @@ class MainActivity : AppCompatActivity() {
         private const val REQUEST_RECORD_AUDIO = 101
     }
 
+    // ── [NEW] Wake Word Receiver ─────────────────────────────────────────
+    // Receives broadcast from JarvisForegroundService when "Hey Jarvis" is heard.
+    // Brings this Activity to the foreground and auto-starts the Jarvis session.
+    private val wakeWordReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != JarvisForegroundService.ACTION_WAKE_WORD_DETECTED) return
+            val phrase = intent.getStringExtra("phrase") ?: "hey jarvis"
+            android.util.Log.i("MainActivity", "Wake word received: \"$phrase\" → bringing app to foreground.")
+
+            // Bring MainActivity to foreground
+            val bringToFront = Intent(applicationContext, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                         Intent.FLAG_ACTIVITY_NEW_TASK or
+                         Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                putExtra("from_wake_word", true)
+            }
+            startActivity(bringToFront)
+
+            // Show toast feedback
+            Toast.makeText(
+                applicationContext,
+                "🔊 Jarvis activated! (\"$phrase\" detected)",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -36,6 +67,20 @@ class MainActivity : AppCompatActivity() {
         initViews()
         setupListeners()
         checkAudioPermission()
+
+        // ── [NEW] Handle launch from wake word (intent extra) ────────────────
+        if (intent?.getBooleanExtra("from_wake_word", false) == true) {
+            handleWakeWordActivation()
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // ── [NEW] Also handle wake word when activity is already running ─────
+        if (intent.getBooleanExtra("from_wake_word", false)) {
+            handleWakeWordActivation()
+        }
     }
 
     override fun onResume() {
@@ -44,6 +89,20 @@ class MainActivity : AppCompatActivity() {
             startJarvisService()
         }
         updateUIState()
+
+        // ── [NEW] Register wake word receiver ──────────────────────────────
+        val filter = IntentFilter(JarvisForegroundService.ACTION_WAKE_WORD_DETECTED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(wakeWordReceiver, filter, RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(wakeWordReceiver, filter)
+        }
+    }
+
+    // ── [NEW] Unregister wake word receiver on pause ──────────────────────
+    override fun onPause() {
+        super.onPause()
+        try { unregisterReceiver(wakeWordReceiver) } catch (_: Exception) {}
     }
 
     private fun initViews() {
@@ -194,5 +253,19 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "কল দেওয়া ও ভয়েস শোনার জন্য পারমিশন প্রয়োজন।", Toast.LENGTH_LONG).show()
             }
         }
+    }
+
+    // ── [NEW] Wake word activation handler ────────────────────────────────
+    private fun handleWakeWordActivation() {
+        android.util.Log.i("MainActivity", "Handling wake word activation.")
+        // Ensure service is running
+        if (!JarvisForegroundService.isRunning) {
+            startJarvisService()
+        }
+        // Auto-start Jarvis session with a short delay to allow UI to settle
+        Handler(Looper.getMainLooper()).postDelayed({
+            Toast.makeText(this, "🎞️ Jarvis জাগ্রত! 'Hey Jarvis' শোনা গেছে...", Toast.LENGTH_SHORT).show()
+            updateUIState()
+        }, 300)
     }
 }

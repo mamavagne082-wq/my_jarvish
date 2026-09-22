@@ -85,15 +85,31 @@ class JarvisAccessibilityService : AccessibilityService() {
                 val openDialpad = payload.optBoolean("open_dialpad", false)
                 makePhoneCall(target, simSlot, openDialpad)
             }
+            "send_sms", "sms_message" -> {
+                val target = payload.optString("target", "")
+                val message = payload.optString("message", "")
+                val simSlot = payload.optInt("sim_slot", 1)
+                sendSmsMessage(target, message, simSlot)
+            }
             "whatsapp_message", "send_whatsapp" -> {
                 val target = payload.optString("target", "")
                 val message = payload.optString("message", "")
                 sendWhatsAppMessage(target, message)
             }
+            "whatsapp_call" -> {
+                val target = payload.optString("target", "")
+                val callType = payload.optString("call_type", "voice")
+                makeWhatsAppCall(target, callType)
+            }
             "messenger_message", "send_messenger" -> {
                 val target = payload.optString("target", "")
                 val message = payload.optString("message", "")
                 sendMessengerMessage(target, message)
+            }
+            "messenger_call" -> {
+                val target = payload.optString("target", "")
+                val callType = payload.optString("call_type", "voice")
+                makeMessengerCall(target, callType)
             }
             "volume_up" -> adjustVolume(increase = true)
             "volume_down" -> adjustVolume(increase = false)
@@ -408,6 +424,217 @@ class JarvisAccessibilityService : AccessibilityService() {
                 }
             }
         }
+    }
+
+    /**
+     * Sends an SMS message to a contact or phone number using the specified SIM card slot.
+     */
+    fun sendSmsMessage(target: String, message: String, simSlot: Int = 1) {
+        var phoneNumber = target.trim()
+        if (!phoneNumber.any { it.isDigit() }) {
+            val lookedUp = searchContactNumber(phoneNumber)
+            if (lookedUp != null) {
+                phoneNumber = lookedUp
+            }
+        }
+        val cleanNumber = phoneNumber.replace(Regex("[^0-9+]"), "")
+        if (cleanNumber.isEmpty()) {
+            Log.w(TAG, "Cannot send SMS: invalid phone number for '$target'")
+            return
+        }
+
+        val slotIndex = if (simSlot <= 1) 0 else 1
+        var sentDirectly = false
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED) {
+            try {
+                var smsManager: android.telephony.SmsManager? = null
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                    val subManager = getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as? SubscriptionManager
+                    val subInfo = subManager?.getActiveSubscriptionInfoForSimSlotIndex(slotIndex)
+                    if (subInfo != null) {
+                        smsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            getSystemService(android.telephony.SmsManager::class.java).createForSubscriptionId(subInfo.subscriptionId)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            android.telephony.SmsManager.getSmsManagerForSubscriptionId(subInfo.subscriptionId)
+                        }
+                    }
+                }
+                if (smsManager == null) {
+                    @Suppress("DEPRECATION")
+                    smsManager = android.telephony.SmsManager.getDefault()
+                }
+
+                val parts = smsManager.divideMessage(message)
+                if (parts.size > 1) {
+                    smsManager.sendMultipartTextMessage(cleanNumber, null, parts, null, null)
+                } else {
+                    smsManager.sendTextMessage(cleanNumber, null, message, null, null)
+                }
+                sentDirectly = true
+                Log.d(TAG, "SMS directly sent to $cleanNumber via SIM $simSlot: '$message'")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error sending SMS directly: ${e.message}")
+            }
+        }
+
+        // Fallback or visual feedback via SMS App intent
+        if (!sentDirectly) {
+            try {
+                val smsIntent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$cleanNumber")).apply {
+                    putExtra("sms_body", message)
+                    putExtra("simSlot", slotIndex)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                startActivity(smsIntent)
+                Log.d(TAG, "Opened SMS app for $cleanNumber with prefilled text")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to launch SMS intent: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Initiates a voice or video call on WhatsApp.
+     */
+    fun makeWhatsAppCall(target: String, callType: String = "voice") {
+        var phoneNumber = target.trim()
+        if (!phoneNumber.any { it.isDigit() }) {
+            val lookedUp = searchContactNumber(phoneNumber)
+            if (lookedUp != null) {
+                phoneNumber = lookedUp
+            }
+        }
+        val cleanNumber = phoneNumber.replace(Regex("[^0-9]"), "")
+        val isVideo = callType.lowercase().contains("video") || callType.contains("ভিডিও")
+
+        if (cleanNumber.isNotEmpty()) {
+            val phoneForWa = if (cleanNumber.startsWith("0")) "88$cleanNumber" else cleanNumber
+            try {
+                val uri = Uri.parse("https://api.whatsapp.com/send?phone=$phoneForWa")
+                val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                    setPackage("com.whatsapp")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                startActivity(intent)
+                Log.d(TAG, "Opened WhatsApp chat for call with $phoneForWa")
+
+                serviceScope.launch {
+                    delay(2500)
+                    clickWhatsAppCallButton(isVideo)
+                }
+                return
+            } catch (e: Exception) {
+                Log.e(TAG, "Error opening WhatsApp chat for call: ${e.message}")
+            }
+        }
+
+        // Fallback: search contact in WhatsApp and click call
+        openApplication("whatsapp")
+        serviceScope.launch {
+            delay(2000)
+            searchAndCallWhatsApp(target, isVideo)
+        }
+    }
+
+    private fun clickWhatsAppCallButton(isVideo: Boolean): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val buttonIds = if (isVideo) {
+            listOf("com.whatsapp:id/video_call", "com.whatsapp:id/menuitem_video_call")
+        } else {
+            listOf("com.whatsapp:id/voice_call", "com.whatsapp:id/menuitem_call")
+        }
+        for (bId in buttonIds) {
+            val nodes = root.findAccessibilityNodeInfosByViewId(bId)
+            if (!nodes.isNullOrEmpty() && nodes[0].isClickable) {
+                nodes[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                Log.d(TAG, "Clicked WhatsApp call button: $bId")
+                return true
+            }
+        }
+        val textKeywords = if (isVideo) listOf("Video call", "ভিডিও কল") else listOf("Voice call", "Call", "কল")
+        for (kw in textKeywords) {
+            val nodes = root.findAccessibilityNodeInfosByText(kw)
+            for (node in nodes) {
+                if (node.isClickable) {
+                    node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    private fun searchAndCallWhatsApp(contactName: String, isVideo: Boolean) {
+        val root = rootInActiveWindow ?: return
+        val searchNodes = root.findAccessibilityNodeInfosByViewId("com.whatsapp:id/menuitem_search")
+        if (!searchNodes.isNullOrEmpty()) {
+            searchNodes[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        }
+        serviceScope.launch {
+            delay(1500)
+            val searchRoot = rootInActiveWindow ?: return@launch
+            val editTexts = searchRoot.findAccessibilityNodeInfosByViewId("com.whatsapp:id/search_src_text")
+            if (!editTexts.isNullOrEmpty()) {
+                val args = Bundle().apply {
+                    putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, contactName)
+                }
+                editTexts[0].performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            }
+            delay(1500)
+            val resultRoot = rootInActiveWindow ?: return@launch
+            val contactNodes = resultRoot.findAccessibilityNodeInfosByText(contactName)
+            for (node in contactNodes) {
+                if (node.isClickable) { node.performAction(AccessibilityNodeInfo.ACTION_CLICK); break }
+                else if (node.parent?.isClickable == true) { node.parent.performAction(AccessibilityNodeInfo.ACTION_CLICK); break }
+            }
+            delay(1800)
+            clickWhatsAppCallButton(isVideo)
+        }
+    }
+
+    /**
+     * Initiates a voice or video call on Facebook Messenger.
+     */
+    fun makeMessengerCall(target: String, callType: String = "voice") {
+        val isVideo = callType.lowercase().contains("video") || callType.contains("ভিডিও")
+        try {
+            val cleanTarget = target.trim()
+            val uri = Uri.parse("https://m.me/$cleanTarget")
+            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                setPackage("com.facebook.orca")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(intent)
+            Log.d(TAG, "Launched Messenger for call target: $cleanTarget")
+
+            serviceScope.launch {
+                delay(2800)
+                clickMessengerCallButton(isVideo)
+            }
+        } catch (e: Exception) {
+            openApplication("messenger")
+            serviceScope.launch {
+                delay(2500)
+                clickMessengerCallButton(isVideo)
+            }
+        }
+    }
+
+    private fun clickMessengerCallButton(isVideo: Boolean): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val keywords = if (isVideo) listOf("Video Call", "Start Video Call", "ভিডিও কল") else listOf("Audio Call", "Start Call", "কল")
+        for (kw in keywords) {
+            val nodes = root.findAccessibilityNodeInfosByText(kw)
+            for (node in nodes) {
+                if (node.isClickable) {
+                    node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     private fun findNodesByClassName(node: AccessibilityNodeInfo?, targetClass: String, result: MutableList<AccessibilityNodeInfo>) {
