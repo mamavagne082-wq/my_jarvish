@@ -9,6 +9,12 @@ echo.
 
 cd /d "%~dp0"
 
+if not defined JAVA_HOME (
+    if exist "C:\Program Files\Java\jdk-27" (
+        set "JAVA_HOME=C:\Program Files\Java\jdk-27"
+    )
+)
+
 echo [1/3] Checking Java / JDK installation...
 java -version >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
