@@ -145,8 +145,8 @@ class MainActivity : AppCompatActivity() {
             btnToggleService.text = getString(R.string.btn_start_service)
         }
 
-        val isAccessibilityEnabled = JarvisAccessibilityService.isServiceRunning
-        if (isAccessibilityEnabled) {
+        val isAccessibilityReady = isAccessibilityEnabled()
+        if (isAccessibilityReady) {
             tvAccessibilityStatus.text = "Accessibility: Enabled (Screen & Lock Control Ready)"
             tvAccessibilityStatus.setTextColor(ContextCompat.getColor(this, R.color.success_green))
             btnAccessibility.isEnabled = false
@@ -196,6 +196,28 @@ class MainActivity : AppCompatActivity() {
         }
         startActivity(intent)
         Toast.makeText(this, "Enable 'Jarvis AI Assistant' in the Accessibility list", Toast.LENGTH_LONG).show()
+    }
+
+    private fun isAccessibilityEnabled(): Boolean {
+        if (JarvisAccessibilityService.isServiceRunning) return true
+        try {
+            val accessibilityEnabled = Settings.Secure.getInt(
+                contentResolver,
+                Settings.Secure.ACCESSIBILITY_ENABLED, 0
+            )
+            if (accessibilityEnabled == 1) {
+                val serviceString = Settings.Secure.getString(
+                    contentResolver,
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+                ) ?: ""
+                val expectedService = "$packageName/${JarvisAccessibilityService::class.java.canonicalName}"
+                val shortExpected = "$packageName/.JarvisAccessibilityService"
+                if (serviceString.contains(expectedService) || serviceString.contains(shortExpected) || serviceString.contains("JarvisAccessibilityService")) {
+                    return true
+                }
+            }
+        } catch (_: Exception) {}
+        return false
     }
 
     private fun isBatteryOptimizationIgnored(): Boolean {
