@@ -111,8 +111,32 @@ class JarvisAccessibilityService : AccessibilityService() {
                 val callType = payload.optString("call_type", "voice")
                 makeMessengerCall(target, callType)
             }
+            "instagram_message", "send_instagram" -> {
+                val target = payload.optString("target", "")
+                val message = payload.optString("message", "")
+                sendInstagramMessage(target, message)
+            }
+            "twitter_message", "send_twitter" -> {
+                val target = payload.optString("target", "")
+                val message = payload.optString("message", "")
+                sendTwitterMessage(target, message)
+            }
             "volume_up" -> adjustVolume(increase = true)
             "volume_down" -> adjustVolume(increase = false)
+            "scroll", "swipe" -> {
+                val direction = payload.optString("direction", "down")
+                performScroll(direction)
+            }
+            "open_settings" -> {
+                val settingType = payload.optString("setting_type", "general")
+                openDeviceSettings(settingType)
+            }
+            "click_element", "tap_element" -> {
+                val target = payload.optString("target", "")
+                clickElementByText(target)
+            }
+            "answer_call" -> answerIncomingCall()
+            "end_call" -> endActiveCall()
             "home" -> performGlobalAction(GLOBAL_ACTION_HOME)
             "back" -> performGlobalAction(GLOBAL_ACTION_BACK)
             else -> Log.w(TAG, "Unknown mobile action: $action")
@@ -264,7 +288,43 @@ class JarvisAccessibilityService : AccessibilityService() {
      * Sends WhatsApp message to a phone number or contact name.
      */
     fun sendWhatsAppMessage(target: String, message: String) {
-        var phoneNumber = target.trim()
+        val cleanTarget = target.trim()
+        val isCurrent = cleanTarget.isEmpty() || cleanTarget.equals("current", true) ||
+                        cleanTarget.contains("ওপেন") || cleanTarget.contains("বর্তমান")
+        if (isCurrent) {
+            serviceScope.launch {
+                autoSendWhatsAppText(message)
+            }
+            return
+        }
+
+        val isIndex = cleanTarget.contains("প্রথম") || cleanTarget.contains("১ম") || cleanTarget.contains("1st") ||
+                      cleanTarget.contains("দ্বিতীয়") || cleanTarget.contains("২য়") || cleanTarget.contains("2nd") ||
+                      cleanTarget.contains("তৃতীয়") || cleanTarget.contains("৩য়") || cleanTarget.contains("3rd") ||
+                      cleanTarget.contains("...") || cleanTarget.contains("ডট")
+
+        if (isIndex) {
+            openApplication("whatsapp")
+            serviceScope.launch {
+                delay(2000)
+                val root = rootInActiveWindow
+                if (root != null) {
+                    val listItems = mutableListOf<AccessibilityNodeInfo>()
+                    findClickableNodes(root, listItems)
+                    val idx = if (cleanTarget.contains("দ্বিতীয়") || cleanTarget.contains("২য়") || cleanTarget.contains("2nd")) 1
+                              else if (cleanTarget.contains("তৃতীয়") || cleanTarget.contains("৩য়") || cleanTarget.contains("3rd")) 2
+                              else 0
+                    if (listItems.size > idx) {
+                        listItems[idx].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    }
+                }
+                delay(1200)
+                autoSendWhatsAppText(message)
+            }
+            return
+        }
+
+        var phoneNumber = cleanTarget
         if (!phoneNumber.any { it.isDigit() }) {
             val lookedUp = searchContactNumber(phoneNumber)
             if (lookedUp != null) {
@@ -299,6 +359,34 @@ class JarvisAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             delay(2000)
             searchAndMessageWhatsApp(target, message)
+        }
+    }
+
+    private fun autoSendWhatsAppText(message: String) {
+        val root = rootInActiveWindow ?: return
+        val entryNodes = root.findAccessibilityNodeInfosByViewId("com.whatsapp:id/entry")
+        if (!entryNodes.isNullOrEmpty()) {
+            val args = Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, message)
+            }
+            entryNodes[0].performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            serviceScope.launch {
+                delay(800)
+                clickWhatsAppSendButton()
+            }
+        } else {
+            val inputNodes = mutableListOf<AccessibilityNodeInfo>()
+            findNodesByClassName(root, "EditText", inputNodes)
+            if (inputNodes.isNotEmpty()) {
+                val args = Bundle().apply {
+                    putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, message)
+                }
+                inputNodes[0].performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                serviceScope.launch {
+                    delay(800)
+                    clickWhatsAppSendButton()
+                }
+            }
         }
     }
 
@@ -381,6 +469,51 @@ class JarvisAccessibilityService : AccessibilityService() {
     fun sendMessengerMessage(target: String, message: String) {
         try {
             val cleanTarget = target.trim()
+            val isCurrent = cleanTarget.isEmpty() || cleanTarget.equals("current", true) ||
+                            cleanTarget.contains("ওপেন") || cleanTarget.contains("বর্তমান")
+            if (isCurrent) {
+                serviceScope.launch {
+                    autoSendMessengerText(message)
+                }
+                return
+            }
+
+            val isIndex = cleanTarget.contains("প্রথম") || cleanTarget.contains("১ম") || cleanTarget.contains("1st") ||
+                          cleanTarget.contains("দ্বিতীয়") || cleanTarget.contains("২য়") || cleanTarget.contains("2nd") ||
+                          cleanTarget.contains("তৃতীয়") || cleanTarget.contains("৩য়") || cleanTarget.contains("3rd") ||
+                          cleanTarget.contains("...") || cleanTarget.contains("ডট")
+
+            if (isIndex || cleanTarget.any { it > '\u007F' }) {
+                openApplication("messenger")
+                serviceScope.launch {
+                    delay(2000)
+                    val root = rootInActiveWindow
+                    if (root != null) {
+                        if (cleanTarget.contains("দ্বিতীয়") || cleanTarget.contains("২য়") || cleanTarget.contains("2nd")) {
+                            val listItems = mutableListOf<AccessibilityNodeInfo>()
+                            findClickableNodes(root, listItems)
+                            if (listItems.size >= 2) listItems[1].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        } else if (cleanTarget.contains("তৃতীয়") || cleanTarget.contains("৩য়") || cleanTarget.contains("3rd")) {
+                            val listItems = mutableListOf<AccessibilityNodeInfo>()
+                            findClickableNodes(root, listItems)
+                            if (listItems.size >= 3) listItems[2].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        } else {
+                            val nodes = root.findAccessibilityNodeInfosByText(cleanTarget)
+                            if (nodes.isNotEmpty()) {
+                                nodes.first().performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                            } else {
+                                val listItems = mutableListOf<AccessibilityNodeInfo>()
+                                findClickableNodes(root, listItems)
+                                if (listItems.isNotEmpty()) listItems[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                            }
+                        }
+                    }
+                    delay(1200)
+                    autoSendMessengerText(message)
+                }
+                return
+            }
+
             val uri = Uri.parse("https://m.me/$cleanTarget")
             val intent = Intent(Intent.ACTION_VIEW, uri).apply {
                 setPackage("com.facebook.orca")
@@ -422,6 +555,236 @@ class JarvisAccessibilityService : AccessibilityService() {
                         if (n.isClickable) { n.performAction(AccessibilityNodeInfo.ACTION_CLICK); return@launch }
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Sends an Instagram Direct Message (DM) on mobile.
+     */
+    fun sendInstagramMessage(target: String, message: String) {
+        val cleanTarget = target.trim()
+        val isCurrent = cleanTarget.isEmpty() || cleanTarget.equals("current", true) ||
+                        cleanTarget.contains("ওপেন") || cleanTarget.contains("বর্তমান")
+        if (isCurrent) {
+            serviceScope.launch { autoSendMessengerText(message) }
+            return
+        }
+
+        try {
+            val uri = if (cleanTarget.isNotEmpty() && !cleanTarget.contains("প্রথম") && !cleanTarget.contains("১ম")) {
+                Uri.parse("https://instagram.com/_u/${cleanTarget.removePrefix("@")}")
+            } else {
+                Uri.parse("instagram://direct")
+            }
+            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                setPackage("com.instagram.android")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(intent)
+            serviceScope.launch {
+                delay(2500)
+                autoSendMessengerText(message)
+            }
+        } catch (e: Exception) {
+            openApplication("instagram")
+            serviceScope.launch {
+                delay(2000)
+                autoSendMessengerText(message)
+            }
+        }
+    }
+
+    /**
+     * Sends a Direct Message (DM) on X / Twitter on mobile.
+     */
+    fun sendTwitterMessage(target: String, message: String) {
+        try {
+            openApplication("twitter")
+            serviceScope.launch {
+                delay(2500)
+                autoSendMessengerText(message)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error launching Twitter on mobile: ${e.message}")
+        }
+    }
+
+    /**
+     * Performs hands-free scrolling or swiping on mobile.
+     */
+    fun performScroll(direction: String) {
+        val clean = direction.lowercase().trim()
+        val root = rootInActiveWindow
+        if (root != null) {
+            val scrollNodes = mutableListOf<AccessibilityNodeInfo>()
+            findScrollableNodes(root, scrollNodes)
+            if (scrollNodes.isNotEmpty()) {
+                val targetNode = scrollNodes.first()
+                if (clean == "up") {
+                    targetNode.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
+                    return
+                } else {
+                    targetNode.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                    return
+                }
+            }
+        }
+
+        // Gesture-based swipe fallback (Android 7.0+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val displayMetrics = resources.displayMetrics
+            val width = displayMetrics.widthPixels.toFloat()
+            val height = displayMetrics.heightPixels.toFloat()
+            val path = Path()
+
+            when (clean) {
+                "up" -> { // scroll up -> swipe down
+                    path.moveTo(width / 2f, height * 0.3f)
+                    path.lineTo(width / 2f, height * 0.8f)
+                }
+                "left" -> { // swipe left
+                    path.moveTo(width * 0.8f, height / 2f)
+                    path.lineTo(width * 0.2f, height / 2f)
+                }
+                "right" -> { // swipe right
+                    path.moveTo(width * 0.2f, height / 2f)
+                    path.lineTo(width * 0.8f, height / 2f)
+                }
+                else -> { // scroll down -> swipe up
+                    path.moveTo(width / 2f, height * 0.8f)
+                    path.lineTo(width / 2f, height * 0.3f)
+                }
+            }
+
+            val gesture = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0, 350))
+                .build()
+            dispatchGesture(gesture, null, null)
+            Log.d(TAG, "Dispatched scroll gesture: $clean")
+        }
+    }
+
+    private fun findScrollableNodes(node: AccessibilityNodeInfo, results: MutableList<AccessibilityNodeInfo>) {
+        if (node.isScrollable) {
+            results.add(node)
+        }
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            findScrollableNodes(child, results)
+        }
+    }
+
+    /**
+     * Opens Android Settings or System Update purely by voice.
+     */
+    fun openDeviceSettings(type: String) {
+        val clean = type.lowercase().trim()
+        val intent = when {
+            clean.contains("update") || clean.contains("আপডেট") -> {
+                Intent("android.settings.SYSTEM_UPDATE_SETTINGS")
+            }
+            clean.contains("security") || clean.contains("সিকিউরিটি") -> {
+                Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS)
+            }
+            clean.contains("accessibility") || clean.contains("সহজ ব্যবহার") || clean.contains("প্রতিবন্ধী") -> {
+                Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            }
+            clean.contains("app") || clean.contains("অ্যাপস") -> {
+                Intent(android.provider.Settings.ACTION_APPLICATION_SETTINGS)
+            }
+            clean.contains("wifi") || clean.contains("নেটওয়ার্ক") -> {
+                Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)
+            }
+            clean.contains("bluetooth") || clean.contains("ব্লুটুথ") -> {
+                Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
+            }
+            else -> Intent(android.provider.Settings.ACTION_SETTINGS)
+        }
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        try {
+            startActivity(intent)
+            Log.d(TAG, "Opened device settings: $clean")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error opening settings $clean: ${e.message}")
+            try {
+                val fallback = Intent(android.provider.Settings.ACTION_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                startActivity(fallback)
+            } catch (ex: Exception) {
+                Log.e(TAG, "Fallback settings failed: ${ex.message}")
+            }
+        }
+    }
+
+    /**
+     * Clicks an element by visible text on mobile screen.
+     */
+    fun clickElementByText(text: String) {
+        val root = rootInActiveWindow ?: return
+        val nodes = root.findAccessibilityNodeInfosByText(text)
+        for (node in nodes) {
+            if (node.isClickable) {
+                node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                Log.d(TAG, "Clicked element by text: $text")
+                return
+            } else if (node.parent?.isClickable == true) {
+                node.parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                Log.d(TAG, "Clicked parent of element: $text")
+                return
+            }
+        }
+    }
+
+    /**
+     * Answers incoming calls on mobile hands-free.
+     */
+    fun answerIncomingCall() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val tm = getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED) {
+                try {
+                    tm?.acceptRingingCall()
+                    Log.d(TAG, "TelecomManager accepted ringing call")
+                    return
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error accepting call via TelecomManager: ${e.message}")
+                }
+            }
+        }
+        val root = rootInActiveWindow ?: return
+        val answerTexts = listOf("Answer", "Accept", "রিসিভ", "উত্তর দিন", "Receive")
+        for (kw in answerTexts) {
+            val nodes = root.findAccessibilityNodeInfosByText(kw)
+            for (n in nodes) {
+                if (n.isClickable) { n.performAction(AccessibilityNodeInfo.ACTION_CLICK); return }
+            }
+        }
+    }
+
+    /**
+     * Ends active calls on mobile hands-free.
+     */
+    fun endActiveCall() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val tm = getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED) {
+                try {
+                    tm?.endCall()
+                    Log.d(TAG, "TelecomManager ended active call")
+                    return
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error ending call via TelecomManager: ${e.message}")
+                }
+            }
+        }
+        val root = rootInActiveWindow ?: return
+        val endTexts = listOf("End", "Decline", "Reject", "কেটে দিন", "বাতিল", "Hang up")
+        for (kw in endTexts) {
+            val nodes = root.findAccessibilityNodeInfosByText(kw)
+            for (n in nodes) {
+                if (n.isClickable) { n.performAction(AccessibilityNodeInfo.ACTION_CLICK); return }
             }
         }
     }
@@ -644,6 +1007,16 @@ class JarvisAccessibilityService : AccessibilityService() {
         }
         for (i in 0 until node.childCount) {
             findNodesByClassName(node.getChild(i), targetClass, result)
+        }
+    }
+
+    private fun findClickableNodes(node: AccessibilityNodeInfo?, result: MutableList<AccessibilityNodeInfo>) {
+        if (node == null) return
+        if (node.isClickable) {
+            result.add(node)
+        }
+        for (i in 0 until node.childCount) {
+            findClickableNodes(node.getChild(i), result)
         }
     }
 
