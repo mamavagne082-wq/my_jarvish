@@ -1,0 +1,336 @@
+{
+  "personal": {
+    "first_name": "Al Amin",
+    "last_name": "Miah",
+    "gender": "Male (Heterosexual / straight)",
+    "age": 50,
+    "age_detail": "50 years old",
+    "birth_year": 1976,
+    "birth_date": "1976-03-08",
+    "street": "123 W 31st St",
+    "city": "New York",
+    "state_region": "New York / NY",
+    "zip_postal_code": "10001",
+    "phone": "959-582-8149",
+    "email": "alaminmiah1976@gmail.com",
+    "marital_status": "Married",
+    "wife_age": 40,
+    "children_count_under_18": 2,
+    "children_details": [
+      {"gender": "Boy", "age": 13},
+      {"gender": "Girl", "age": 12}
+    ],
+    "race_ethnicity": "White",
+    "hispanic_latino": "No Hispanic / Not Hispanic",
+    "education": "Master's or Professional Degree / graduate / post-graduate (or Bachelor Degree)",
+    "registered_voter": "Yes",
+    "politics": "Republican / strong Republican",
+    "religion": "Christian / Protestant / Roman Catholic",
+    "language_spoken_at_home": "English all the time"
+  },
+  "employment_and_industry": {
+    "employment_status": "Employed full-time (35/40+ hours)",
+    "primary_role_at_work": "Information technology, computer software",
+    "job_title": "Information technology, computer software (Manager / Director)",
+    "professional_position": "Manager / Director / Senior Management / Chief Technology Officer",
+    "department": "Information technology, computer software",
+    "primary_industry": "Information technology, computer software",
+    "it_role_function": "Computer software",
+    "spending_purchasing_authority": [
+      "Marketing",
+      "Sales",
+      "Advertising",
+      "Financial services",
+      "IT hardware",
+      "IT software"
+    ],
+    "organization_annual_revenue": "50-99 million ($50M - $99M)",
+    "organization_employee_count": "2500-5000",
+    "household_industries": "Information technology, computer software",
+    "industry_exclusions": "I don't work in construction, education, or healthcare",
+    "job_related_activities_past_year": [
+      "Asked for/provided career advice",
+      "Used an online social network to advance your career"
+    ],
+    "covid_employment_impact": "No, my employment has not been affected by those policies."
+  },
+  "household_and_finances": {
+    "household_type": "Own house / single family house",
+    "household_size": 4,
+    "annual_household_income_before_taxes": "$125,000 - $149,999 (125000-149999)",
+    "household_investable_assets": "$500,000 - $999,999",
+    "credit_score_fico": "750-800",
+    "mortgage_obtained": "3 to 6 months ago",
+    "financial_products_owned": [
+      "Personal loan",
+      "Mortgage",
+      "Credit Card",
+      "Checking account",
+      "Savings account"
+    ],
+    "lending_products_past_24_months": [
+      "Personal Loan",
+      "Home Equity loan",
+      "Student Loan"
+    ],
+    "banking_relationships": [
+      "Bank of America",
+      "American Express"
+    ],
+    "credit_cards_used": [
+      "American Express",
+      "Discover",
+      "Master Card",
+      "Visa"
+    ],
+    "credit_cards_used_mostly": "American Express",
+    "decision_responsibilities": [
+      "Internet",
+      "Television",
+      "Banking",
+      "Automobile",
+      "Finance",
+      "Mortgage"
+    ]
+  },
+  "automotive": {
+    "drives_regularly": "Yes, I have a car",
+    "driver_license": "Yes",
+    "primary_decision_maker": "Yes",
+    "car_brands_owned_or_leased": ["Audi", "Nissan"],
+    "car_model": "Audi A 8 Sedan",
+    "vehicle_description": "Full Size, Mid-Size",
+    "year_purchased_or_leased": 2023,
+    "year_manufactured": 2022,
+    "purchased_condition": "New",
+    "own_motorcycle": "Yes",
+    "next_car_purchase_estimate": "Two years from now / within 3-6 months"
+  },
+  "health_and_medical": {
+    "smoking": "Yes, I smoke",
+    "cigarettes_per_day": "4 to 7 cigarettes",
+    "quit_smoking_methods_tried": ["Cold Turkey", "Veep"],
+    "diagnosed_conditions": [
+      "Allergies (not associated with Hay Fever)",
+      "Back Pain",
+      "Dental Problem",
+      "Depression",
+      "Diabetes (type 1)",
+      "Smoking Addiction"
+    ],
+    "diabetes_type": "Diabetes 1 (Type 1)",
+    "cancer": "I don't have cancer",
+    "glasses_or_contact_lenses": "Yes",
+    "hearing_aid": "No",
+    "health_insurance": "Self-insured",
+    "healthcare_activity_last_3_months": "Video call phone call or text with a doctor",
+    "exercise_hours_weekly": "05 to 07 hours"
+  },
+  "technology_and_telecom": {
+    "uses_smartphone": "Yes",
+    "primary_smartphone_type": "Samsung",
+    "mobile_carrier_primary": "Verizon Wireless / AT&T",
+    "mobile_phone_plan": "Pre-paid",
+    "home_internet_service_provider": "Verizon",
+    "home_internet_connection_type": "Satellite, Wireless",
+    "tv_provider_primary": "AT&T U-verse / Cable (Xfinity)",
+    "how_often_online": "Several times a day",
+    "early_adopter_of_technology": "Yes",
+    "webcam_available": "Yes, I have a webcam.",
+    "devices_owned_and_used": [
+      "Desktop Pc",
+      "Apple Tv",
+      "Smart Phone (iPhone, Android)",
+      "Tablet (iPad)",
+      "Speaker",
+      "PC/Mac laptop or portable",
+      "Blu-ray/DVD player",
+      "Portable game console (e.g. Sony PSP GO)",
+      "Digital Camera",
+      "Cable TV/Satellite TV",
+      "Printer",
+      "3D TV",
+      "Home Internet",
+      "Digital Media"
+    ],
+    "subscriptions_owned": [
+      "Connected Device for the TV Set (Chromecast)",
+      "Premium channels Through your paid TV Service (HBO)",
+      "Tablet computer (iPad)",
+      "Smart phone (iPhone, Android)",
+      "Video Streaming (Netflix)",
+      "Video Games",
+      "Paid music (Spotify, Apple Music)",
+      "Smart home system (Google Home, Alexa)",
+      "Cable (Xfinity)"
+    ],
+    "social_media_platforms_active": [
+      "Facebook",
+      "Social Media",
+      "Pinterest",
+      "Instagram",
+      "YouTube",
+      "Snap Chat",
+      "WhatsApp"
+    ],
+    "social_media_access_frequency": "Several times a day"
+  },
+  "shopping_and_lifestyle": {
+    "daily_purchasing_decision_maker": "Yes / Sole decision maker",
+    "grocery_purchases_decision_maker": "Yes",
+    "electronic_purchases_decision_maker": "Yes",
+    "travel_decision_maker": "I am the sole decision-maker in airline and travel choices",
+    "main_grocery_shopping": ["Walmart", "Target", "Aldi", "Costco"],
+    "discount_outlet_chains_past_12_months": ["Walmart", "Target", "Aldi"],
+    "online_retailers_past_30_days": ["Amazon", "Best Buy", "eBay", "Target.com", "Walmart.com"],
+    "jeans_brands_past_6_months": ["Levi's", "Old Navy", "American Eagle"],
+    "services_utilized_regularly": ["Lyft", "Grub hub", "Airbnb", "UberEATS", "Uber", "Door Dash"],
+    "insurance_products_shopped_past_12_months": ["Health insurance", "Homeowners insurance"],
+    "fast_food_frequency": "1 to 3 times in any given week",
+    "fast_casual_restaurants_visited_quarterly": [
+      "Boston Market", "Chipotle Mexican Grill", "Five Guys Burgers & Fries",
+      "Firebirds", "Friendly's", "Jerry's Subs & Pizza", "Jason's Deli",
+      "Panda express", "Skyline Chili", "Smashburger", "WinG stop", "Baxby's", "Tim Horton's"
+    ],
+    "fast_food_restaurants_visited_ever": [
+      "A&W Restaurants", "Arby's", "Burger King", "Charley's Grilled Subs",
+      "Hungry Jacks", "KFC", "McDonald's", "Panda express", "Pizza Hut",
+      "Subway", "Taco Bell", "Wendy's"
+    ],
+    "beverages_consumed_past_4_weeks": [
+      "Beer", "Wine", "Energy drinks", "Coffee", "Tea",
+      "Carbonated soft drinks", "Fruit drinks/Juices", "Bottled Water", "Pre-mixed packaged spirits"
+    ],
+    "alcoholic_drinks_per_week": "1 to 2",
+    "beverages_regularly_consumed": [
+      "Coffee", "Energy Drinks", "Imported beer", "Red Wine", "White Wine",
+      "Champagne", "Vodka", "Flavoured liquor"
+    ]
+  },
+  "entertainment_and_travel": {
+    "hobbies_and_interests": [
+      "Cooking", "Fishing", "Playing music", "Playing video/computer games",
+      "Travel", "Watch Sports on TV", "Swimming", "Hunting", "Motorcycling", "Biking"
+    ],
+    "movie_theatre_frequency": "Four or more times per month",
+    "kinds_of_movies_watched": [
+      "Action", "Animated", "Children's films", "Comedy", "Drama",
+      "Horror", "Musicals", "Mystery", "Science Fiction", "Thriller"
+    ],
+    "rent_download_movies_home": "Three times per month",
+    "tv_shows_currently_watched": [
+      "The Dr Oz Show", "Crossing Swords (On Hulu)", "Cobra Kai",
+      "The Chi (Season 3 on Showtime)", "The Boys (Prime Video)",
+      "Coyote (Season 1)", "S.W.A.T", "The Crown on Netflix"
+    ],
+    "publications_read": [
+      "Computers & Electronics magazines", "Cooking & food magazines",
+      "Entertainments", "Fashion", "Health & Fitness", "Music", "Science", "Technology", "Travel"
+    ],
+    "magazines_read_every_1_2_months": [
+      "Time", "Vogue", "Men's health", "Food & wine",
+      "ESPN the Magazine", "Entertainment weekly", "Allure", "Bloomberg BusinessWeek"
+    ],
+    "podcasts_genres": [
+      "Society & Culture", "Music", "Educations", "Government & Organizations",
+      "TV & Film", "Health", "Science & Medicine", "Technology", "Sports & recreation", "Kids & Family"
+    ],
+    "podcasts_frequency": "Every day or most days",
+    "radio_hours_per_week": "6 to 7",
+    "sports_regularly_participated": ["Cricket", "Basketball"],
+    "video_games_hours_per_week": "7 to 13 / or more hours",
+    "devices_to_play_games": ["Played offline video games on Mobile", "Gaming console"],
+    "how_play_games": "With others in the same room, with others through an internet connection",
+    "kinds_of_video_games": [
+      "1st Person Shooter/Action Call of Duty", "3rd Person Adventure",
+      "Point & Click Adventure", "Sports/FIFA", "Role playing Game",
+      "Massively Multiplayer online/Warcraft", "Fighting/Street Fighter", "Party Games/Casual Facebook Games"
+    ],
+    "gaming_platforms_regularly_used": ["Netflix", "Amazon", "Hulu Etc"],
+    "computer_video_games_purchased_monthly": "1",
+    "dvds_blurays_purchased_monthly": "4 to 6",
+    "hours_of_tv_watched_weekly": "More than 10 hours",
+    "vacation_holidays_usually": ["Visiting Friends & Family", "Boating/Fishing"],
+    "activities_in_past_month": ["Rented a car", "Stayed in a hotel"],
+    "accommodation_past_year": "4-star Hotel, 5-star hotel",
+    "hotel_chains_stayed_last_12m": ["4-star Hotel", "5-star hotel"],
+    "purposes_travel_by_plane": "Both, Leisure and Business",
+    "types_of_flights": "Both domestic and international",
+    "flights_booked_online_past_year": "7 to 9",
+    "fly_for_business_frequency": "Once every 2-4 months",
+    "domestic_airlines_flown_last_12m": ["United Airlines", "Delta Air Lines", "Jet Blue", "Virgin Atlantic"],
+    "international_airlines_flown_last_12m": ["Singapore Airlines", "EgyptAir", "Emirates", "Air Canada"],
+    "countries_regions_travelled_last_12m": ["Australia", "Japan", "North America"]
+  },
+  "screener_and_fraud_rules": [
+    "NEVER select Market Research, Advertising, Public Relations, or Journalism when asked what industry you or family work in. Always select 'None of the above'.",
+    "Have you participated in a market research study within the past 2 weeks: Always 'No'.",
+    "Have you done online research in last week / last month: Always 'No'.",
+    "Are you or your partner expecting a baby: Always 'No'.",
+    "Do you have cancer: Always 'I don't have cancer'.",
+    "Attention Check Questions: Read carefully. If asked to 'select option 3' or 'choose strongly agree to show you are reading', ALWAYS follow that instruction."
+  ],
+  "exact_survey_qa_lookup": {
+    "What is your age?": "50",
+    "What is your birth in year?": "1976",
+    "What is your date of birth?": "March 8, 1976",
+    "What is your gender?": "Male (Heterosexual / straight)",
+    "What is your current marital status?": "Married",
+    "How many children do you have under the age of 18?": "Two (2)",
+    "Which of the following best describes your race?": "White",
+    "If you are Hispanic / Latino what best describes your heritage?": "No Hispanic / Not Hispanic",
+    "What is the highest level of education you have completed?": "Master's or Professional Degree / graduate / post-graduate",
+    "What best describes your current employment status?": "Employed full-time (35/40+ hours)",
+    "What is your job title, level, or responsibility?": "Information technology, computer software (Manager / Director)",
+    "Which department do you primarily work within at your organization?": "Information technology, computer software",
+    "Which departments/products do you have influence or decisionmaking authority for spending/purchasing?": "Marketing, Sales, Advertising, financial services, IT hardware, IT software",
+    "Which of the following categories best describes your organization's primary industry?": "Information technology, computer software (Manager, senior management, chief technology officer, director)",
+    "Approximately what is the annual revenue for your organization?": "50-99 million",
+    "Approximately how many employees work at your organization?": "2500-5000",
+    "What industries do members of your household, including yourself, work in?": "Information technology, computer software",
+    "What is your annual household income before taxes?": "125000-149999",
+    "Do you smoke?": "Yes, I smoke",
+    "On average, how many cigarettes do you smoke in a day?": "4 to 7 cigarettes",
+    "What best describes your current household?": "Own house / single family house",
+    "How many people live in your household including yourself?": "4 persons",
+    "Have you been diagnosed with any of the following illnesses/conditions?": "Allergies (not associated with Hay Fever), Back Pain, Dental Problem, Depression, Diabetes (type 1), Smoking Addiction",
+    "If you stated that you have been diagnosed with diabetes, can you define the type of diabetes?": "Diabetes 1",
+    "If you stated that you have been diagnosed with cancer, can you define the type of cancer?": "I don't have cancer",
+    "Are you registered to vote?": "Yes",
+    "In politics today, do you consider yourself a Democrat, Republican, or Independent?": "Republican / strong Republican",
+    "Which of the following religions do you most closely identify with?": "Christian / Protestant / Roman Catholic",
+    "Would you say that in your household you speak...?": "English all the time",
+    "Do you drive a car regularly?": "Yes, I have a car",
+    "Do you possess a driver's license?": "Yes",
+    "Are you the primary decision maker in your household for automotive-related purchases?": "Yes",
+    "If you own/lease a car(s), which brand(s) are they?": "Audi, Nissan (Select Only 2)",
+    "Please select your car model!": "Audi A 8 Sedan",
+    "How would you describe the vehicle(s) you own/lease?": "Full Size, Mid-Size",
+    "In which year did you purchase/lease your main vehicle?": "2023",
+    "What year was your main vehicle manufactured?": "2022",
+    "Did you purchase/lease your primary vehicle new or used?": "New",
+    "Do you own a motorcycle?": "Yes",
+    "When do you estimate that you will purchase/lease your next car?": "Two years from now / within 3-6 months",
+    "What type of smartphone do you primarily use?": "Samsung",
+    "Do you use a smart phone?": "Yes",
+    "Which of these is your carrier for your primary mobile / cell phone?": "Verizon Wireless (or AT&T)",
+    "What type of mobile phone plan do you have?": "Pre-paid",
+    "Which of the following is your primary home internet service provider?": "Verizon",
+    "What kind of internet connection do you use at home?": "Satellite, Wireless",
+    "Which of the following TV providers do you subscribe at your primary residence?": "AT&T U-verse",
+    "To the best of your knowledge, what is your credit score (also known as your FICO score)?": "750-800",
+    "What are your household investable assets?": "$500,000 - $999,999",
+    "When did you obtain your mortgage?": "3 to 6 months ago",
+    "Which of the following bank do you currently have a banking relationship with?": "Bank of America, American Express",
+    "Which of the following credit cards do you use mostly?": "American Express",
+    "Where do you do your main grocery shopping?": "Walmart, Target, Aldi, Costco",
+    "How often do you eat fast food in any given week?": "1 to 3 times",
+    "On average, how many alcoholic drinks do you consume in a week?": "1 to 2",
+    "Do you use hearing aid?": "No",
+    "Do You Use Glasses or contact lenses?": "Yes",
+    "Are you and your partner/spouse currently expecting a baby?": "No",
+    "Have you done any online research in last week / last month?": "No",
+    "Have you participated in a market research study within the past 2 weeks?": "No",
+    "Do you, or does anyone in your immediate family work for any of the following industries?": "None of the above"
+  }
+}

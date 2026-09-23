@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jarvis Survey Copilot</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="jarvis-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="brand">
+        <div class="reactor-icon">
+          <div class="reactor-ring"></div>
+          <div class="reactor-core"></div>
+        </div>
+        <div class="brand-text">
+          <h1>JARVIS COPILOT</h1>
+          <span class="sub-text">GEMINI 3.8 FLASH • AUTO-PILOT</span>
+        </div>
+      </div>
+      <div class="status-indicator" id="gemini-status-badge">
+        <span class="pulse-indicator"></span>
+        <span class="status-name" id="model-name-badge">GEMINI 3.8</span>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="tab-btn active" data-tab="tab-copilot">⚡ Copilot</button>
+      <button class="tab-btn" data-tab="tab-persona">👤 Persona</button>
+      <button class="tab-btn" data-tab="tab-settings">⚙️ Settings</button>
+    </nav>
+
+    <!-- Tab 1: Copilot Actions -->
+    <main class="tab-content active" id="tab-copilot">
+      <!-- Target Tab Info -->
+      <div class="info-card">
+        <div class="info-row">
+          <span class="info-label">Active Page:</span>
+          <span class="info-val" id="active-tab-title">Loading...</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Respondent:</span>
+          <span class="info-val highlight-val" id="persona-summary-badge">Alamin Miah (50y, IT Mgr)</span>
+        </div>
+      </div>
+
+      <!-- MODE 1: Manual Mode (User Controlled) -->
+      <div class="manual-mode-card">
+        <div class="mode-header">
+          <span class="mode-icon">🎯</span>
+          <div>
+            <strong>ম্যানুয়াল মোড (Manual Mode)</strong>
+            <p class="mode-sub">পেজের সব সঠিক উত্তর অটো সিলেক্ট হবে, আপনি নিজে দেখে নিয়ে Next চাপবেন</p>
+          </div>
+        </div>
+        <button id="btn-oneclick-fill" class="btn btn-action-primary" title="ম্যানুয়াল মোডে বর্তমান পেজের সব উত্তর সিলেক্ট করুন">
+          <span class="btn-icon">🎯</span>
+          <span class="btn-label">ম্যানুয়ালি উত্তর সিলেক্ট করুন (Alt+S)</span>
+        </button>
+        <div class="btn-row" style="margin-top: 6px;">
+          <button id="btn-click-next" class="btn btn-action-secondary" title="পরবর্তী পেজে যান">
+            <span>⏭️</span> Next Page
+          </button>
+          <button id="btn-analyze-now" class="btn btn-action-ghost" style="flex:0.8;">
+            <span>🔍</span> Scan
+          </button>
+          <button id="btn-clear-now" class="btn btn-action-ghost" style="flex:0.6;">
+            <span>🧹</span> Clear
+          </button>
+        </div>
+      </div>
+
+      <!-- MODE 2: Autonomous Auto-Pilot Card -->
+      <div class="autopilot-card" id="autopilot-control-card">
+        <div class="autopilot-header">
+          <span class="autopilot-icon">🤖</span>
+          <div>
+            <strong>ফুল অটো-পাইলট (Hands-Free Loop)</strong>
+            <p class="autopilot-sub">সম্পূর্ণ একা একা প্রতিটি পেজ এনালাইসিস, উত্তর ও Next করে শেষ করবে</p>
+          </div>
+        </div>
+        <button id="btn-toggle-autopilot" class="btn btn-autopilot">
+          ▶ START AUTO-PILOT
+        </button>
+      </div>
+
+      <!-- Status Banner -->
+      <div id="live-status-box" class="status-box">
+        <span id="live-status-text">Gemini 3.8 Flash Ready. Click Auto-Pilot or 1-Click.</span>
+      </div>
+
+      <!-- Trap / Alert Card -->
+      <div id="trap-alert-card" class="trap-card hidden">
+        <div class="trap-title">⚠️ ATTENTION-CHECK DETECTED</div>
+        <div id="trap-desc" class="trap-desc"></div>
+      </div>
+
+      <!-- Analysis Results List -->
+      <div class="results-header">
+        <span>Detected Answers</span>
+        <span id="results-count" class="count-badge">0</span>
+      </div>
+      <div id="results-list" class="results-scroll-container">
+        <div class="empty-state">No questions analyzed yet. Click Auto-Pilot or 1-Click.</div>
+      </div>
+    </main>
+
+    <!-- Tab 2: Persona Profile -->
+    <section class="tab-content" id="tab-persona">
+      <div class="persona-header">
+        <h3>Loaded Persona Profile</h3>
+        <p class="persona-sub">Jarvis uses these exact parameters to qualify for surveys and avoid screenouts.</p>
+      </div>
+      <div class="persona-grid">
+        <div class="persona-item">
+          <span class="p-key">Name</span>
+          <span class="p-val" id="p-name">Alamin Miah</span>
+        </div>
+        <div class="persona-item">
+          <span class="p-key">Age / Birth</span>
+          <span class="p-val" id="p-age">50 (1976)</span>
+        </div>
+        <div class="persona-item">
+          <span class="p-key">Gender / Race</span>
+          <span class="p-val" id="p-demographics">Male / White</span>
+        </div>
+        <div class="persona-item">
+          <span class="p-key">Location</span>
+          <span class="p-val" id="p-location">New York, NY 10001</span>
+        </div>
+        <div class="persona-item">
+          <span class="p-key">Employment</span>
+          <span class="p-val" id="p-job">Full-time, IT Software Manager</span>
+        </div>
+        <div class="persona-item">
+          <span class="p-key">Income</span>
+          <span class="p-val" id="p-income">$125,000 - $149,999</span>
+        </div>
+        <div class="persona-item">
+          <span class="p-key">Vehicles</span>
+          <span class="p-val" id="p-car">Audi A8 Sedan (2023), Nissan</span>
+        </div>
+        <div class="persona-item">
+          <span class="p-key">Household</span>
+          <span class="p-val" id="p-house">Married, 2 kids (13B, 12G)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 3: Settings -->
+    <section class="tab-content" id="tab-settings">
+      <div class="settings-group">
+        <label for="input-api-key">Gemini API Key</label>
+        <div class="api-key-row">
+          <input type="password" id="input-api-key" placeholder="Enter Gemini API Key">
+          <button id="btn-toggle-key" class="btn-small">👁️</button>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <label for="select-model">AI Engine Model</label>
+        <select id="select-model">
+          <option value="gemini-3.8-flash" selected>Gemini 3.8 Flash (Ultra-fast Survey Engine)</option>
+          <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+          <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+          <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+          <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+        </select>
+      </div>
+
+      <div class="settings-group">
+        <label for="input-fill-delay">Auto-Fill Delay (Milliseconds)</label>
+        <input type="number" id="input-fill-delay" min="100" max="2000" step="50" value="350">
+        <small class="helper-text">Human-like delay between clicking options to avoid bot detection.</small>
+      </div>
+
+      <div class="settings-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="check-use-vision" checked>
+          <span>Enable Tab Screenshot (Vision Context)</span>
+        </label>
+      </div>
+
+      <div class="settings-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="check-local-bridge" checked>
+          <span>Sync with Local Jarvis Desktop Server</span>
+        </label>
+        <div class="bridge-status-row">
+          <span class="info-label">Local Bridge:</span>
+          <span id="bridge-status-text" class="status-disconnected">Checking...</span>
+        </div>
+      </div>
+
+      <button id="btn-save-settings" class="btn btn-save">
+        💾 Save Settings
+      </button>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <span>JARVIS OS v2.0 • Gemini 3.8 Powered</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
