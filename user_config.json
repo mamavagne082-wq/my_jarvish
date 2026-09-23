@@ -12,12 +12,12 @@
     "livekit_url": "wss://jarvis-7soqwrrk.livekit.cloud",
     "livekit_key": "APIWrZXxCGKineM",
     "livekit_secret": "nHMUQnthS64WCxhLwgLv9eei0kqFqBeF8W47FOZu3rGB",
-    "mem0": "",
+    "mem0": "m0-zXEwUTUVUBNC6xUyne1UtoFr5jSHrsspEfcBLS3S",
     "google_search": "AQ.Ab8RN6J5DqZWWMu_uYj3bqaIpPOupHTQPFrx8dhwCWcQ8Ikf6w",
     "search_engine_id": "",
     "openweather": "",
     "openrouter": "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",
-    "elevenlabs": ""
+    "elevenlabs": "sk_45073a61b5d3a4aa824e66b38cc80395a4669e2e7f1902c1"
   },
   "specialized_roles": {
     "vision": "openai",
@@ -42,7 +42,13 @@
     "registered_user": "ALAMIN",
     "strict_mode": true,
     "similarity_threshold": 0.65,
+    "target_threshold": 0.7,
+    "insufficient_threshold": 0.5,
+    "silent_rejection": true,
     "enforce_on_all_commands": true,
-    "block_unauthorized_commands": true
+    "block_unauthorized_commands": true,
+    "min_enrollment_seconds": 20,
+    "target_enrollment_seconds": 30,
+    "backup_pin": "252646"
   }
 }
