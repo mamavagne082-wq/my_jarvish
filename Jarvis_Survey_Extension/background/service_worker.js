@@ -106,6 +106,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .catch((err) => sendResponse({ connected: false, error: err.message }));
     return true;
   }
+
+  if (message.action === "NOTIFY_JARVIS_EVENT") {
+    notifyJarvisDesktop(message.event, {
+      message: message.message,
+      url: sender.tab?.url,
+      title: sender.tab?.title
+    });
+    sendResponse({ success: true });
+    return true;
+  }
 });
 
 /**
@@ -172,11 +182,11 @@ async function executeJarvisVoiceCommand(cmdObj, baseUrl) {
 
     await ensureContentScript(activeTab.id);
 
-    if (command === "START_AUTOPILOT") {
+    if (command === "START_AUTOPILOT" || command === "START_AUTO_LOOP") {
       await chrome.storage.local.set({ autoPilotActive: true });
       await chrome.tabs.sendMessage(activeTab.id, { action: "AUTOPILOT_STATE_CHANGED", active: true });
       result.success = true;
-      result.message = "Auto-pilot activated successfully.";
+      result.message = "Full Auto-Loop Auto-Pilot activated successfully.";
     } else if (command === "STOP_AUTOPILOT") {
       await chrome.storage.local.set({ autoPilotActive: false });
       await chrome.tabs.sendMessage(activeTab.id, { action: "AUTOPILOT_STATE_CHANGED", active: false });

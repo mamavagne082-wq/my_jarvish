@@ -89,16 +89,197 @@
    * 1. AUTONOMOUS AUTO-PILOT ENGINE (HUMAN-PACED CYCLE)
    * =========================================================================
    */
+  /**
+   * Helper to check for CAPTCHA, ReCAPTCHA, Cloudflare Turnstile
+   */
+  function detectCaptchaOnPage() {
+    const captchaSelectors = [
+      'iframe[src*="recaptcha"]',
+      'iframe[src*="hcaptcha"]',
+      'iframe[src*="cloudflare"]',
+      'iframe[src*="turnstile"]',
+      '.g-recaptcha',
+      '.h-captcha',
+      '#cf-turnstile',
+      '#turnstile-wrapper',
+      '[data-sitekey]'
+    ];
+    for (const sel of captchaSelectors) {
+      const el = document.querySelector(sel);
+      if (el && isElementVisible(el)) return true;
+    }
+    const pageText = (document.body?.innerText || "").toLowerCase();
+    if (pageText.includes("i am human") || pageText.includes("verify you are human") || pageText.includes("please complete the security check")) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Helper to detect Screen-Out, Disqualification or Quota Full
+   */
+  function detectScreenOutOnPage() {
+    const pageText = (document.body?.innerText || "").toLowerCase();
+    const screenoutKeywords = [
+      "not qualify",
+      "did not qualify",
+      "didn't qualify",
+      "disqualified",
+      "screened out",
+      "quota full",
+      "quota reached",
+      "not a match",
+      "closed survey",
+      "survey is closed",
+      "we are looking for a different",
+      "sorry, you are not eligible",
+      "unfortunately, you"
+    ];
+    return screenoutKeywords.some(kw => pageText.includes(kw));
+  }
+
+  /**
+   * Helper to detect Survey Completion & Reward
+   */
+  function detectCompletionOnPage() {
+    const pageText = (document.body?.innerText || "").toLowerCase();
+    const completionKeywords = [
+      "thank you for completing",
+      "thank you for your time",
+      "survey complete",
+      "survey completed",
+      "points added",
+      "reward credited",
+      "congratulations, you completed",
+      "your reward is on its way",
+      "সার্ভে সম্পন্ন হয়েছে",
+      "ধন্যবাদ"
+    ];
+    return completionKeywords.some(kw => pageText.includes(kw));
+  }
+
+  /**
+   * Helper to find Return / Dashboard / Close button
+   */
+  function findReturnOrCloseButton() {
+    const keywords = ["return", "dashboard", "back to surveys", "close", "done", "ড্যাশবোর্ড", "ফিরে যান"];
+    const btns = document.querySelectorAll("button, a.btn, a.button, input[type='button'], [role='button']");
+    for (const btn of btns) {
+      const txt = (btn.innerText || btn.value || "").toLowerCase();
+      if (keywords.some(kw => txt.includes(kw)) && isElementVisible(btn)) {
+        return btn;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Helper to find and start a new survey card/button on Dashboard
+   */
+  function findDashboardSurveyCard() {
+    const selectors = [
+      ".survey-card",
+      ".take-survey-btn",
+      ".start-survey",
+      "[data-survey-id]",
+      "a[href*='survey']",
+      "button[class*='survey']"
+    ];
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      if (el && isElementVisible(el)) return el;
+    }
+    const keywords = ["start survey", "take survey", "earn points", "start", "survey"];
+    const allClickables = document.querySelectorAll("button, a, div[role='button']");
+    for (const el of allClickables) {
+      const txt = (el.innerText || "").trim().toLowerCase();
+      if (keywords.some(kw => txt === kw || (txt.startsWith(kw) && txt.length < 30)) && isElementVisible(el)) {
+        return el;
+      }
+    }
+    return null;
+  }
+
   async function triggerAutoPilotCycle() {
     if (autoPilotRunningCycle || !isAutoPilotActive) return;
     autoPilotRunningCycle = true;
 
     try {
+      // 1. CAPTCHA Check
+      if (detectCaptchaOnPage()) {
+        updateHUDStatus("error", "⚠️ CAPTCHA Detected! Pausing for human verification...");
+        chrome.runtime.sendMessage({
+          action: "NOTIFY_JARVIS_EVENT",
+          event: "captcha_detected",
+          message: "CAPTCHA detected on page. Please solve to continue."
+        });
+        autoPilotRunningCycle = false;
+        return;
+      }
+
+      // 2. Screen-Out / Disqualification Check
+      if (detectScreenOutOnPage()) {
+        updateHUDStatus("error", "⚠️ Screen-Out detected! Auto-returning to dashboard...");
+        chrome.runtime.sendMessage({
+          action: "NOTIFY_JARVIS_EVENT",
+          event: "survey_screen_out",
+          message: "Survey screened out. Returning to dashboard for next survey."
+        });
+        await sleep(2000);
+        const retBtn = findReturnOrCloseButton();
+        if (retBtn) {
+          clickElementLikeHuman(retBtn);
+        } else {
+          window.history.back();
+        }
+        autoPilotRunningCycle = false;
+        return;
+      }
+
+      // 3. Survey Completion / Reward Check
+      if (detectCompletionOnPage()) {
+        updateHUDStatus("done", "🎉 Survey Completed! Reward earned. Transitioning to next survey...");
+        chrome.runtime.sendMessage({
+          action: "NOTIFY_JARVIS_EVENT",
+          event: "survey_completed",
+          message: "Survey completed and reward earned!"
+        });
+        await sleep(2500);
+        const retBtn = findReturnOrCloseButton();
+        if (retBtn) {
+          clickElementLikeHuman(retBtn);
+        } else {
+          window.history.back();
+        }
+        autoPilotRunningCycle = false;
+        return;
+      }
+
+      // 4. Dashboard Auto-Start Check
+      const dashboardCard = findDashboardSurveyCard();
+      const isDashboardUrl = /dashboard|surveys|earn|rewards|home|portal/i.test(window.location.href);
+      if (dashboardCard && isDashboardUrl) {
+        updateHUDStatus("analyzing", "📋 Dashboard detected! Auto-selecting next survey...");
+        await sleep(1500 + Math.random() * 1000);
+        clickElementLikeHuman(dashboardCard);
+        autoPilotRunningCycle = false;
+        return;
+      }
+
+      // 5. Normal Survey Page Scan & Solve
       updateHUDStatus("analyzing", "🤖 Auto-Pilot: Scanning page elements (Gemini 3.8)...");
 
       const scanRes = await performFullScan();
       if (!scanRes || !scanRes.success || !scanRes.data) {
-        updateHUDStatus("idle", "🤖 Auto-Pilot: No questions found. (Survey may be complete)");
+        // Check once more for Next button or transition
+        const nextBtnFallback = findNextButton();
+        if (nextBtnFallback) {
+          updateHUDStatus("done", "🤖 Advancing page...");
+          await sleep(1500);
+          clickElementLikeHuman(nextBtnFallback);
+        } else {
+          updateHUDStatus("idle", "🤖 Auto-Pilot: Waiting for questions or dashboard...");
+        }
         autoPilotRunningCycle = false;
         return;
       }
@@ -106,10 +287,10 @@
       updateHUDStatus("analyzing", "🤖 Auto-Pilot: Filling answers with human behavior...");
       await autoFillAnswers(scanRes.data);
 
-      // Human-like reading delay before proceeding (Prevents "speeders" bot detection)
+      // Human-like reading delay before proceeding (Prevents "speeders" bot detection: 2-5 seconds)
       const qCount = scanRes.data.answers?.length || 1;
-      const readingSeconds = scanRes.data.estimated_human_reading_seconds || Math.max(2, Math.min(6, qCount * 1.2));
-      const naturalPauseMs = Math.round((readingSeconds * 1000) + (Math.random() * 800));
+      const readingSeconds = scanRes.data.estimated_human_reading_seconds || Math.max(2.2, Math.min(5.0, qCount * 1.5));
+      const naturalPauseMs = Math.round((readingSeconds * 1000) + (Math.random() * 900));
 
       updateHUDStatus("done", `🤖 Auto-Pilot: Simulating human reading pause (${(naturalPauseMs / 1000).toFixed(1)}s)...`);
       await sleep(naturalPauseMs);
@@ -119,7 +300,7 @@
       const nextBtn = findNextButton();
       if (nextBtn) {
         updateHUDStatus("done", "🤖 Auto-Pilot: Clicking Next button...");
-        await sleep(350 + Math.random() * 250);
+        await sleep(400 + Math.random() * 300);
         clickElementLikeHuman(nextBtn);
       } else {
         updateHUDStatus("done", "🤖 Auto-Pilot: Page completed. Waiting for next step.");
