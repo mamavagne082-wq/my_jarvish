@@ -47,7 +47,7 @@
     "strict_mode": true,
     "similarity_threshold": 0.55,
     "target_threshold": 0.65,
-    "insufficient_threshold": 0.20,
+    "insufficient_threshold": 0.2,
     "silent_rejection": true,
     "enforce_on_all_commands": true,
     "block_unauthorized_commands": true,

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Multi-Page Survey Simulation (Jarvis Auto-Pilot Test)</title>
   <style>
     body {
@@ -9,6 +10,19 @@
       background: #f1f5f9;
       color: #333;
       padding: 30px;
+    }
+    .survey-select {
+      padding: 8px;
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+    }
+    .survey-textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      box-sizing: border-box;
     }
     .survey-card {
       max-width: 740px;
@@ -153,7 +167,7 @@
       <!-- Question 4: Primary Vehicle -->
       <div class="question-block">
         <div class="q-title">4. What is the brand of your primary household vehicle?</div>
-        <select id="vehicle_select" name="vehicle_brand" style="padding: 8px; width: 100%; border: 1px solid #cbd5e1; border-radius: 4px;">
+        <select id="vehicle_select" name="vehicle_brand" class="survey-select">
           <option value="">-- Please Select --</option>
           <option value="toyota">Toyota</option>
           <option value="ford">Ford</option>
@@ -183,7 +197,7 @@
       <!-- Question 7: Open-Ended Human Typing Test -->
       <div class="question-block">
         <div class="q-title">7. In your own words, what do you value most when choosing technology products for your home or work?</div>
-        <textarea name="tech_feedback" rows="3" style="width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box;" placeholder="Please share your thoughts..."></textarea>
+        <textarea name="tech_feedback" rows="3" class="survey-textarea" placeholder="Please share your thoughts..."></textarea>
       </div>
 
       <div class="btn-row">

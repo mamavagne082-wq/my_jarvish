@@ -429,8 +429,18 @@
 
   function isElementVisible(el) {
     if (!el) return false;
-    const style = window.getComputedStyle(el);
-    return style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0" && el.offsetWidth > 0 && el.offsetHeight > 0;
+    try {
+      if (el.closest && el.closest("[style*='display: none'], [style*='display:none'], .page-section:not(.active), [hidden]")) {
+        return false;
+      }
+      const style = window.getComputedStyle(el);
+      if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") {
+        return false;
+      }
+      return !!(el.offsetWidth > 0 || el.offsetHeight > 0 || (el.getClientRects && el.getClientRects().length > 0));
+    } catch (e) {
+      return true;
+    }
   }
 
   function clickElementLikeHuman(el) {
@@ -459,6 +469,7 @@
     // A. Matrix / table questions
     const tables = document.querySelectorAll("table, .matrix-table, .grid-table");
     tables.forEach((table) => {
+      if (!isElementVisible(table)) return;
       const rows = table.querySelectorAll("tbody tr, tr");
       if (rows.length > 1) {
         const headers = [];
@@ -499,6 +510,7 @@
 
     if (questionContainers.length > 0) {
       questionContainers.forEach((container) => {
+        if (!isElementVisible(container)) return;
         const titleEl = container.querySelector(
           "legend, .QuestionText, .question-text, .title, .q-title, h1, h2, h3, h4, .control-label, [role='heading']"
         );
@@ -580,6 +592,7 @@
     const orphanRadios = document.querySelectorAll('input[type="radio"], input[type="checkbox"]');
     const groupedByName = {};
     orphanRadios.forEach((r) => {
+      if (!isElementVisible(r)) return;
       if (!r.getAttribute("data-jarvis-tracked")) {
         const name = r.name || "unnamed";
         if (!groupedByName[name]) groupedByName[name] = [];
@@ -815,6 +828,7 @@
       await sleep(25);
       element.blur();
     }
+  }
 
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));

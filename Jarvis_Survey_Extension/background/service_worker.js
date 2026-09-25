@@ -4,7 +4,7 @@
  */
 
 const DEFAULT_SETTINGS = {
-  geminiApiKey: "AQ.Ab8RN6J5DqZWWMu_uYj3bqaIpPOupHTQPFrx8dhwCWcQ8Ikf6w",
+  geminiApiKey: "AQ.Ab8RN6JHF6heRWfsnO5USnfzLeb-FWVFikfabKfams1pJ7oAxQ",
   geminiModel: "gemini-3.8-flash",
   autoPilotActive: false,
   autoFillDelay: 450,
