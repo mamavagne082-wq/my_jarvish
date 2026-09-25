@@ -14,12 +14,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   const btnAnalyze = document.getElementById("btn-analyze-now");
   const btnClear = document.getElementById("btn-clear-now");
   const btnToggleHud = document.getElementById("btn-toggle-hud");
+  const btnEditPersonalInfo = document.getElementById("btn-edit-personal-info");
+  const personaSummaryBadge = document.getElementById("persona-summary-badge");
 
   const liveStatusText = document.getElementById("live-status-text");
   const trapAlertCard = document.getElementById("trap-alert-card");
   const trapDesc = document.getElementById("trap-desc");
   const resultsList = document.getElementById("results-list");
   const resultsCount = document.getElementById("results-count");
+
+  // Personal Info Form elements
+  const btnSavePersonalInfo = document.getElementById("btn-save-personal-info");
+  const btnSyncFromJarvis = document.getElementById("btn-sync-from-jarvis");
+  const personalInfoStatus = document.getElementById("personal-info-status");
 
   // Settings elements
   const inputApiKey = document.getElementById("input-api-key");
@@ -34,17 +41,28 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   let isAutoPilotActive = false;
 
+  function switchToTab(tabId) {
+    tabBtns.forEach((b) => b.classList.remove("active"));
+    tabContents.forEach((c) => c.classList.remove("active"));
+    const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+    if (targetBtn) targetBtn.classList.add("active");
+    const targetContent = document.getElementById(tabId);
+    if (targetContent) targetContent.classList.add("active");
+  }
+
   // 1. Tab Navigation
   tabBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
-      tabBtns.forEach((b) => b.classList.remove("active"));
-      tabContents.forEach((c) => c.classList.remove("active"));
-
-      btn.classList.add("active");
       const targetId = btn.getAttribute("data-tab");
-      document.getElementById(targetId)?.classList.add("active");
+      switchToTab(targetId);
     });
   });
+
+  if (btnEditPersonalInfo) {
+    btnEditPersonalInfo.addEventListener("click", () => {
+      switchToTab("tab-persona");
+    });
+  }
 
   // 2. Load Active Tab Info
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -80,9 +98,21 @@ document.addEventListener("DOMContentLoaded", async () => {
   isAutoPilotActive = !!storage.autoPilotActive;
   updateAutopilotButtonUI(isAutoPilotActive);
 
-  // Populate persona tab if available
-  if (storage.surveyPersona) {
-    populatePersonaUI(storage.surveyPersona);
+  // Populate Personal Info form from storage or desktop bridge
+  if (storage.personalInfo) {
+    populatePersonalInfoForm(storage.personalInfo);
+  } else {
+    // Try fetching from local desktop server
+    fetchProfileFromJarvisBackend();
+  }
+
+  // If user hasn't verified personal info yet, show the form immediately
+  if (!storage.personalInfoVerified) {
+    switchToTab("tab-persona");
+    if (personalInfoStatus) {
+      personalInfoStatus.innerText = "👋 সার্ভে শুরু করার আগে আপনার প্রোফাইল তথ্য নিশ্চিত করে 'Save' বাটনে ক্লিক করুন।";
+      personalInfoStatus.className = "personal-info-msg info";
+    }
   }
 
   // Check Local Bridge
@@ -220,6 +250,78 @@ document.addEventListener("DOMContentLoaded", async () => {
     await chrome.tabs.sendMessage(activeTab.id, { action: "TOGGLE_HUD" });
   });
 
+  // 12. Save & Sync Personal Info Form
+  if (btnSavePersonalInfo) {
+    btnSavePersonalInfo.addEventListener("click", async () => {
+      btnSavePersonalInfo.disabled = true;
+      btnSavePersonalInfo.innerText = "⏳ Saving & Syncing...";
+      try {
+        const formData = collectPersonalInfoForm();
+        await chrome.storage.local.set({
+          personalInfo: formData,
+          personalInfoVerified: true
+        });
+
+        // Update badge on copilot tab
+        if (personaSummaryBadge) {
+          personaSummaryBadge.innerText = `${formData.firstName || "John"} (${formData.myAge || "32"}, ${formData.postalZipCode || "10001"})`;
+        }
+
+        // Sync to Jarvis Desktop backend
+        const { localBridgeUrl } = await chrome.storage.local.get(["localBridgeUrl"]);
+        const baseUrl = localBridgeUrl || "http://127.0.0.1:8765";
+        let syncedToBackend = false;
+
+        try {
+          const resp = await fetch(`${baseUrl}/save_profile`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(formData)
+          });
+          if (resp.ok) {
+            syncedToBackend = true;
+          }
+        } catch (e) {
+          // Desktop offline
+        }
+
+        if (personalInfoStatus) {
+          personalInfoStatus.innerText = syncedToBackend
+            ? "✅ Personal info saved locally and synced with Jarvis AI Desktop & Mem0!"
+            : "✅ Personal info saved in browser extension! Ready for survey answering.";
+          personalInfoStatus.className = "personal-info-msg success";
+        }
+
+        btnSavePersonalInfo.innerText = "✅ Saved Successfully!";
+        setTimeout(() => {
+          btnSavePersonalInfo.innerText = "💾 Save Personal Info & Sync";
+          btnSavePersonalInfo.disabled = false;
+          // Switch to Copilot tab so user can immediately launch Auto-Pilot or 1-Click
+          switchToTab("tab-copilot");
+          updateStatus("success", `✅ Profile ready: ${formData.firstName} ${formData.lastName} (${formData.myAge}). Click Auto-Pilot to start!`);
+        }, 1200);
+      } catch (err) {
+        if (personalInfoStatus) {
+          personalInfoStatus.innerText = `❌ Error saving info: ${err.message}`;
+          personalInfoStatus.className = "personal-info-msg error";
+        }
+        btnSavePersonalInfo.disabled = false;
+        btnSavePersonalInfo.innerText = "💾 Save Personal Info & Sync";
+      }
+    });
+  }
+
+  // 13. Load Profile from Jarvis Desktop Backend
+  if (btnSyncFromJarvis) {
+    btnSyncFromJarvis.addEventListener("click", async () => {
+      btnSyncFromJarvis.disabled = true;
+      btnSyncFromJarvis.innerText = "🔄 Loading...";
+      await fetchProfileFromJarvisBackend(true);
+      btnSyncFromJarvis.disabled = false;
+      btnSyncFromJarvis.innerText = "🔄 Load from Jarvis Desktop";
+    });
+  }
+
   function updateAutopilotButtonUI(active) {
     if (active) {
       btnToggleAutopilot.classList.add("autopilot-active");
@@ -266,19 +368,93 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  function populatePersonaUI(persona) {
-    const p = persona.personal || {};
-    const emp = persona.employment_and_industry || {};
-    const fin = persona.household_and_finances || {};
-    const auto = persona.automotive || {};
+  function populatePersonalInfoForm(data) {
+    if (!data) return;
+    const fieldMap = {
+      "info-first-name": data.firstName || data.first_name,
+      "info-last-name": data.lastName || data.last_name,
+      "info-age": data.myAge || data.age,
+      "info-birthdate": data.birthdate || data.birth_date,
+      "info-race": data.race || data.race_ethnicity,
+      "info-ethnicity": data.ethnicity || data.hispanic_latino,
+      "info-home": data.home || data.household_type,
+      "info-language": data.language || data.language_spoken_at_home,
+      "info-animals": data.animalPets || data.pet,
+      "info-job-type": data.jobType || data.employment_status,
+      "info-occupation": data.occupation || data.job_title,
+      "info-employees": data.companyEmployees || data.organization_employee_count,
+      "info-decision": data.decisionTakers || data.decision_maker,
+      "info-wife-age": data.wifeAge || data.wife_age,
+      "info-son-age": data.sonAge,
+      "info-daughter-age": data.daughterAge,
+      "info-education": data.educationDegree || data.education,
+      "info-zip": data.postalZipCode || data.zip_postal_code,
+      "info-email": data.emailAddress || data.email,
+      "info-country": data.country
+    };
 
-    if (p.first_name) document.getElementById("p-name").innerText = `${p.first_name} ${p.last_name || ""}`;
-    if (p.age) document.getElementById("p-age").innerText = `${p.age} (${p.birth_year || 1976})`;
-    if (p.gender) document.getElementById("p-demographics").innerText = `${p.gender} / ${p.race_ethnicity || "White"}`;
-    if (p.city) document.getElementById("p-location").innerText = `${p.city}, ${p.state_region || "NY"} ${p.zip_postal_code || "10001"}`;
-    if (emp.job_title) document.getElementById("p-job").innerText = emp.job_title;
-    if (fin.annual_household_income_before_taxes) document.getElementById("p-income").innerText = fin.annual_household_income_before_taxes;
-    if (auto.primary_car_model) document.getElementById("p-car").innerText = `${auto.primary_car_model} (${auto.year_purchased || "2023"})`;
+    for (const [id, val] of Object.entries(fieldMap)) {
+      const el = document.getElementById(id);
+      if (el && val !== undefined && val !== null) {
+        el.value = val;
+      }
+    }
+
+    if (personaSummaryBadge && (data.firstName || data.first_name)) {
+      const name = data.firstName || data.first_name;
+      const age = data.myAge || data.age || "32";
+      const zip = data.postalZipCode || data.zip_postal_code || "10001";
+      personaSummaryBadge.innerText = `${name} (${age}, ${zip})`;
+    }
+  }
+
+  function collectPersonalInfoForm() {
+    return {
+      firstName: document.getElementById("info-first-name")?.value?.trim() || "John",
+      lastName: document.getElementById("info-last-name")?.value?.trim() || "Smith",
+      myAge: document.getElementById("info-age")?.value?.trim() || "32",
+      birthdate: document.getElementById("info-birthdate")?.value?.trim() || "15/08/1992",
+      race: document.getElementById("info-race")?.value?.trim() || "White",
+      ethnicity: document.getElementById("info-ethnicity")?.value?.trim() || "Not hispanic/latin",
+      home: document.getElementById("info-home")?.value?.trim() || "Own single Home/ Condo",
+      language: document.getElementById("info-language")?.value?.trim() || "English",
+      animalPets: document.getElementById("info-animals")?.value?.trim() || "Dog, Cat",
+      jobType: document.getElementById("info-job-type")?.value?.trim() || "Full time",
+      occupation: document.getElementById("info-occupation")?.value?.trim() || "Computer Software",
+      companyEmployees: document.getElementById("info-employees")?.value?.trim() || "1000-5000",
+      decisionTakers: document.getElementById("info-decision")?.value?.trim() || "Myself (all section)",
+      wifeAge: document.getElementById("info-wife-age")?.value?.trim() || "30",
+      sonAge: document.getElementById("info-son-age")?.value?.trim() || "5",
+      daughterAge: document.getElementById("info-daughter-age")?.value?.trim() || "3",
+      educationDegree: document.getElementById("info-education")?.value?.trim() || "Bachelor Degree",
+      postalZipCode: document.getElementById("info-zip")?.value?.trim() || "10001",
+      emailAddress: document.getElementById("info-email")?.value?.trim() || "alaminmiah1976@gmail.com",
+      country: document.getElementById("info-country")?.value?.trim() || "United States"
+    };
+  }
+
+  async function fetchProfileFromJarvisBackend(showMessage = false) {
+    try {
+      const { localBridgeUrl } = await chrome.storage.local.get(["localBridgeUrl"]);
+      const baseUrl = localBridgeUrl || "http://127.0.0.1:8765";
+      const resp = await fetch(`${baseUrl}/get_profile`);
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json.success && json.personal_info) {
+          populatePersonalInfoForm(json.personal_info);
+          await chrome.storage.local.set({ personalInfo: json.personal_info, personalInfoVerified: true });
+          if (showMessage && personalInfoStatus) {
+            personalInfoStatus.innerText = "✅ Successfully loaded personal info from Jarvis Desktop!";
+            personalInfoStatus.className = "personal-info-msg success";
+          }
+        }
+      }
+    } catch (e) {
+      if (showMessage && personalInfoStatus) {
+        personalInfoStatus.innerText = "⚪ Jarvis Desktop server offline; using local saved info.";
+        personalInfoStatus.className = "personal-info-msg";
+      }
+    }
   }
 
   async function checkJarvisBridgeStatus() {

@@ -116,6 +116,46 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ success: true });
     return true;
   }
+
+  // Handle Survey Outcome (Screen-Out or Completion) for Hands-Free Multi-Survey Progression
+  if (message.action === "SURVEY_OUTCOME") {
+    const outcome = message.outcome; // "screen_out" | "completed"
+    notifyJarvisDesktop(outcome === "screen_out" ? "survey_screen_out" : "survey_completed", {
+      message: message.message,
+      url: sender.tab?.url,
+      title: sender.tab?.title
+    });
+
+    chrome.storage.local.get(["autoPilotActive"]).then(async (storage) => {
+      if (storage.autoPilotActive && sender.tab?.id) {
+        setTimeout(async () => {
+          try {
+            const tabs = await chrome.tabs.query({ currentWindow: true });
+            // Identify dashboard tab
+            const dashboardTab = tabs.find(t =>
+              t.id !== sender.tab.id &&
+              /dashboard|surveys|earn|rewards|home|portal|cpx|freecash|swagbucks|primeopinion|ysense|attapoll|qmee/i.test(t.url || "")
+            );
+
+            if (dashboardTab) {
+              // Focus dashboard and close finished survey tab
+              await chrome.tabs.update(dashboardTab.id, { active: true });
+              await chrome.tabs.remove(sender.tab.id);
+              // Trigger dashboard to pick next survey
+              setTimeout(() => {
+                chrome.tabs.sendMessage(dashboardTab.id, { action: "AUTOPILOT_TRIGGER_CYCLE" }).catch(() => {});
+              }, 1200);
+            }
+          } catch (e) {
+            console.debug("Auto multi-survey loop tab transition:", e);
+          }
+        }, 2200);
+      }
+    });
+
+    sendResponse({ success: true });
+    return true;
+  }
 });
 
 /**
@@ -201,6 +241,11 @@ async function executeJarvisVoiceCommand(cmdObj, baseUrl) {
       const nextRes = await chrome.tabs.sendMessage(activeTab.id, { action: "CLICK_NEXT_BUTTON" });
       result.success = nextRes?.success || false;
       result.message = nextRes?.message || "Next button clicked.";
+    } else if (command === "SHOW_SUGGESTION" || command === "SCAN_ONLY") {
+      const scanRes = await chrome.tabs.sendMessage(activeTab.id, { action: "SCAN_AND_ANALYZE", show_hud: true });
+      result.success = scanRes?.success || false;
+      result.message = "AI Suggestion Box displayed on screen.";
+      result.data = scanRes?.data || null;
     }
   } catch (err) {
     result.error = err.message || "Failed executing command in browser.";
@@ -277,12 +322,14 @@ async function handleSurveyAnalysis(payload, tabId) {
     "geminiApiKey",
     "geminiModel",
     "surveyPersona",
+    "personalInfo",
     "useVisionScreenshot"
   ]);
 
   const apiKey = storage.geminiApiKey || DEFAULT_SETTINGS.geminiApiKey;
   const model = storage.geminiModel || "gemini-3.8-flash";
   const persona = storage.surveyPersona || {};
+  const personalInfo = storage.personalInfo || null;
 
   if (!apiKey) {
     throw new Error("Gemini API Key missing. Please set your API key in the extension settings.");
@@ -305,7 +352,7 @@ async function handleSurveyAnalysis(payload, tabId) {
     }
   }
 
-  const prompt = buildHumanLikeSurveyPrompt(payload, persona);
+  const prompt = buildHumanLikeSurveyPrompt(payload, persona, personalInfo);
   const geminiResponse = await callGeminiAPI(apiKey, model, prompt, screenshotBase64);
 
   return geminiResponse;
@@ -314,14 +361,43 @@ async function handleSurveyAnalysis(payload, tabId) {
 /**
  * Constructs prompt instructing Gemini 3.8 to generate natural, human-like survey answers
  */
-function buildHumanLikeSurveyPrompt(pageData, persona) {
-  return `You are answering an online survey as a real human respondent named Alamin Miah.
-Your answers MUST sound completely natural, authentic, thoughtful, and human-like. Survey quality algorithms actively check for bot-like patterns, so follow the human guidelines below strictly.
-
+function buildHumanLikeSurveyPrompt(pageData, persona, personalInfo) {
+  const infoSection = personalInfo ? `
+==================================================
+EXACT VERIFIED PERSONAL INFO (CRITICAL: ALWAYS MATCH THESE VALUES):
+==================================================
+- Full Name: ${personalInfo.firstName || "John"} ${personalInfo.lastName || "Smith"}
+- First Name: ${personalInfo.firstName || "John"}
+- Last Name: ${personalInfo.lastName || "Smith"}
+- My Age: ${personalInfo.myAge || "32"}
+- Birthdate: ${personalInfo.birthdate || "15/08/1992"}
+- Race: ${personalInfo.race || "White"}
+- Ethnicity: ${personalInfo.ethnicity || "Not hispanic/latin"}
+- Home Ownership: ${personalInfo.home || "Own single Home/ Condo"}
+- Spoken Language: ${personalInfo.language || "English"}
+- Animal / Pets: ${personalInfo.animalPets || "Dog, Cat"}
+- Job Type: ${personalInfo.jobType || "Full time"}
+- Occupation / Role: ${personalInfo.occupation || "Computer Software"}
+- Company Employee Count: ${personalInfo.companyEmployees || "1000-5000"}
+- Decision Takers / Authority: ${personalInfo.decisionTakers || "Myself (all section)"}
+- Wife Age: ${personalInfo.wifeAge || "30"}
+- Son Age: ${personalInfo.sonAge || "5"}
+- Daughter Age: ${personalInfo.daughterAge || "3"}
+- Education / Degree: ${personalInfo.educationDegree || "Bachelor Degree"}
+- Postal / Zip Code: ${personalInfo.postalZipCode || "10001"}
+- Email: ${personalInfo.emailAddress || "alaminmiah1976@gmail.com"}
+- Country: ${personalInfo.country || "United States"}
+` : `
 ==================================================
 YOUR HUMAN PERSONA PROFILE (Stay 100% consistent!):
 ==================================================
 ${JSON.stringify(persona, null, 2)}
+`;
+
+  return `You are answering an online survey as a real human respondent named ${personalInfo?.firstName || "John"} ${personalInfo?.lastName || "Smith"}.
+Your answers MUST sound completely natural, authentic, thoughtful, and human-like. Survey quality algorithms actively check for bot-like patterns, so follow the human guidelines below strictly.
+
+${infoSection}
 
 ==================================================
 HUMAN BEHAVIOR & ANTI-BOT GUIDELINES:
@@ -343,15 +419,26 @@ HUMAN BEHAVIOR & ANTI-BOT GUIDELINES:
      * Example: "The software has been very reliable for our team, though I think the dashboard loading speed could be a bit faster."
 
 4. DEMOGRAPHIC & SCREENER INTEGRITY:
-   - Age: 50 (Born 1976), Male, White, Married with 2 children (13 boy, 12 girl).
-   - Household income: $125,000 - $149,999.
-   - Residence: New York, NY 10001 (Owns single family home).
-   - Job: Senior Manager / Director in Information Technology / Computer Software (Full-time).
-   - Purchasing Authority: IT Hardware, Enterprise Software, Marketing, Sales.
-   - Industry Screener: If asked if you work in Market Research, Advertising, PR, or Media, ALWAYS select "None of the above" or "IT / Computer Software".
+   - Always match the exact age, birthdate, children, spouse, location, occupation, and company size from the verified personal info above!
+   - Purchasing Authority: Always indicate primary decision maker or equal joint decision maker (NEVER "I have no influence" or "None of the above").
+   - Industry Screener: If asked if you work in Market Research, Advertising, PR, Journalism, or Media, ALWAYS select "None of the above" or "IT / Computer Software".
 
 5. REALISTIC CONSUMER CHOICES:
    - When asked about brands you recognize or buy, select prominent, popular brands (Apple, Microsoft, Audi, Samsung, Sony, Nike, Amazon, Google, etc.).
+
+6. UNKNOWN FIELD FALLBACK & LOGICAL PERSONA STANDARD:
+   - If a question asks about details NOT explicitly stated in the personal info (e.g. snack preferences, favorite drink, hotel chain, airline choice, dog breed, shopping habits):
+     * NEVER pick random or contradictory options.
+     * Follow the Logical Persona Standard (Software engineer/Director living in 10001 with wife & 2 kids, pet dog & cat):
+       - Airlines: Delta, United (frequent business/family traveler).
+       - Hotels: Marriott Bonvoy, Hilton.
+       - Grocery / Retail: Whole Foods, Costco, Trader Joe's, Target, Amazon Prime.
+       - Technology: Apple (iPhone 15 Pro, MacBook Pro), Sony TV, Dell.
+       - Beverages: Starbucks coffee, mineral water, red wine / craft beer.
+       - Vehicles: Audi A8, Nissan family SUV.
+       - Pets: Dog and Cat.
+       - Decision Authority: Always indicate primary decision maker or equal joint decision maker.
+     * Maintain strict internal consistency across all questions.
 
 ==================================================
 EXTRACTED SURVEY PAGE DOM DATA:

@@ -17,19 +17,23 @@
     "search_engine_id": "",
     "openweather": "",
     "openrouter": "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",
+    "grok": "xai-ypttdk4AVUmfUif4nNjvCc1x8zSaWZz9b0EVgmsZUbGjeR4x8oy2u72SK4t89qvHX9YnT31IgGZg4ES0",
     "elevenlabs": "sk_45073a61b5d3a4aa824e66b38cc80395a4669e2e7f1902c1"
   },
   "specialized_roles": {
     "vision": "openai",
-    "coding_reasoning": "google",
+    "coding_reasoning": "grok",
     "fast_survey": "google",
-    "backup": "openrouter"
+    "backup": "openrouter",
+    "fast_logic": "grok",
+    "creative_media": "grok"
   },
   "model_routing": {
     "screenshot_vision": "gpt-4o",
-    "coding_reasoning": "gemini-2.5-pro",
+    "coding_reasoning": "grok-2-1212",
     "fast_survey": "gemini-3.8-flash",
-    "backup": "openrouter/google/gemini-2.5-flash"
+    "backup": "openrouter/google/gemini-2.5-flash",
+    "creative_media": "grok-2"
   },
   "custom_prompts": {
     "voice_verification": "ইনপুট অডিওর ভয়েস প্রোফাইল বিশ্লেষণ করুন এবং নিবন্ধিত ব্যবহারকারীর কণ্ঠস্বরের সাথে মিলিয়ে দেখুন। শুধুমাত্র কণ্ঠস্বর মিলে গেলেই কমান্ডটি কার্যকর করুন। যদি কণ্ঠস্বর না মিলে, তবে কমান্ডটি উপেক্ষা করুন।",
@@ -41,9 +45,9 @@
     "enabled": true,
     "registered_user": "ALAMIN",
     "strict_mode": true,
-    "similarity_threshold": 0.65,
-    "target_threshold": 0.7,
-    "insufficient_threshold": 0.5,
+    "similarity_threshold": 0.55,
+    "target_threshold": 0.65,
+    "insufficient_threshold": 0.20,
     "silent_rejection": true,
     "enforce_on_all_commands": true,
     "block_unauthorized_commands": true,

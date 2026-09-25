@@ -32,8 +32,16 @@
   // Listen for messages from background or popup
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === "SCAN_AND_ANALYZE") {
+      if (message.show_hud) {
+        toggleHUD(true);
+      }
       performFullScan()
-        .then((res) => sendResponse(res))
+        .then((res) => {
+          if (message.show_hud) {
+            toggleHUD(true);
+          }
+          sendResponse(res);
+        })
         .catch((err) => sendResponse({ success: false, error: err.message }));
       return true;
     }
@@ -79,6 +87,16 @@
       if (isAutoPilotActive) {
         triggerAutoPilotCycle();
       }
+      sendResponse({ success: true });
+      return true;
+    }
+
+    if (message.action === "AUTOPILOT_TRIGGER_CYCLE") {
+      isAutoPilotActive = true;
+      updateAutoPilotUI(true);
+      setTimeout(() => {
+        triggerAutoPilotCycle();
+      }, 800);
       sendResponse({ success: true });
       return true;
     }
@@ -219,10 +237,10 @@
 
       // 2. Screen-Out / Disqualification Check
       if (detectScreenOutOnPage()) {
-        updateHUDStatus("error", "⚠️ Screen-Out detected! Auto-returning to dashboard...");
+        updateHUDStatus("error", "⚠️ Screen-Out detected! Auto-returning to dashboard for next survey...");
         chrome.runtime.sendMessage({
-          action: "NOTIFY_JARVIS_EVENT",
-          event: "survey_screen_out",
+          action: "SURVEY_OUTCOME",
+          outcome: "screen_out",
           message: "Survey screened out. Returning to dashboard for next survey."
         });
         await sleep(2000);
@@ -240,8 +258,8 @@
       if (detectCompletionOnPage()) {
         updateHUDStatus("done", "🎉 Survey Completed! Reward earned. Transitioning to next survey...");
         chrome.runtime.sendMessage({
-          action: "NOTIFY_JARVIS_EVENT",
-          event: "survey_completed",
+          action: "SURVEY_OUTCOME",
+          outcome: "completed",
           message: "Survey completed and reward earned!"
         });
         await sleep(2500);

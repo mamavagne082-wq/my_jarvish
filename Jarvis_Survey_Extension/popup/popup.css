@@ -339,6 +339,18 @@ body {
   color: #fff;
 }
 
+.btn-row-sub {
+  margin-top: 6px;
+}
+
+.btn-scan {
+  flex: 0.8;
+}
+
+.btn-clear {
+  flex: 0.6;
+}
+
 .btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -585,4 +597,133 @@ input:focus, select:focus {
   color: #475569;
   text-align: center;
   letter-spacing: 0.5px;
+}
+
+/* =========================================================================
+   MY PERSONAL INFO SETUP SCREEN (MATCHING USER SCREENSHOT)
+   ========================================================================= */
+.personal-info-header {
+  margin-bottom: 12px;
+}
+
+.personal-info-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #3b82f6;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.personal-info-subtitle {
+  font-size: 10px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.personal-info-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-row-1 {
+  display: flex;
+  width: 100%;
+}
+
+.form-row-2 {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.form-row-2 .outline-field {
+  flex: 1;
+}
+
+.form-row-3 {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.form-row-3 .outline-field {
+  flex: 1;
+}
+
+.outline-field {
+  position: relative;
+  border: 1px solid rgba(75, 105, 145, 0.55);
+  border-radius: 8px;
+  padding: 8px 10px 4px 10px;
+  background: rgba(13, 23, 38, 0.7);
+  transition: all 0.2s ease;
+  margin-top: 6px;
+}
+
+.outline-field:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.3);
+}
+
+.field-label {
+  position: absolute;
+  top: -8px;
+  left: 10px;
+  font-size: 9.5px;
+  font-weight: 500;
+  color: #94a3b8;
+  background: #0d1726;
+  padding: 0 5px;
+  border-radius: 2px;
+  pointer-events: none;
+  text-transform: capitalize;
+}
+
+.field-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #f8fafc;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 2px 0 3px 0;
+  font-family: inherit;
+}
+
+.field-input::placeholder {
+  color: rgba(148, 163, 184, 0.35);
+  font-weight: 400;
+}
+
+.personal-info-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.personal-info-msg {
+  font-size: 11px;
+  text-align: center;
+  min-height: 18px;
+  margin-top: 4px;
+}
+
+.btn-xs-link {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #60a5fa;
+  font-size: 9.5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-left: auto;
+  transition: all 0.2s ease;
+}
+
+.btn-xs-link:hover {
+  background: rgba(59, 130, 246, 0.3);
+  color: #fff;
 }

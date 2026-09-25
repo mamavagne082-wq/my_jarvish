@@ -43,7 +43,8 @@
         </div>
         <div class="info-row">
           <span class="info-label">Respondent:</span>
-          <span class="info-val highlight-val" id="persona-summary-badge">Alamin Miah (50y, IT Mgr)</span>
+          <span class="info-val highlight-val" id="persona-summary-badge">John Smith (32y, Software)</span>
+          <button type="button" id="btn-edit-personal-info" class="btn-xs-link" title="Open My Personal Info form">✏️ Edit My Info</button>
         </div>
       </div>
 
@@ -60,14 +61,14 @@
           <span class="btn-icon">🎯</span>
           <span class="btn-label">ম্যানুয়ালি উত্তর সিলেক্ট করুন (Alt+S)</span>
         </button>
-        <div class="btn-row" style="margin-top: 6px;">
+        <div class="btn-row btn-row-sub">
           <button id="btn-click-next" class="btn btn-action-secondary" title="পরবর্তী পেজে যান">
             <span>⏭️</span> Next Page
           </button>
-          <button id="btn-analyze-now" class="btn btn-action-ghost" style="flex:0.8;">
+          <button id="btn-analyze-now" class="btn btn-action-ghost btn-scan">
             <span>🔍</span> Scan
           </button>
-          <button id="btn-clear-now" class="btn btn-action-ghost" style="flex:0.6;">
+          <button id="btn-clear-now" class="btn btn-action-ghost btn-clear">
             <span>🧹</span> Clear
           </button>
         </div>
@@ -108,46 +109,145 @@
       </div>
     </main>
 
-    <!-- Tab 2: Persona Profile -->
+    <!-- Tab 2: My Personal Info (Matching Setup Screen) -->
     <section class="tab-content" id="tab-persona">
-      <div class="persona-header">
-        <h3>Loaded Persona Profile</h3>
-        <p class="persona-sub">Jarvis uses these exact parameters to qualify for surveys and avoid screenouts.</p>
+      <div class="personal-info-header">
+        <h2 class="personal-info-title">My Personal Info</h2>
+        <p class="personal-info-subtitle">Fill or verify this info. Jarvis AI uses these exact parameters to answer surveys and avoid screenouts.</p>
       </div>
-      <div class="persona-grid">
-        <div class="persona-item">
-          <span class="p-key">Name</span>
-          <span class="p-val" id="p-name">Alamin Miah</span>
+
+      <form id="form-personal-info" class="personal-info-form">
+        <!-- Row 1: First Name & Last Name -->
+        <div class="form-row-2">
+          <div class="outline-field">
+            <label class="field-label">First Name</label>
+            <input type="text" id="info-first-name" class="field-input" placeholder="John" value="John">
+          </div>
+          <div class="outline-field">
+            <label class="field-label">Last Name</label>
+            <input type="text" id="info-last-name" class="field-input" placeholder="Smith" value="Smith">
+          </div>
         </div>
-        <div class="persona-item">
-          <span class="p-key">Age / Birth</span>
-          <span class="p-val" id="p-age">50 (1976)</span>
+
+        <!-- Row 2: My Age & Birthdate -->
+        <div class="form-row-2">
+          <div class="outline-field">
+            <label class="field-label">My Age</label>
+            <input type="number" id="info-age" class="field-input" placeholder="32" value="32">
+          </div>
+          <div class="outline-field">
+            <label class="field-label">Birthdate (DD/MM/YYYY)</label>
+            <input type="text" id="info-birthdate" class="field-input" placeholder="15/08/1992" value="15/08/1992">
+          </div>
         </div>
-        <div class="persona-item">
-          <span class="p-key">Gender / Race</span>
-          <span class="p-val" id="p-demographics">Male / White</span>
+
+        <!-- Row 3: Race & Ethnicity -->
+        <div class="form-row-2">
+          <div class="outline-field">
+            <label class="field-label">Race</label>
+            <input type="text" id="info-race" class="field-input" placeholder="White" value="White">
+          </div>
+          <div class="outline-field">
+            <label class="field-label">Ethnicity</label>
+            <input type="text" id="info-ethnicity" class="field-input" placeholder="Not hispanic/latin" value="Not hispanic/latin">
+          </div>
         </div>
-        <div class="persona-item">
-          <span class="p-key">Location</span>
-          <span class="p-val" id="p-location">New York, NY 10001</span>
+
+        <!-- Row 4: Home & Language -->
+        <div class="form-row-2">
+          <div class="outline-field">
+            <label class="field-label">Home</label>
+            <input type="text" id="info-home" class="field-input" placeholder="Own single Home/ Condo" value="Own single Home/ Condo">
+          </div>
+          <div class="outline-field">
+            <label class="field-label">Language</label>
+            <input type="text" id="info-language" class="field-input" placeholder="English" value="English">
+          </div>
         </div>
-        <div class="persona-item">
-          <span class="p-key">Employment</span>
-          <span class="p-val" id="p-job">Full-time, IT Software Manager</span>
+
+        <!-- Row 5: Animal / Pets & Job Type -->
+        <div class="form-row-2">
+          <div class="outline-field">
+            <label class="field-label">Animal / Pets</label>
+            <input type="text" id="info-animals" class="field-input" placeholder="Dog, Cat" value="Dog, Cat">
+          </div>
+          <div class="outline-field">
+            <label class="field-label">Job Type</label>
+            <input type="text" id="info-job-type" class="field-input" placeholder="Full time" value="Full time">
+          </div>
         </div>
-        <div class="persona-item">
-          <span class="p-key">Income</span>
-          <span class="p-val" id="p-income">$125,000 - $149,999</span>
+
+        <!-- Row 6: Occupation & Company Employees -->
+        <div class="form-row-2">
+          <div class="outline-field">
+            <label class="field-label">Occupation</label>
+            <input type="text" id="info-occupation" class="field-input" placeholder="Computer Software" value="Computer Software">
+          </div>
+          <div class="outline-field">
+            <label class="field-label">Company Employees</label>
+            <input type="text" id="info-employees" class="field-input" placeholder="1000-5000" value="1000-5000">
+          </div>
         </div>
-        <div class="persona-item">
-          <span class="p-key">Vehicles</span>
-          <span class="p-val" id="p-car">Audi A8 Sedan (2023), Nissan</span>
+
+        <!-- Row 7: Decision Takers (Full Width) -->
+        <div class="form-row-1">
+          <div class="outline-field">
+            <label class="field-label">Decision Takers</label>
+            <input type="text" id="info-decision" class="field-input" placeholder="Myself (all section)" value="Myself (all section)">
+          </div>
         </div>
-        <div class="persona-item">
-          <span class="p-key">Household</span>
-          <span class="p-val" id="p-house">Married, 2 kids (13B, 12G)</span>
+
+        <!-- Row 8: Family Ages (3 cols) -->
+        <div class="form-row-3">
+          <div class="outline-field">
+            <label class="field-label">Wife Age</label>
+            <input type="number" id="info-wife-age" class="field-input" placeholder="30" value="30">
+          </div>
+          <div class="outline-field">
+            <label class="field-label">Son Age</label>
+            <input type="number" id="info-son-age" class="field-input" placeholder="5" value="5">
+          </div>
+          <div class="outline-field">
+            <label class="field-label">Daughter Age</label>
+            <input type="number" id="info-daughter-age" class="field-input" placeholder="3" value="3">
+          </div>
         </div>
-      </div>
+
+        <!-- Row 9: Education & Zip -->
+        <div class="form-row-2">
+          <div class="outline-field">
+            <label class="field-label">Education / Degree</label>
+            <input type="text" id="info-education" class="field-input" placeholder="Bachelor Degree" value="Bachelor Degree">
+          </div>
+          <div class="outline-field">
+            <label class="field-label">Postal / Zip Code</label>
+            <input type="text" id="info-zip" class="field-input" placeholder="10001" value="10001">
+          </div>
+        </div>
+
+        <!-- Row 10: Email & Country -->
+        <div class="form-row-2">
+          <div class="outline-field">
+            <label class="field-label">Email Address</label>
+            <input type="email" id="info-email" class="field-input" placeholder="johnsmith@gmail.com" value="alaminmiah1976@gmail.com">
+          </div>
+          <div class="outline-field">
+            <label class="field-label">Country</label>
+            <input type="text" id="info-country" class="field-input" placeholder="United States" value="United States">
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="personal-info-actions">
+          <button type="button" id="btn-save-personal-info" class="btn btn-action-primary">
+            💾 Save Personal Info & Sync
+          </button>
+          <button type="button" id="btn-sync-from-jarvis" class="btn btn-action-secondary" title="Sync profile from Jarvis Desktop backend">
+            🔄 Load from Jarvis Desktop
+          </button>
+        </div>
+        <div id="personal-info-status" class="personal-info-msg"></div>
+      </form>
     </section>
 
     <!-- Tab 3: Settings -->
