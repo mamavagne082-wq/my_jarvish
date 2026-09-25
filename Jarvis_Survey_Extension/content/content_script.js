@@ -755,7 +755,7 @@
     }
 
     const { autoFillDelay } = await chrome.storage.local.get(["autoFillDelay"]);
-    const baseDelay = autoFillDelay || 450;
+    const baseDelay = autoFillDelay !== undefined ? autoFillDelay : 25;
 
     let filledCount = 0;
 
@@ -772,8 +772,7 @@
         if (el) {
           await simulateHumanAction(el, ans);
           filledCount++;
-          // Natural human pause between question interactions
-          await sleep(baseDelay + Math.random() * 250);
+          await sleep(baseDelay);
         }
       }
     }
@@ -782,26 +781,17 @@
   }
 
   /**
-   * Simulates full natural human interaction (typing keystrokes, event sequences)
+   * Ultra-fast interaction engine (Instant select, type, and click < 200ms)
    */
   async function simulateHumanAction(element, answer) {
-    // Scroll element smoothly into view as human eyes move
-    element.scrollIntoView({ behavior: "smooth", block: "center" });
-    await sleep(80 + Math.random() * 100);
-
     const opts = { bubbles: true, cancelable: true, view: window };
 
     if (element.type === "radio" || element.type === "checkbox") {
       if (!element.checked) {
-        element.dispatchEvent(new MouseEvent("pointerover", opts));
-        element.dispatchEvent(new MouseEvent("mouseenter", opts));
-        element.dispatchEvent(new MouseEvent("mouseover", opts));
-        element.dispatchEvent(new MouseEvent("mousedown", opts));
-        element.focus();
         element.checked = true;
-        element.dispatchEvent(new MouseEvent("mouseup", opts));
         element.dispatchEvent(new MouseEvent("click", opts));
         element.dispatchEvent(new Event("change", { bubbles: true }));
+        await sleep(20);
       }
     } else if (element.tagName.toLowerCase() === "select") {
       element.focus();
@@ -815,31 +805,16 @@
           }
         }
       }
+      await sleep(20);
     } else if (element.type === "text" || element.tagName.toLowerCase() === "textarea") {
-      // Natural human typing character by character
       element.focus();
       const textToType = answer.text_input_value || "Great experience and reliability overall.";
-      element.value = "";
-
-      for (let i = 0; i < textToType.length; i++) {
-        const char = textToType[i];
-        element.value += char;
-
-        element.dispatchEvent(new KeyboardEvent("keydown", { key: char, bubbles: true }));
-        element.dispatchEvent(new KeyboardEvent("keypress", { key: char, bubbles: true }));
-        element.dispatchEvent(new Event("input", { bubbles: true }));
-        element.dispatchEvent(new KeyboardEvent("keyup", { key: char, bubbles: true }));
-
-        // Typing jitter: 30ms - 75ms per character with occasional 120ms pause
-        const jitter = Math.random() < 0.1 ? 120 : (30 + Math.random() * 45);
-        await sleep(jitter);
-      }
+      element.value = textToType;
+      element.dispatchEvent(new Event("input", { bubbles: true }));
       element.dispatchEvent(new Event("change", { bubbles: true }));
+      await sleep(25);
+      element.blur();
     }
-
-    await sleep(60 + Math.random() * 80);
-    element.blur();
-  }
 
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
