@@ -135,11 +135,41 @@ class JarvisAccessibilityService : AccessibilityService() {
                 val target = payload.optString("target", "")
                 clickElementByText(target)
             }
+            "open_jarvis", "show_ui", "bring_to_front" -> {
+                val phrase = payload.optString("phrase", "hey jarvis")
+                bringAppToFront(phrase)
+            }
+            "minimize", "hide_ui", "background" -> {
+                performGlobalAction(GLOBAL_ACTION_HOME)
+            }
             "answer_call" -> answerIncomingCall()
             "end_call" -> endActiveCall()
             "home" -> performGlobalAction(GLOBAL_ACTION_HOME)
             "back" -> performGlobalAction(GLOBAL_ACTION_BACK)
             else -> Log.w(TAG, "Unknown mobile action: $action")
+        }
+    }
+
+    /**
+     * Brings Jarvis MainActivity to the front immediately with system accessibility privileges.
+     */
+    fun bringAppToFront(phrase: String = "hey jarvis") {
+        try {
+            val bringIntent = Intent(applicationContext, MainActivity::class.java).apply {
+                action = JarvisForegroundService.ACTION_WAKE_WORD_DETECTED
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP
+                )
+                putExtra("from_wake_word", true)
+                putExtra("phrase", phrase)
+            }
+            startActivity(bringIntent)
+            Log.d(TAG, "AccessibilityService successfully launched MainActivity to front")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error bringing app to front via Accessibility: ${e.message}")
         }
     }
 

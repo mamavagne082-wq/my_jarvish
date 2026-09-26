@@ -5,10 +5,18 @@ color 0A
 set STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup
 set SHORTCUT_PATH=%STARTUP_DIR%\JarvisService.lnk
 set ROOT_DIR=%~dp0
-if exist "%ROOT_DIR%Jarvis\service.exe" (
-    set SERVICE_EXE="%ROOT_DIR%Jarvis\service.exe"
-) else if exist "%ROOT_DIR%service.exe" (
+if exist "%ROOT_DIR%Jarvis.exe" (
+    set JARVIS_EXE="%ROOT_DIR%Jarvis.exe"
+) else if exist "%ROOT_DIR%Jarvis\Jarvis.exe" (
+    set JARVIS_EXE="%ROOT_DIR%Jarvis\Jarvis.exe"
+) else (
+    set JARVIS_EXE=
+)
+
+if exist "%ROOT_DIR%service.exe" (
     set SERVICE_EXE="%ROOT_DIR%service.exe"
+) else if exist "%ROOT_DIR%Jarvis\service.exe" (
+    set SERVICE_EXE="%ROOT_DIR%Jarvis\service.exe"
 ) else (
     set SERVICE_EXE=
 )
@@ -49,27 +57,39 @@ goto MENU
 
 :ENABLE
 echo.
+if defined JARVIS_EXE (
+    echo Registering Jarvis.exe for Windows startup...
+    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "JarvisAssistant" /t REG_SZ /d %JARVIS_EXE% /f >nul 2>&1
+)
 if defined SERVICE_EXE (
     %SERVICE_EXE% --install
 ) else (
     python "%ROOT_DIR%service.py" --install
 )
+echo [SUCCESS] Auto-start successfully enabled!
 pause
 goto MENU
 
 :DISABLE
 echo.
+if defined JARVIS_EXE (
+    reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "JarvisAssistant" /f >nul 2>&1
+)
 if defined SERVICE_EXE (
     %SERVICE_EXE% --uninstall
 ) else (
     python "%ROOT_DIR%service.py" --uninstall
 )
+echo [SUCCESS] Auto-start disabled.
 pause
 goto MENU
 
 :LAUNCH_NOW
 echo.
 echo Starting Jarvis in background...
+if defined JARVIS_EXE (
+    start "" %JARVIS_EXE%
+)
 if defined SERVICE_EXE (
     start "" %SERVICE_EXE% start
 ) else (

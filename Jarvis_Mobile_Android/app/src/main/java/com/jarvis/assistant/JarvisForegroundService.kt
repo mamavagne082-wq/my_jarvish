@@ -41,8 +41,9 @@ class JarvisForegroundService : Service() {
         const val ACTION_START = "com.jarvis.assistant.START"
         const val ACTION_STOP = "com.jarvis.assistant.STOP"
 
-        // ── [NEW] Wake Word broadcast action ──────────────────────────────
+        // ── [NEW] Wake Word & Idle broadcast actions ──────────────────────
         const val ACTION_WAKE_WORD_DETECTED = "com.jarvis.assistant.WAKE_WORD"
+        const val ACTION_RESET_IDLE = "com.jarvis.assistant.RESET_IDLE"
 
         const val PREFS_NAME = "jarvis_mobile_prefs"
         const val KEY_SERVICE_ENABLED = "service_enabled"
@@ -318,6 +319,9 @@ class JarvisForegroundService : Service() {
      */
     private fun handleIncomingDataPacket(data: ByteArray) {
         try {
+            // Activity detected: notify MainActivity to keep UI active / reset idle timer
+            sendBroadcast(Intent(ACTION_RESET_IDLE).setPackage(packageName))
+
             val text = String(data, Charsets.UTF_8)
             val json = JSONObject(text)
             val type = json.optString("type", "")
@@ -493,9 +497,74 @@ class JarvisForegroundService : Service() {
             if (now - lastActivationMs < COOLDOWN_MS) return  // cooldown
             lastActivationMs = now
 
-            Log.i(TAG_WW, "\uD83D\uDD0A WAKE WORD DETECTED: \"$phrase\" → Activating Jarvis!")
+            Log.i(TAG_WW, "🔊 WAKE WORD DETECTED: \"$phrase\" → Activating Jarvis UI!")
 
-            // Send broadcast → MainActivity will come to foreground
+            // 1. Wake screen if sleeping
+            try {
+                val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                @Suppress("DEPRECATION")
+                val screenLock = pm.newWakeLock(
+                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK or
+                    PowerManager.ACQUIRE_CAUSES_WAKEUP or
+                    PowerManager.ON_AFTER_RELEASE,
+                    "Jarvis::WakeWordScreenOn"
+                )
+                screenLock.acquire(3000L)
+            } catch (e: Exception) {
+                Log.w(TAG_WW, "Screen wakeup error: ${e.message}")
+            }
+
+            // 2. Prepare Intent to launch/bring MainActivity to front
+            val bringIntent = Intent(applicationContext, MainActivity::class.java).apply {
+                action = ACTION_WAKE_WORD_DETECTED
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP
+                )
+                putExtra("from_wake_word", true)
+                putExtra("phrase", phrase)
+            }
+
+            // 3. Direct launch
+            try {
+                startActivity(bringIntent)
+            } catch (e: Exception) {
+                Log.w(TAG_WW, "Direct startActivity error: ${e.message}")
+            }
+
+            // 4. Accessibility service launch fallback (bypasses Android 10+ background restriction)
+            try {
+                JarvisAccessibilityService.instance?.startActivity(bringIntent)
+            } catch (e: Exception) {
+                Log.w(TAG_WW, "Accessibility startActivity error: ${e.message}")
+            }
+
+            // 5. High-priority Full-Screen Notification (guaranteed foreground popup on Android 10-15)
+            try {
+                val fullScreenPendingIntent = PendingIntent.getActivity(
+                    applicationContext,
+                    1004,
+                    bringIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+                )
+                val alertNotification = NotificationCompat.Builder(this@JarvisForegroundService, CHANNEL_ID)
+                    .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+                    .setContentTitle("Jarvis AI Assistant")
+                    .setContentText("🎤 \"$phrase\" শোনা গেছে — আমি শুনছি...")
+                    .setPriority(NotificationCompat.PRIORITY_MAX)
+                    .setCategory(NotificationCompat.CATEGORY_CALL)
+                    .setFullScreenIntent(fullScreenPendingIntent, true)
+                    .setAutoCancel(true)
+                    .build()
+                val notifManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                notifManager.notify(1005, alertNotification)
+            } catch (e: Exception) {
+                Log.w(TAG_WW, "Full screen notification error: ${e.message}")
+            }
+
+            // 6. Send broadcast for any active receiver
             val wakeIntent = Intent(ACTION_WAKE_WORD_DETECTED).apply {
                 setPackage(packageName)
                 putExtra("phrase", phrase)

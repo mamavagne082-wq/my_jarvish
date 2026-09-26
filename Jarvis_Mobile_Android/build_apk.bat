@@ -18,8 +18,8 @@ if not defined JAVA_HOME (
 echo [1/3] Checking Java / JDK installation...
 java -version >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Java Development Kit (JDK 17+) is required to compile APK.
-    echo Please install JDK 17+ or open this project in Android Studio.
+    echo [ERROR] Java Development Kit [JDK 17 or higher] is required to compile APK.
+    echo Please install JDK 17 or higher or open this project in Android Studio.
     echo.
     pause
     exit /b 1
@@ -36,10 +36,9 @@ if exist "gradlew.bat" (
         gradle assembleDebug
     ) else (
         echo [INFO] You can build the APK easily:
-        echo 1. Open the "Jarvis_Mobile_Android" folder in Android Studio.
-        echo 2. Click Build ^> Build Bundle(s) / APK(s) ^> Build APK(s).
+        echo 1. Open the Jarvis_Mobile_Android folder in Android Studio.
+        echo 2. Click Build - Build Bundle or APK - Build APK.
         echo 3. The APK will be ready instantly to transfer to your phone!
-        pause
         exit /b 0
     )
 )
@@ -49,4 +48,3 @@ echo ===============================================================
 echo [SUCCESS] Build Process Finished!
 echo Check app\build\outputs\apk\debug\ for your Jarvis_Mobile.apk
 echo ===============================================================
-pause

@@ -33,30 +33,61 @@ class MainActivity : AppCompatActivity() {
         private const val REQUEST_RECORD_AUDIO = 101
     }
 
-    // ── [NEW] Wake Word Receiver ─────────────────────────────────────────
-    // Receives broadcast from JarvisForegroundService when "Hey Jarvis" is heard.
-    // Brings this Activity to the foreground and auto-starts the Jarvis session.
+    // ── Inactivity Auto-Minimize (20-30s timeout) ─────────────────────────
+    private val AUTO_MINIMIZE_DELAY_MS = 25000L // 25 seconds idle timeout
+    private val idleHandler = Handler(Looper.getMainLooper())
+    private val autoMinimizeRunnable = Runnable {
+        android.util.Log.i("MainActivity", "25s of inactivity elapsed. Automatically returning to background...")
+        try {
+            moveTaskToBack(true)
+        } catch (e: Exception) {
+            android.util.Log.w("MainActivity", "Error moving task to back: ${e.message}")
+        }
+    }
+
+    fun resetAutoMinimizeTimer() {
+        idleHandler.removeCallbacks(autoMinimizeRunnable)
+        idleHandler.postDelayed(autoMinimizeRunnable, AUTO_MINIMIZE_DELAY_MS)
+        android.util.Log.d("MainActivity", "Inactivity timer reset (25s countdown started).")
+    }
+
+    fun cancelAutoMinimizeTimer() {
+        idleHandler.removeCallbacks(autoMinimizeRunnable)
+    }
+
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        // Reset 25-second timer on every touch/interaction
+        resetAutoMinimizeTimer()
+    }
+
+    // ── [NEW] Wake Word & Idle Receiver ──────────────────────────────────
+    // Listens for "Hey Jarvis" from JarvisForegroundService and speech/data updates.
+    // Brings MainActivity to front and manages 25-second auto-hide lifecycle.
     private val wakeWordReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action != JarvisForegroundService.ACTION_WAKE_WORD_DETECTED) return
-            val phrase = intent.getStringExtra("phrase") ?: "hey jarvis"
-            android.util.Log.i("MainActivity", "Wake word received: \"$phrase\" → bringing app to foreground.")
-
-            // Bring MainActivity to foreground
-            val bringToFront = Intent(applicationContext, MainActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
-                         Intent.FLAG_ACTIVITY_NEW_TASK or
-                         Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                putExtra("from_wake_word", true)
+            val action = intent?.action ?: return
+            if (action == JarvisForegroundService.ACTION_RESET_IDLE) {
+                // Speech or command received → keep UI alive
+                resetAutoMinimizeTimer()
+                return
             }
-            startActivity(bringToFront)
+            if (action == JarvisForegroundService.ACTION_WAKE_WORD_DETECTED) {
+                val phrase = intent.getStringExtra("phrase") ?: "hey jarvis"
+                android.util.Log.i("MainActivity", "Wake word received: \"$phrase\" → bringing app to foreground.")
 
-            // Show toast feedback
-            Toast.makeText(
-                applicationContext,
-                "🔊 Jarvis activated! (\"$phrase\" detected)",
-                Toast.LENGTH_SHORT
-            ).show()
+                // Bring MainActivity to foreground
+                val bringToFront = Intent(applicationContext, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                             Intent.FLAG_ACTIVITY_NEW_TASK or
+                             Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    putExtra("from_wake_word", true)
+                    putExtra("phrase", phrase)
+                }
+                startActivity(bringToFront)
+                handleWakeWordActivation(phrase)
+                resetAutoMinimizeTimer()
+            }
         }
     }
 
@@ -68,19 +99,32 @@ class MainActivity : AppCompatActivity() {
         setupListeners()
         checkAudioPermission()
 
-        // ── [NEW] Handle launch from wake word (intent extra) ────────────────
+        // Register wake word receiver for entire Activity lifetime
+        val filter = IntentFilter().apply {
+            addAction(JarvisForegroundService.ACTION_WAKE_WORD_DETECTED)
+            addAction(JarvisForegroundService.ACTION_RESET_IDLE)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(wakeWordReceiver, filter, RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(wakeWordReceiver, filter)
+        }
+
+        // Handle launch from wake word (intent extra)
         if (intent?.getBooleanExtra("from_wake_word", false) == true) {
-            handleWakeWordActivation()
+            val phrase = intent?.getStringExtra("phrase") ?: "hey jarvis"
+            handleWakeWordActivation(phrase)
         }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        // ── [NEW] Also handle wake word when activity is already running ─────
         if (intent.getBooleanExtra("from_wake_word", false)) {
-            handleWakeWordActivation()
+            val phrase = intent.getStringExtra("phrase") ?: "hey jarvis"
+            handleWakeWordActivation(phrase)
         }
+        resetAutoMinimizeTimer()
     }
 
     override fun onResume() {
@@ -89,19 +133,17 @@ class MainActivity : AppCompatActivity() {
             startJarvisService()
         }
         updateUIState()
-
-        // ── [NEW] Register wake word receiver ──────────────────────────────
-        val filter = IntentFilter(JarvisForegroundService.ACTION_WAKE_WORD_DETECTED)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(wakeWordReceiver, filter, RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(wakeWordReceiver, filter)
-        }
+        resetAutoMinimizeTimer()
     }
 
-    // ── [NEW] Unregister wake word receiver on pause ──────────────────────
     override fun onPause() {
         super.onPause()
+        cancelAutoMinimizeTimer()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        cancelAutoMinimizeTimer()
         try { unregisterReceiver(wakeWordReceiver) } catch (_: Exception) {}
     }
 
@@ -278,16 +320,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ── [NEW] Wake word activation handler ────────────────────────────────
-    private fun handleWakeWordActivation() {
-        android.util.Log.i("MainActivity", "Handling wake word activation.")
+    private fun handleWakeWordActivation(phrase: String = "Hey Jarvis") {
+        android.util.Log.i("MainActivity", "Handling wake word activation: \"$phrase\"")
         // Ensure service is running
         if (!JarvisForegroundService.isRunning) {
             startJarvisService()
         }
         // Auto-start Jarvis session with a short delay to allow UI to settle
         Handler(Looper.getMainLooper()).postDelayed({
-            Toast.makeText(this, "🎞️ Jarvis জাগ্রত! 'Hey Jarvis' শোনা গেছে...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "🔊 Jarvis জাগ্রত! \"$phrase\" শোনা গেছে...", Toast.LENGTH_SHORT).show()
             updateUIState()
+            resetAutoMinimizeTimer()
         }, 300)
     }
 }
