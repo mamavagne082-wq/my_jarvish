@@ -20,6 +20,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   const liveStatusText = document.getElementById("live-status-text");
   const trapAlertCard = document.getElementById("trap-alert-card");
   const trapDesc = document.getElementById("trap-desc");
+  const apiAlertCard = document.getElementById("api-limit-alert-card");
+  const apiAlertTitle = document.getElementById("api-alert-title");
+  const apiAlertDesc = document.getElementById("api-alert-desc");
+  const apiAlertMeta = document.getElementById("api-alert-meta");
+  const btnDismissApiAlert = document.getElementById("btn-dismiss-api-alert");
   const resultsList = document.getElementById("results-list");
   const resultsCount = document.getElementById("results-count");
 
@@ -77,12 +82,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (storage.geminiApiKey) {
     inputApiKey.value = storage.geminiApiKey;
   }
-  if (storage.geminiModel) {
+  const deprecated = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash", "gemini-2.5-flash"];
+  if (storage.geminiModel && !deprecated.includes(storage.geminiModel)) {
     selectModel.value = storage.geminiModel;
     modelNameBadge.innerText = storage.geminiModel.replace("gemini-", "").toUpperCase();
   } else {
     selectModel.value = "gemini-3.8-flash";
-    modelNameBadge.innerText = "GEMINI 3.8";
+    modelNameBadge.innerText = "GEMINI 3.8 FLASH";
+    chrome.storage.local.set({ geminiModel: "gemini-3.8-flash" });
   }
   if (storage.autoFillDelay) {
     inputFillDelay.value = storage.autoFillDelay;
@@ -115,140 +122,189 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
+  // Check and display active API limit alerts
+  if (storage.activeApiAlerts && storage.activeApiAlerts.length > 0 && apiAlertCard) {
+    const alert = storage.activeApiAlerts[0];
+    apiAlertCard.classList.remove("hidden");
+    if (apiAlertTitle) apiAlertTitle.innerText = `⚠️ API Limit Alert: ${alert.api_name}`;
+    if (apiAlertDesc) apiAlertDesc.innerText = alert.warning_message;
+    if (apiAlertMeta) {
+      apiAlertMeta.innerText = `Usage: ${alert.current_usage} / ${alert.limit} ${alert.unit || "calls"} (${alert.usage_percent}%)`;
+    }
+  }
+
+  if (btnDismissApiAlert && apiAlertCard) {
+    btnDismissApiAlert.addEventListener("click", async () => {
+      apiAlertCard.classList.add("hidden");
+      await chrome.storage.local.remove(["activeApiAlerts"]);
+    });
+  }
+
   // Check Local Bridge
   checkJarvisBridgeStatus();
 
   // 4. Toggle API Key Visibility
-  btnToggleKey.addEventListener("click", () => {
-    if (inputApiKey.type === "password") {
-      inputApiKey.type = "text";
-      btnToggleKey.innerText = "🔒";
-    } else {
-      inputApiKey.type = "password";
-      btnToggleKey.innerText = "👁️";
-    }
-  });
+  if (btnToggleKey && inputApiKey) {
+    btnToggleKey.addEventListener("click", () => {
+      if (inputApiKey.type === "password") {
+        inputApiKey.type = "text";
+        btnToggleKey.innerText = "🔒";
+      } else {
+        inputApiKey.type = "password";
+        btnToggleKey.innerText = "👁️";
+      }
+    });
+  }
 
   // 5. Save Settings
-  btnSaveSettings.addEventListener("click", async () => {
-    const updated = {
-      geminiApiKey: inputApiKey.value.trim(),
-      geminiModel: selectModel.value,
-      autoFillDelay: parseInt(inputFillDelay.value, 10) || 350,
-      useVisionScreenshot: checkUseVision.checked,
-      localBridgeEnabled: checkLocalBridge.checked
-    };
+  if (btnSaveSettings) {
+    btnSaveSettings.addEventListener("click", async () => {
+      const updated = {
+        geminiApiKey: inputApiKey ? inputApiKey.value.trim() : "",
+        geminiModel: selectModel ? selectModel.value : "gemini-3.8-flash",
+        autoFillDelay: inputFillDelay ? parseInt(inputFillDelay.value, 10) || 350 : 350,
+        useVisionScreenshot: checkUseVision ? checkUseVision.checked : true,
+        localBridgeEnabled: checkLocalBridge ? checkLocalBridge.checked : true
+      };
 
-    await chrome.storage.local.set(updated);
-    modelNameBadge.innerText = updated.geminiModel.replace("gemini-", "").toUpperCase();
+      await chrome.storage.local.set(updated);
+      if (modelNameBadge && updated.geminiModel) {
+        modelNameBadge.innerText = updated.geminiModel.replace("gemini-", "").toUpperCase();
+      }
 
-    btnSaveSettings.innerText = "✅ Saved Successfully!";
-    setTimeout(() => {
-      btnSaveSettings.innerText = "💾 Save Settings";
-    }, 1800);
-  });
+      btnSaveSettings.innerText = "✅ Saved Successfully!";
+      setTimeout(() => {
+        btnSaveSettings.innerText = "💾 Save Settings";
+      }, 1800);
+    });
+  }
 
   // 6. Action: Toggle Autonomous Auto-Pilot
-  btnToggleAutopilot.addEventListener("click", async () => {
-    isAutoPilotActive = !isAutoPilotActive;
-    await chrome.storage.local.set({ autoPilotActive: isAutoPilotActive });
-    updateAutopilotButtonUI(isAutoPilotActive);
+  if (btnToggleAutopilot) {
+    btnToggleAutopilot.addEventListener("click", async () => {
+      isAutoPilotActive = !isAutoPilotActive;
+      await chrome.storage.local.set({ autoPilotActive: isAutoPilotActive });
+      updateAutopilotButtonUI(isAutoPilotActive);
 
-    if (activeTab?.id) {
-      await ensureContentScriptInjected(activeTab.id);
-      await chrome.tabs.sendMessage(activeTab.id, {
-        action: "AUTOPILOT_STATE_CHANGED",
-        active: isAutoPilotActive
-      });
-    }
+      if (activeTab?.id) {
+        try {
+          await ensureContentScriptInjected(activeTab.id);
+          await chrome.tabs.sendMessage(activeTab.id, {
+            action: "AUTOPILOT_STATE_CHANGED",
+            active: isAutoPilotActive
+          });
+        } catch (e) {
+          updateStatus("error", e.message || "Could not reach tab.");
+        }
+      }
 
-    if (isAutoPilotActive) {
-      updateStatus("success", "🤖 Auto-Pilot Started: Hands-free loop is active!");
-    } else {
-      updateStatus("idle", "Auto-Pilot stopped.");
-    }
-  });
+      if (isAutoPilotActive) {
+        updateStatus("success", "🤖 Auto-Pilot Started: Hands-free loop is active!");
+      } else {
+        updateStatus("idle", "Auto-Pilot stopped.");
+      }
+    });
+  }
 
   // 7. Action: Manual Mode 1-Click Page Auto-Fill
-  btnOneclickFill.addEventListener("click", async () => {
-    if (!activeTab?.id) return;
+  if (btnOneclickFill) {
+    btnOneclickFill.addEventListener("click", async () => {
+      if (!activeTab?.id) return;
 
-    btnOneclickFill.disabled = true;
-    btnOneclickFill.innerHTML = `<span>⏳</span> উত্তর সিলেক্ট হচ্ছে...`;
-    updateStatus("loading", "ম্যানুয়াল মোড: জেমিনি ৩.৮ দিয়ে পেজ এনালাইসিস ও উত্তর নির্বাচন হচ্ছে...");
+      btnOneclickFill.disabled = true;
+      btnOneclickFill.innerHTML = `<span>⏳</span> উত্তর সিলেক্ট হচ্ছে...`;
+      updateStatus("loading", "ম্যানুয়াল মোড: জেমিনি ৩.৮ দিয়ে পেজ এনালাইসিস ও উত্তর নির্বাচন হচ্ছে...");
 
-    try {
-      await ensureContentScriptInjected(activeTab.id);
-      const response = await chrome.tabs.sendMessage(activeTab.id, {
-        action: "ONE_CLICK_AUTOFILL_NEXT"
-      });
+      try {
+        await ensureContentScriptInjected(activeTab.id);
+        const response = await chrome.tabs.sendMessage(activeTab.id, {
+          action: "ONE_CLICK_AUTOFILL_NEXT"
+        });
 
-      if (response && response.success) {
-        updateStatus("success", `✅ ম্যানুয়াল মোড: ${response.filledCount}টি উত্তর সিলেক্ট সম্পন্ন! আপনি দেখে নিয়ে Next চাপুন।`);
-      } else {
-        updateStatus("error", response?.message || "Auto-fill failed.");
+        if (response && response.success) {
+          updateStatus("success", `✅ ম্যানুয়াল মোড: ${response.filledCount}টি উত্তর সিলেক্ট সম্পন্ন! আপনি দেখে নিয়ে Next চাপুন।`);
+        } else {
+          updateStatus("error", response?.message || "Auto-fill failed.");
+        }
+      } catch (err) {
+        updateStatus("error", err.message || "Operation failed.");
+      } finally {
+        btnOneclickFill.disabled = false;
+        btnOneclickFill.innerHTML = `<span class="btn-icon">🎯</span><span class="btn-label">ম্যানুয়ালি উত্তর সিলেক্ট করুন (Alt+S)</span>`;
       }
-    } catch (err) {
-      updateStatus("error", err.message || "Operation failed.");
-    } finally {
-      btnOneclickFill.disabled = false;
-      btnOneclickFill.innerHTML = `<span class="btn-icon">🎯</span><span class="btn-label">ম্যানুয়ালি উত্তর সিলেক্ট করুন (Alt+S)</span>`;
-    }
-  });
+    });
+  }
 
   // 8. Action: Next Page Button
-  btnClickNext.addEventListener("click", async () => {
-    if (!activeTab?.id) return;
-    try {
-      await ensureContentScriptInjected(activeTab.id);
-      const res = await chrome.tabs.sendMessage(activeTab.id, { action: "CLICK_NEXT_BUTTON" });
-      if (res && res.success) {
-        updateStatus("success", "Proceeding to next page...");
-      } else {
-        updateStatus("error", res?.message || "Next button not detected.");
+  if (btnClickNext) {
+    btnClickNext.addEventListener("click", async () => {
+      if (!activeTab?.id) return;
+      try {
+        await ensureContentScriptInjected(activeTab.id);
+        const res = await chrome.tabs.sendMessage(activeTab.id, { action: "CLICK_NEXT_BUTTON" });
+        if (res && res.success) {
+          updateStatus("success", "Proceeding to next page...");
+        } else {
+          updateStatus("error", res?.message || "Next button not detected.");
+        }
+      } catch (err) {
+        updateStatus("error", err.message || "Could not trigger next button.");
       }
-    } catch (err) {
-      updateStatus("error", "Could not trigger next button.");
-    }
-  });
+    });
+  }
 
   // 9. Action: Scan Only
-  btnAnalyze.addEventListener("click", async () => {
-    if (!activeTab?.id) return;
-    btnAnalyze.disabled = true;
-    updateStatus("loading", "Scanning questions with Gemini 3.8 Flash...");
-    try {
-      await ensureContentScriptInjected(activeTab.id);
-      const response = await chrome.tabs.sendMessage(activeTab.id, { action: "SCAN_AND_ANALYZE" });
-      if (response && response.success) {
-        renderResults(response.data);
-        updateStatus("success", "Scan complete. Answers highlighted on page.");
-      } else {
-        updateStatus("error", response?.error || "Scan failed.");
+  if (btnAnalyze) {
+    btnAnalyze.addEventListener("click", async () => {
+      if (!activeTab?.id) return;
+      btnAnalyze.disabled = true;
+      updateStatus("loading", "Scanning questions with Gemini 3.8 Flash...");
+      try {
+        await ensureContentScriptInjected(activeTab.id);
+        const response = await chrome.tabs.sendMessage(activeTab.id, { action: "SCAN_AND_ANALYZE" });
+        if (response && response.success) {
+          renderResults(response.data);
+          updateStatus("success", "Scan complete. Answers highlighted on page.");
+        } else {
+          updateStatus("error", response?.error || "Scan failed.");
+        }
+      } catch (e) {
+        updateStatus("error", e.message || "Failed.");
+      } finally {
+        btnAnalyze.disabled = false;
       }
-    } catch (e) {
-      updateStatus("error", e.message || "Failed.");
-    } finally {
-      btnAnalyze.disabled = false;
-    }
-  });
+    });
+  }
 
   // 10. Clear Highlights
-  btnClear.addEventListener("click", async () => {
-    if (!activeTab?.id) return;
-    await chrome.tabs.sendMessage(activeTab.id, { action: "CLEAR_HIGHLIGHTS" });
-    resultsList.innerHTML = `<div class="empty-state">Highlights cleared.</div>`;
-    resultsCount.innerText = "0";
-    trapAlertCard.classList.add("hidden");
-    updateStatus("idle", "Page highlights cleared.");
-  });
+  if (btnClear) {
+    btnClear.addEventListener("click", async () => {
+      if (!activeTab?.id) return;
+      try {
+        await ensureContentScriptInjected(activeTab.id);
+        await chrome.tabs.sendMessage(activeTab.id, { action: "CLEAR_HIGHLIGHTS" });
+        if (resultsList) resultsList.innerHTML = `<div class="empty-state">Highlights cleared.</div>`;
+        if (resultsCount) resultsCount.innerText = "0";
+        if (trapAlertCard) trapAlertCard.classList.add("hidden");
+        updateStatus("idle", "Page highlights cleared.");
+      } catch (e) {
+        updateStatus("error", e.message || "Failed to clear highlights.");
+      }
+    });
+  }
 
   // 11. Toggle HUD
-  btnToggleHud.addEventListener("click", async () => {
-    if (!activeTab?.id) return;
-    await ensureContentScriptInjected(activeTab.id);
-    await chrome.tabs.sendMessage(activeTab.id, { action: "TOGGLE_HUD" });
-  });
+  if (btnToggleHud) {
+    btnToggleHud.addEventListener("click", async () => {
+      if (!activeTab?.id) return;
+      try {
+        await ensureContentScriptInjected(activeTab.id);
+        await chrome.tabs.sendMessage(activeTab.id, { action: "TOGGLE_HUD" });
+      } catch (e) {
+        updateStatus("error", e.message || "Failed to toggle HUD.");
+      }
+    });
+  }
 
   // 12. Save & Sync Personal Info Form
   if (btnSavePersonalInfo) {
@@ -474,8 +530,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function ensureContentScriptInjected(tabId) {
+    if (!tabId) return;
+    if (activeTab && activeTab.url && (
+      activeTab.url.startsWith("chrome://") ||
+      activeTab.url.startsWith("chrome-extension://") ||
+      activeTab.url.startsWith("edge://") ||
+      activeTab.url.startsWith("about:") ||
+      activeTab.url.startsWith("devtools://") ||
+      activeTab.url.startsWith("view-source:")
+    )) {
+      throw new Error("ব্রাউজারের ইন্টারনাল পেজে (chrome://) কাজ করে না। অনুগ্রহ করে কোনো সাধারণ ওয়েব পেজ বা সার্ভে পেজে যান।");
+    }
     try {
-      await chrome.tabs.sendMessage(tabId, { action: "PING" });
+      const pingRes = await chrome.tabs.sendMessage(tabId, { action: "PING" });
+      if (pingRes && pingRes.pong) return;
     } catch (e) {
       await chrome.scripting.executeScript({
         target: { tabId: tabId },
@@ -485,6 +553,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         target: { tabId: tabId },
         files: ["content/overlay.css"]
       });
+      // Short delay to ensure content script listeners are ready
+      await new Promise((r) => setTimeout(r, 120));
     }
   }
 });

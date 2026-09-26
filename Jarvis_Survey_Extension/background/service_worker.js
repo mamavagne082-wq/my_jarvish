@@ -7,7 +7,7 @@ const DEFAULT_SETTINGS = {
   geminiApiKey: "AQ.Ab8RN6JHF6heRWfsnO5USnfzLeb-FWVFikfabKfams1pJ7oAxQ",
   geminiModel: "gemini-3.8-flash",
   autoPilotActive: false,
-  autoFillDelay: 450,
+  autoFillDelay: 350,
   pageTransitionDelay: 2000,
   humanSimulationEnabled: true,
   localBridgeEnabled: true,
@@ -17,7 +17,30 @@ const DEFAULT_SETTINGS = {
   soundEnabled: true
 };
 
-// Initialize settings on install
+const DEFAULT_PERSONAL_INFO = {
+  firstName: "Al Amin",
+  lastName: "Miah",
+  myAge: "50",
+  birthdate: "08/03/1976",
+  race: "White",
+  ethnicity: "Not hispanic/latin",
+  home: "Own single Home/ Condo",
+  language: "English",
+  animalPets: "Dog, Cat",
+  jobType: "Full time",
+  occupation: "Computer Software (Manager / Director)",
+  companyEmployees: "2500-5000",
+  decisionTakers: "Myself (all section)",
+  wifeAge: "40",
+  sonAge: "13",
+  daughterAge: "12",
+  educationDegree: "Master's or Professional Degree (or Bachelor)",
+  postalZipCode: "10001",
+  emailAddress: "alaminmiah1976@gmail.com",
+  country: "United States"
+};
+
+// Initialize settings on install or update
 chrome.runtime.onInstalled.addListener(async () => {
   const current = await chrome.storage.local.get(null);
   const toSet = { ...DEFAULT_SETTINGS };
@@ -28,8 +51,14 @@ chrome.runtime.onInstalled.addListener(async () => {
     }
   }
 
-  if (!current.geminiModel || current.geminiModel === "gemini-2.5-flash") {
+  // Upgrade legacy or deprecated models to gemini-3.8-flash
+  const deprecated = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash", "gemini-2.5-flash"];
+  if (!current.geminiModel || deprecated.includes(current.geminiModel)) {
     toSet.geminiModel = "gemini-3.8-flash";
+  }
+
+  if (!toSet.personalInfo) {
+    toSet.personalInfo = { ...DEFAULT_PERSONAL_INFO };
   }
 
   if (!toSet.surveyPersona) {
@@ -45,7 +74,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   }
 
   await chrome.storage.local.set(toSet);
-  console.log("Jarvis Survey Copilot service worker initialized with Voice & Desktop Bridge.");
+  console.log("Jarvis Survey Copilot service worker initialized with Gemini 3.8 Flash engine.");
 });
 
 // Listener for messages from Popup and Content Scripts
@@ -213,6 +242,87 @@ async function executeJarvisVoiceCommand(cmdObj, baseUrl) {
   let result = { id: id, success: false, command: command };
 
   try {
+    // Special Handler: API Limit Warning & Notifications (does not require active survey tab)
+    if (command === "API_LIMIT_WARNING" || command === "API_ALERT") {
+      const p = payload || {};
+      const apiName = p.api_name || "API Provider";
+      const usagePercent = p.usage_percent !== undefined ? p.usage_percent : "?";
+      const msg = p.warning_message || `⚠️ Warning: ${apiName} is near its usage limit (${usagePercent}% used)!`;
+      const currentUsage = p.current_usage !== undefined ? p.current_usage : "N/A";
+      const limit = p.limit !== undefined ? p.limit : "N/A";
+      const unit = p.unit || "calls";
+
+      console.warn(`[Jarvis API Monitor] Alert received: ${apiName} -> ${msg}`);
+
+      // 1. Trigger Chrome Desktop Toast Notification
+      try {
+        if (chrome.notifications && chrome.notifications.create) {
+          chrome.notifications.create(`jarvis_api_alert_${Date.now()}`, {
+            type: "basic",
+            iconUrl: chrome.runtime.getURL("icons/icon128.png"),
+            title: `⚠️ Jarvis API Limit Alert: ${apiName}`,
+            message: msg,
+            contextMessage: `Usage: ${currentUsage} / ${limit} ${unit} (${usagePercent}%)`,
+            priority: 2,
+            requireInteraction: true
+          }, (notifId) => {
+            if (chrome.runtime.lastError) {
+              console.warn("Chrome notification error:", chrome.runtime.lastError.message);
+            }
+          });
+        }
+      } catch (ne) {
+        console.warn("Could not dispatch Chrome notification:", ne);
+      }
+
+      // 2. Persist in chrome.storage.local for popup UI
+      try {
+        const stored = await chrome.storage.local.get(["activeApiAlerts"]);
+        const existing = stored.activeApiAlerts || [];
+        const alertObj = {
+          id: id || `alert_${Date.now()}`,
+          api_name: apiName,
+          usage_percent: usagePercent,
+          current_usage: currentUsage,
+          limit: limit,
+          unit: unit,
+          warning_message: msg,
+          timestamp: Date.now()
+        };
+        // Keep list updated (replace old alert for same API or append)
+        const filtered = existing.filter(a => a.api_name !== apiName);
+        const updatedList = [alertObj, ...filtered].slice(0, 10);
+        await chrome.storage.local.set({ activeApiAlerts: updatedList });
+      } catch (se) {
+        console.warn("Could not save alert to storage:", se);
+      }
+
+      // 3. If there is an active tab, broadcast alert to on-page HUD
+      try {
+        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (activeTab && activeTab.id) {
+          chrome.tabs.sendMessage(activeTab.id, {
+            action: "SHOW_API_ALERT",
+            alert: {
+              api_name: apiName,
+              usage_percent: usagePercent,
+              message: msg,
+              current_usage: currentUsage,
+              limit: limit,
+              unit: unit
+            }
+          }).catch(() => {});
+        }
+      } catch (te) {
+        // Tab not accessible
+      }
+
+      result.success = true;
+      result.message = `Notification triggered for ${apiName}`;
+      await reportCommandResult(result, baseUrl);
+      return;
+    }
+
     const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!activeTab || !activeTab.id) {
       result.error = "No active browser tab found.";
@@ -282,16 +392,28 @@ async function notifyJarvisDesktop(eventType, payload) {
 
 async function ensureContentScript(tabId) {
   try {
-    await chrome.tabs.sendMessage(tabId, { action: "PING" });
+    const tab = await chrome.tabs.get(tabId);
+    if (!tab || !tab.url || tab.url.startsWith("chrome://") || tab.url.startsWith("chrome-extension://") || tab.url.startsWith("edge://") || tab.url.startsWith("about:") || tab.url.startsWith("devtools://")) {
+      return false;
+    }
+    const pingRes = await chrome.tabs.sendMessage(tabId, { action: "PING" });
+    if (pingRes && pingRes.pong) return true;
+    return true;
   } catch (e) {
-    await chrome.scripting.executeScript({
-      target: { tabId: tabId },
-      files: ["content/content_script.js"]
-    });
-    await chrome.scripting.insertCSS({
-      target: { tabId: tabId },
-      files: ["content/overlay.css"]
-    });
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        files: ["content/content_script.js"]
+      });
+      await chrome.scripting.insertCSS({
+        target: { tabId: tabId },
+        files: ["content/overlay.css"]
+      });
+      return true;
+    } catch (err) {
+      console.warn("Could not inject content script:", err);
+      return false;
+    }
   }
 }
 
@@ -315,15 +437,15 @@ async function checkLocalJarvisBridge() {
 }
 
 /**
- * Analyzes the survey DOM data and optional screenshot via Gemini 3.8 Flash API
+ * Analyzes the entire survey webpage DOM data and text via Gemini 3.8 Flash API
+ * Analyzes complete page top-to-bottom without screenshot cropping
  */
 async function handleSurveyAnalysis(payload, tabId) {
   const storage = await chrome.storage.local.get([
     "geminiApiKey",
     "geminiModel",
     "surveyPersona",
-    "personalInfo",
-    "useVisionScreenshot"
+    "personalInfo"
   ]);
 
   const apiKey = storage.geminiApiKey || DEFAULT_SETTINGS.geminiApiKey;
@@ -335,25 +457,9 @@ async function handleSurveyAnalysis(payload, tabId) {
     throw new Error("Gemini API Key missing. Please set your API key in the extension settings.");
   }
 
-  let screenshotBase64 = null;
-  if (storage.useVisionScreenshot !== false) {
-    try {
-      screenshotBase64 = await new Promise((resolve) => {
-        chrome.tabs.captureVisibleTab(null, { format: "jpeg", quality: 60 }, (dataUrl) => {
-          if (chrome.runtime.lastError || !dataUrl) {
-            resolve(null);
-          } else {
-            resolve(dataUrl.split(",")[1]);
-          }
-        });
-      });
-    } catch (e) {
-      console.warn("Screenshot capture skipped or failed:", e);
-    }
-  }
-
+  // Full survey webpage analysis directly from DOM & page text (Top-to-Bottom, 100% complete)
   const prompt = buildHumanLikeSurveyPrompt(payload, persona, personalInfo);
-  const geminiResponse = await callGeminiAPI(apiKey, model, prompt, screenshotBase64);
+  const geminiResponse = await callGeminiAPI(apiKey, model, prompt, null);
 
   return geminiResponse;
 }
@@ -362,39 +468,38 @@ async function handleSurveyAnalysis(payload, tabId) {
  * Constructs prompt instructing Gemini 3.8 to generate natural, human-like survey answers
  */
 function buildHumanLikeSurveyPrompt(pageData, persona, personalInfo) {
-  const infoSection = personalInfo ? `
+  const p = personalInfo || DEFAULT_PERSONAL_INFO;
+  const infoSection = `
 ==================================================
 EXACT VERIFIED PERSONAL INFO (CRITICAL: ALWAYS MATCH THESE VALUES):
 ==================================================
-- Full Name: ${personalInfo.firstName || "John"} ${personalInfo.lastName || "Smith"}
-- First Name: ${personalInfo.firstName || "John"}
-- Last Name: ${personalInfo.lastName || "Smith"}
-- My Age: ${personalInfo.myAge || "32"}
-- Birthdate: ${personalInfo.birthdate || "15/08/1992"}
-- Race: ${personalInfo.race || "White"}
-- Ethnicity: ${personalInfo.ethnicity || "Not hispanic/latin"}
-- Home Ownership: ${personalInfo.home || "Own single Home/ Condo"}
-- Spoken Language: ${personalInfo.language || "English"}
-- Animal / Pets: ${personalInfo.animalPets || "Dog, Cat"}
-- Job Type: ${personalInfo.jobType || "Full time"}
-- Occupation / Role: ${personalInfo.occupation || "Computer Software"}
-- Company Employee Count: ${personalInfo.companyEmployees || "1000-5000"}
-- Decision Takers / Authority: ${personalInfo.decisionTakers || "Myself (all section)"}
-- Wife Age: ${personalInfo.wifeAge || "30"}
-- Son Age: ${personalInfo.sonAge || "5"}
-- Daughter Age: ${personalInfo.daughterAge || "3"}
-- Education / Degree: ${personalInfo.educationDegree || "Bachelor Degree"}
-- Postal / Zip Code: ${personalInfo.postalZipCode || "10001"}
-- Email: ${personalInfo.emailAddress || "alaminmiah1976@gmail.com"}
-- Country: ${personalInfo.country || "United States"}
-` : `
-==================================================
-YOUR HUMAN PERSONA PROFILE (Stay 100% consistent!):
-==================================================
-${JSON.stringify(persona, null, 2)}
+- Full Name: ${p.firstName || "Al Amin"} ${p.lastName || "Miah"}
+- First Name: ${p.firstName || "Al Amin"}
+- Last Name: ${p.lastName || "Miah"}
+- My Age: ${p.myAge || "50"}
+- Birthdate: ${p.birthdate || "08/03/1976"} (Born March 8, 1976)
+- Gender: Male (Heterosexual)
+- Marital Status: Married
+- Wife Age: ${p.wifeAge || "40"}
+- Children Count: 2 (Son Age: ${p.sonAge || "13"}, Daughter Age: ${p.daughterAge || "12"})
+- Household Size: 4 people (Myself, wife, son, daughter)
+- Race / Ethnicity: White, Non-Hispanic / Not Latino
+- Home Ownership: Own Single Family Home / Detached house / Condo
+- Spoken Language at Home: English
+- Animals / Pets: Dog, Cat
+- Employment / Job Type: Employed Full-time (35+ hours)
+- Occupation / Role: Computer Software / Information Technology (Manager / Director)
+- Company Size / Employees: 2500-5000 (or 1000-5000)
+- Decision Making / Purchasing Authority: Primary decision maker or equal joint decision maker (Myself - all sections)
+- Annual Income: $125,000 - $149,999 (Monthly: Over $5,000 / $5,000+)
+- Personal Vehicle: Yes (Owns personal vehicle / SUV)
+- Education / Degree: Master's or Professional Degree (or Bachelor Degree)
+- Postal / Zip Code: ${p.postalZipCode || "10001"} (New York, NY)
+- Email: ${p.emailAddress || "alaminmiah1976@gmail.com"}
+- Country: ${p.country || "United States"}
 `;
 
-  return `You are answering an online survey as a real human respondent named ${personalInfo?.firstName || "John"} ${personalInfo?.lastName || "Smith"}.
+  return `You are answering an online survey as a real human respondent named ${p.firstName || "Al Amin"} ${p.lastName || "Miah"}.
 Your answers MUST sound completely natural, authentic, thoughtful, and human-like. Survey quality algorithms actively check for bot-like patterns, so follow the human guidelines below strictly.
 
 ${infoSection}
@@ -405,48 +510,51 @@ HUMAN BEHAVIOR & ANTI-BOT GUIDELINES:
 1. ATTENTION-CHECK / TRAP QUESTIONS:
    - Identify instructions like "Please select 'Disagree' to demonstrate you are reading" or "Select the color blue".
    - Identify impossible trap questions (e.g. "Have you bought a submarine in the past 30 days?").
-   - If an attention check is detected, obey its exact instruction!
+   - If an attention check is detected, obey its exact instruction! Set "trap_detected": true.
 
-2. NO STRAIGHT-LINING (Vary Ratings in Grid/Matrix Tables):
+2. ANSWER EVERY SINGLE QUESTION:
+   - You MUST output an answer object in "answers" for EVERY question present in the scanned list. Do not skip any question!
+   - If a question has radio options, choose the single most appropriate option matching persona.
+   - If a question has checkboxes, choose 1 to 3 realistic options matching persona.
+
+3. NO STRAIGHT-LINING (Vary Ratings in Grid/Matrix Tables):
    - Never pick the exact same score for every row in a rating grid (e.g. do NOT pick all 5s, all 10s, or all "Strongly Agree").
    - Real humans have varied, realistic opinions: rate some aspects high (e.g. 4 or 5), some average (e.g. 3 or 4), and occasionally lower if reasonable.
 
-3. AUTHENTIC, HUMAN OPEN-ENDED TEXT RESPONSES:
-   - When asked to type an answer (e.g. "Why did you choose this brand?", "What could be improved?"):
-     * Write naturally in the first person ("I think...", "In my experience...", "We've been using...").
+4. AUTHENTIC, HUMAN OPEN-ENDED TEXT RESPONSES:
+   - When asked to type an answer (e.g. "Why did you choose this brand?", "What could be improved?", opinion boxes):
+     * "recommended_action": "type_text"
+     * Provide "text_input_value" written naturally in first person ("In our team...", "I feel that...", "We've been using...").
      * Keep it concise: 1 to 2 realistic sentences.
-     * NEVER write like an AI (NEVER say "As an AI language model", never write bullet points, never use academic essays).
-     * Example: "The software has been very reliable for our team, though I think the dashboard loading speed could be a bit faster."
+     * NEVER write like an AI (never say "As an AI", never use bullet points, never write textbook essays).
+     * Example: "The service has been quite dependable for our daily workflow, though I think the reporting interface could load a bit faster."
 
-4. DEMOGRAPHIC & SCREENER INTEGRITY:
-   - Always match the exact age, birthdate, children, spouse, location, occupation, and company size from the verified personal info above!
+5. DEMOGRAPHIC & SCREENER INTEGRITY:
+   - Always match the exact age (50), birthdate (1976-03-08), children (13 and 12), wife (40), household size (4 people), location (10001), occupation (IT / Computer Software Manager/Director), and company size from the verified personal info above!
    - Purchasing Authority: Always indicate primary decision maker or equal joint decision maker (NEVER "I have no influence" or "None of the above").
    - Industry Screener: If asked if you work in Market Research, Advertising, PR, Journalism, or Media, ALWAYS select "None of the above" or "IT / Computer Software".
 
-5. REALISTIC CONSUMER CHOICES:
+6. REALISTIC CONSUMER CHOICES:
    - When asked about brands you recognize or buy, select prominent, popular brands (Apple, Microsoft, Audi, Samsung, Sony, Nike, Amazon, Google, etc.).
 
-6. UNKNOWN FIELD FALLBACK & LOGICAL PERSONA STANDARD:
-   - If a question asks about details NOT explicitly stated in the personal info (e.g. snack preferences, favorite drink, hotel chain, airline choice, dog breed, shopping habits):
-     * NEVER pick random or contradictory options.
-     * Follow the Logical Persona Standard (Software engineer/Director living in 10001 with wife & 2 kids, pet dog & cat):
-       - Airlines: Delta, United (frequent business/family traveler).
-       - Hotels: Marriott Bonvoy, Hilton.
-       - Grocery / Retail: Whole Foods, Costco, Trader Joe's, Target, Amazon Prime.
-       - Technology: Apple (iPhone 15 Pro, MacBook Pro), Sony TV, Dell.
-       - Beverages: Starbucks coffee, mineral water, red wine / craft beer.
-       - Vehicles: Audi A8, Nissan family SUV.
-       - Pets: Dog and Cat.
-       - Decision Authority: Always indicate primary decision maker or equal joint decision maker.
+7. UNKNOWN FIELD FALLBACK & LOGICAL PERSONA STANDARD:
+   - Follow the verified persona (IT Director living in 10001 with wife & 2 kids, pet dog & cat, Audi SUV):
+     * Airlines: Delta, United (frequent business/family traveler).
+     * Hotels: Marriott Bonvoy, Hilton.
+     * Grocery / Retail: Whole Foods, Costco, Trader Joe's, Target, Amazon Prime.
+     * Beverages: Starbucks coffee, mineral water, craft beer / red wine.
      * Maintain strict internal consistency across all questions.
 
 ==================================================
-EXTRACTED SURVEY PAGE DOM DATA:
+COMPLETE SURVEY WEBPAGE CONTEXT (Scanned Full Browser Page Top-to-Bottom):
 ==================================================
 URL: ${pageData.url || "N/A"}
 Page Title: ${pageData.title || "N/A"}
 
-Scanned Questions & Interactive Elements:
+Full Page Text Content (All instructions, context & questions on the page):
+${pageData.fullPageText || "N/A"}
+
+Structured Survey Questions & Interactive Form Elements:
 ${JSON.stringify(pageData.questions, null, 2)}
 
 ==================================================
@@ -471,24 +579,30 @@ Return ONLY a valid JSON object matching this exact structure:
     }
   ]
 }
-Return JSON only. Do not wrap in commentary.`;
+Return JSON only. Do not wrap in markdown or commentary.`;
 }
 
 /**
- * Calls Gemini REST API with prompt and optional vision screenshot
+ * Calls Gemini REST API with prompt and optional vision screenshot.
+ * Prioritizes Gemini 3.8 Flash, with resilient fallback to active Gemini 3.x Flash models.
  */
 async function callGeminiAPI(apiKey, model, promptText, base64Image) {
-  const modelsToTry = [
-    model,
+  const primaryModel = model || "gemini-3.8-flash";
+  const deprecatedModels = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash", "gemini-2.5-flash"];
+
+  // Active models list prioritizing user choice and Gemini 3.8 Flash
+  const candidateModels = [
+    primaryModel,
     "gemini-3.8-flash",
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash"
-  ].filter((v, i, a) => a.indexOf(v) === i);
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-flash-latest"
+  ].filter((m, i, arr) => arr.indexOf(m) === i && !deprecatedModels.includes(m));
 
   let lastError = null;
 
-  for (const targetModel of modelsToTry) {
+  for (const targetModel of candidateModels) {
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
 
     const parts = [{ text: promptText }];
@@ -509,52 +623,66 @@ async function callGeminiAPI(apiKey, model, promptText, base64Image) {
         }
       ],
       generationConfig: {
-        temperature: 0.25,
+        temperature: 0.2,
         responseMimeType: "application/json"
       }
     };
 
-    try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.warn(`Model ${targetModel} call failed (${response.status}):`, errorText);
-        lastError = new Error(`Gemini API Error (${targetModel}): ${response.status} - ${errorText.slice(0, 200)}`);
-        continue;
-      }
-
-      const data = await response.json();
-      const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!content) {
-        throw new Error("No response text returned by Gemini");
-      }
-
-      let parsed;
+    // Attempt request with single retry for 503 high demand spike
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const cleaned = content.replace(/```json\n?|\n?```/g, "").trim();
-        parsed = JSON.parse(cleaned);
-      } catch (pe) {
-        console.error("JSON parse failed, returning raw content:", pe);
-        parsed = {
-          page_summary: "Survey analysis completed",
-          trap_detected: false,
-          answers: [],
-          raw: content
-        };
-      }
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody)
+        });
 
-      return {
-        success: true,
-        modelUsed: targetModel,
-        data: parsed
-      };
-    } catch (err) {
-      lastError = err;
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.warn(`Model ${targetModel} attempt ${attempt + 1} failed (${response.status}):`, errorText);
+
+          // If 503 high demand spike, wait 1.2s and retry same model
+          if (response.status === 503 && attempt === 0) {
+            await new Promise((r) => setTimeout(r, 1200));
+            continue;
+          }
+
+          // If 429 quota or other error, record error and break to try next active model
+          lastError = new Error(`Gemini API Error (${targetModel}): ${response.status} - ${errorText.slice(0, 180)}`);
+          break;
+        }
+
+        const data = await response.json();
+        const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!content) {
+          throw new Error(`Empty response content from ${targetModel}`);
+        }
+
+        let parsed;
+        try {
+          const cleaned = content.replace(/```json\n?|\n?```/g, "").trim();
+          parsed = JSON.parse(cleaned);
+        } catch (pe) {
+          console.error("JSON parse failed, returning raw content:", pe);
+          parsed = {
+            page_summary: "Survey analysis completed",
+            trap_detected: false,
+            answers: [],
+            raw: content
+          };
+        }
+
+        return {
+          success: true,
+          modelUsed: targetModel,
+          data: parsed
+        };
+      } catch (err) {
+        lastError = err;
+        if (attempt === 0) {
+          await new Promise((r) => setTimeout(r, 800));
+        }
+      }
     }
   }
 

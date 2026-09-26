@@ -71,6 +71,9 @@
           <button id="btn-clear-now" class="btn btn-action-ghost btn-clear">
             <span>🧹</span> Clear
           </button>
+          <button id="btn-toggle-hud" class="btn btn-action-ghost btn-hud" title="অন-স্ক্রিন HUD প্যানেল চালু/বন্ধ করুন">
+            <span>🖥️</span> HUD
+          </button>
         </div>
       </div>
 
@@ -91,6 +94,19 @@
       <!-- Status Banner -->
       <div id="live-status-box" class="status-box">
         <span id="live-status-text">Gemini 3.8 Flash Ready. Click Auto-Pilot or 1-Click.</span>
+      </div>
+
+      <!-- API Limit Alert Card -->
+      <div id="api-limit-alert-card" class="api-alert-card hidden">
+        <div class="api-alert-header">
+          <div class="api-alert-title-row">
+            <span class="api-alert-icon">⚠️</span>
+            <strong id="api-alert-title">API Limit Warning</strong>
+          </div>
+          <button type="button" id="btn-dismiss-api-alert" class="btn-dismiss-alert" title="Dismiss">✕</button>
+        </div>
+        <div id="api-alert-desc" class="api-alert-desc"></div>
+        <div id="api-alert-meta" class="api-alert-meta"></div>
       </div>
 
       <!-- Trap / Alert Card -->
@@ -264,9 +280,10 @@
         <label for="select-model">AI Engine Model</label>
         <select id="select-model">
           <option value="gemini-3.8-flash" selected>Gemini 3.8 Flash (Ultra-fast Survey Engine)</option>
-          <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-          <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-          <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+          <option value="gemini-3.7-flash">Gemini 3.7 Flash</option>
+          <option value="gemini-3.6-flash">Gemini 3.6 Flash</option>
+          <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+          <option value="gemini-flash-latest">Gemini Flash Latest</option>
           <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
         </select>
       </div>
