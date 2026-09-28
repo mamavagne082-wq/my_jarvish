@@ -77,6 +77,12 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
+        <!-- Floating Overlay Service (Screen Border Glow / Mic Bubble / 3D Orb above all apps) -->
+        <service
+            android:name=".JarvisOverlayService"
+            android:enabled="true"
+            android:exported="false" />
+
     </application>
 
 </manifest>

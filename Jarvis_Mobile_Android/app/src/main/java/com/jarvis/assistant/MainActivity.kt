@@ -313,8 +313,24 @@ class MainActivity : AppCompatActivity() {
             val allGranted = grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }
             if (allGranted) {
                 Toast.makeText(this, "সব পারমিশন সক্রিয় হয়েছে (মাইক, কল, কন্টাক্ট)!", Toast.LENGTH_SHORT).show()
+                checkOverlayPermission()
             } else {
                 Toast.makeText(this, "কল দেওয়া ও ভয়েস শোনার জন্য পারমিশন প্রয়োজন।", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun checkOverlayPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName")
+            )
+            try {
+                startActivity(intent)
+                Toast.makeText(this, "Jarvis ফ্লোটিং বাবল ও ৩ডি ওভারলে সক্রিয় করতে পারমিশন দিন", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                android.util.Log.w("MainActivity", "Failed to open overlay settings: ${e.message}")
             }
         }
     }

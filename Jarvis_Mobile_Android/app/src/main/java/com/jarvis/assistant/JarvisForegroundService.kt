@@ -11,6 +11,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
@@ -69,6 +72,79 @@ class JarvisForegroundService : Service() {
     private var liveKitRoom: Room? = null
     private var explicitlyStopped = false
 
+    // ── Audio Routing & Call Assistant Fix ────────────────────────────────
+    private var audioManager: AudioManager? = null
+    private var audioFocusRequest: AudioFocusRequest? = null
+    private var previousAudioMode = AudioManager.MODE_NORMAL
+
+    /**
+     * Acquires exclusive audio focus for the Call Assistant.
+     * Sets MODE_IN_COMMUNICATION to prevent echo, Bluetooth routing issues,
+     * and mic dropping during active phone call or VoIP session.
+     */
+    private fun acquireAudioFocusForAssistant() {
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        previousAudioMode = audioManager?.mode ?: AudioManager.MODE_NORMAL
+
+        // Switch to COMMUNICATION mode (eliminates mic cutoff on calls)
+        audioManager?.mode = AudioManager.MODE_IN_COMMUNICATION
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+                .setAcceptsDelayedFocusGain(false)
+                .setOnAudioFocusChangeListener { focusChange ->
+                    when (focusChange) {
+                        AudioManager.AUDIOFOCUS_LOSS -> {
+                            Log.w(TAG, "Audio focus lost permanently. Re-requesting...")
+                            acquireAudioFocusForAssistant()
+                        }
+                        AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                            Log.d(TAG, "Audio focus lost transiently (phone call?). Holding...")
+                        }
+                        AudioManager.AUDIOFOCUS_GAIN -> {
+                            Log.d(TAG, "Audio focus regained.")
+                        }
+                    }
+                }
+                .build()
+            audioFocusRequest = focusRequest
+            val result = audioManager?.requestAudioFocus(focusRequest)
+            Log.d(TAG, "Audio focus request result: $result")
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager?.requestAudioFocus(
+                { focusChange ->
+                    Log.d(TAG, "Audio focus changed (legacy): $focusChange")
+                },
+                AudioManager.STREAM_VOICE_CALL,
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
+            )
+        }
+
+        // Route audio through earpiece/speaker for clear 2-way voice
+        audioManager?.isSpeakerphoneOn = false
+        audioManager?.isBluetoothScoOn = false
+        Log.d(TAG, "Call Assistant audio focus acquired. Mode: IN_COMMUNICATION")
+    }
+
+    private fun releaseAudioFocusForAssistant() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager?.abandonAudioFocus(null)
+        }
+        // Restore previous audio mode
+        audioManager?.mode = previousAudioMode
+        Log.d(TAG, "Call Assistant audio focus released.")
+    }
+
     // ── [NEW] Wake Word Engine ─────────────────────────────────────────────
     private var wakeWordEngine: WakeWordEngine? = null
 
@@ -106,12 +182,28 @@ class JarvisForegroundService : Service() {
         explicitlyStopped = false
         setServiceEnabled(this, true)
         startAsForeground()
+        // ── Acquire audio focus for clear microphone + speaker routing ─────
+        acquireAudioFocusForAssistant()
         connectToLiveKitRoom()
 
         // ── [NEW] Start wake word engine ("Hey Jarvis") ──────────────────
         if (wakeWordEngine == null) {
             wakeWordEngine = WakeWordEngine()
             wakeWordEngine?.start()
+        }
+
+        // ── [NEW] Start Jarvis Mic Bubble / 3D Orb Overlay if permitted ──
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && android.provider.Settings.canDrawOverlays(this)) {
+            try {
+                val overlayIntent = Intent(this, JarvisOverlayService::class.java).apply {
+                    action = JarvisOverlayService.ACTION_SHOW_OVERLAY
+                    putExtra(JarvisOverlayService.EXTRA_OVERLAY_MODE, "bubble")
+                    putExtra(JarvisOverlayService.EXTRA_AGENT_STATE, "idle")
+                }
+                startService(overlayIntent)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not start JarvisOverlayService: ${e.message}")
+            }
         }
 
         isRunning = true
@@ -143,12 +235,22 @@ class JarvisForegroundService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         isRunning = false
+        // ── Release audio focus & restore audio mode ──────────────────────
+        releaseAudioFocusForAssistant()
         // ── [NEW] Stop wake word engine ───────────────────────────────────
         wakeWordEngine?.stop()
         wakeWordEngine = null
         unregisterScreenStateReceiver()
         disconnectLiveKit()
         releaseWakeLock()
+
+        // ── Hide floating overlay ─────────────────────────────────────────
+        try {
+            val hideOverlayIntent = Intent(this, JarvisOverlayService::class.java).apply {
+                action = JarvisOverlayService.ACTION_HIDE_OVERLAY
+            }
+            startService(hideOverlayIntent)
+        } catch (_: Exception) {}
 
         if (!explicitlyStopped && isServiceEnabled(this)) {
             Log.w(TAG, "Jarvis killed unexpectedly by OS. Auto-resurrecting...")
