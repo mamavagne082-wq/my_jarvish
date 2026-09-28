@@ -23,19 +23,19 @@
     "elevenlabs": "sk_45073a61b5d3a4aa824e66b38cc80395a4669e2e7f1902c1"
   },
   "specialized_roles": {
-    "vision": "openai",
-    "coding_reasoning": "grok",
+    "vision": "google",
+    "coding_reasoning": "google",
     "fast_survey": "google",
-    "backup": "openrouter",
-    "fast_logic": "grok",
-    "creative_media": "grok"
+    "backup": "google",
+    "fast_logic": "google",
+    "creative_media": "google"
   },
   "model_routing": {
-    "screenshot_vision": "gpt-4o",
-    "coding_reasoning": "grok-2-1212",
+    "screenshot_vision": "gemini-3.8-flash",
+    "coding_reasoning": "gemini-3.8-flash",
     "fast_survey": "gemini-3.8-flash",
-    "backup": "grok-2",
-    "creative_media": "grok-2",
+    "backup": "gemini-3.8-flash",
+    "creative_media": "gemini-3.8-flash",
     "mimo": "mimo-v2.6-flash"
   },
   "custom_prompts": {
