@@ -18,6 +18,10 @@ import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.content.ContextCompat
+import com.jarvis.assistant.automation.core.*
+import com.jarvis.assistant.automation.whatsapp.*
+import com.jarvis.assistant.automation.social.*
+import com.jarvis.assistant.automation.android.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -25,6 +29,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import java.util.UUID
 
 class JarvisAccessibilityService : AccessibilityService() {
 
@@ -39,14 +44,35 @@ class JarvisAccessibilityService : AccessibilityService() {
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
 
+    lateinit var screenDriver: AccessibilityScreenDriver
+        private set
+    lateinit var screenObserver: ScreenObserver
+        private set
+    lateinit var actionExecutor: UiActionExecutor
+        private set
+    lateinit var textExecutor: TextInputExecutor
+        private set
+    lateinit var whatsAppAgent: WhatsAppAgent
+        private set
+    lateinit var socialMediaAgent: SocialMediaAgent
+        private set
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
-        Log.d(TAG, "Jarvis Accessibility Service connected and active!")
+        screenDriver = AccessibilityScreenDriver(this)
+        screenObserver = ScreenObserver(screenDriver)
+        actionExecutor = UiActionExecutor(screenDriver, screenObserver)
+        textExecutor = TextInputExecutor(screenDriver, screenObserver)
+        whatsAppAgent = WhatsAppAgent(screenDriver, screenObserver, actionExecutor, textExecutor)
+        socialMediaAgent = SocialMediaAgent(applicationContext, screenDriver, screenObserver, actionExecutor, textExecutor)
+        Log.d(TAG, "Jarvis Accessibility Service connected with Closed-Loop Automation Engine!")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Optional screen event monitoring
+        if (::screenDriver.isInitialized) {
+            screenDriver.onAccessibilityEvent(event)
+        }
     }
 
     override fun onInterrupt() {
@@ -90,6 +116,64 @@ class JarvisAccessibilityService : AccessibilityService() {
                 val message = payload.optString("message", "")
                 val simSlot = payload.optInt("sim_slot", 1)
                 sendSmsMessage(target, message, simSlot)
+            }
+            // ── Closed-Loop WhatsApp Assistant & Social Media Agents ───────
+            "execute_whatsapp_task" -> {
+                val taskId = payload.optString("task_id", UUID.randomUUID().toString())
+                val waActionStr = payload.optString("action", "send_message")
+                val action = WhatsAppAction.fromString(waActionStr) ?: WhatsAppAction.SEND_MESSAGE
+                val contact = payload.optString("contact_query", "")
+                val message = payload.optString("message", "")
+                val mode = payload.optString("mode", "execute")
+                val task = WhatsAppTask(
+                    taskId = taskId,
+                    action = action,
+                    contactQuery = contact,
+                    message = message,
+                    mode = mode
+                )
+                serviceScope.launch {
+                    val result = whatsAppAgent.executeTask(task)
+                    sendTaskResultPacket("whatsapp", result.taskId, result.status.name, result.statusMessage, result.currentStep)
+                }
+            }
+            "whatsapp_task_control" -> {
+                val command = payload.optString("command", "confirm")
+                val taskId = payload.optString("task_id", null)
+                serviceScope.launch {
+                    val result = whatsAppAgent.controlTask(command, taskId)
+                    sendTaskResultPacket("whatsapp", result.taskId, result.status.name, result.statusMessage, result.currentStep)
+                }
+            }
+            "execute_social_media_task" -> {
+                val taskId = payload.optString("task_id", UUID.randomUUID().toString())
+                val platformStr = payload.optString("platform", "instagram")
+                val actionStr = payload.optString("action", "post")
+                val platform = SocialPlatform.fromString(platformStr) ?: SocialPlatform.INSTAGRAM
+                val action = SocialAction.fromString(actionStr) ?: SocialAction.POST
+                val mediaUri = payload.optString("media_uri", null)
+                val caption = payload.optString("caption", null)
+                val mode = payload.optString("mode", "execute")
+                val task = SocialMediaTask(
+                    taskId = taskId,
+                    platform = platform,
+                    action = action,
+                    mediaUri = mediaUri,
+                    caption = caption,
+                    mode = mode
+                )
+                serviceScope.launch {
+                    val result = socialMediaAgent.executeTask(task)
+                    sendTaskResultPacket("social", result.taskId, result.status.name, result.statusMessage, result.currentStep)
+                }
+            }
+            "social_media_task_control" -> {
+                val command = payload.optString("command", "confirm")
+                val taskId = payload.optString("task_id", null)
+                serviceScope.launch {
+                    val result = socialMediaAgent.controlTask(command, taskId)
+                    sendTaskResultPacket("social", result.taskId, result.status.name, result.statusMessage, result.currentStep)
+                }
             }
             "whatsapp_message", "send_whatsapp" -> {
                 val target = payload.optString("target", "")

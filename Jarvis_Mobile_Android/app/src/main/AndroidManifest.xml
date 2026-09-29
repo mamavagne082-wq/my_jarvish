@@ -83,6 +83,45 @@
             android:enabled="true"
             android:exported="false" />
 
+        <!-- Notification Listener Service for WhatsApp & Social Media Notifications -->
+        <service
+            android:name=".automation.android.JarvisNotificationListenerService"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Media Share Target Activity: Share photos/videos directly to Jarvis -->
+        <activity
+            android:name=".automation.android.JarvisShareTargetActivity"
+            android:label="Share to Jarvis"
+            android:theme="@style/Theme.AppCompat.Light.Dialog.Alert"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="video/*" />
+            </intent-filter>
+        </activity>
+
+        <!-- FileProvider for Secure Media Isolation and Safe App-Private Handoff -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
     </application>
 
 </manifest>

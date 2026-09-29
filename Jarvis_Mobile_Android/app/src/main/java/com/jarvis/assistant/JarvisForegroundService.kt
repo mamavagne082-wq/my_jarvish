@@ -54,6 +54,9 @@ class JarvisForegroundService : Service() {
         var isRunning = false
             private set
 
+        var instance: JarvisForegroundService? = null
+            private set
+
         fun setServiceEnabled(context: Context, enabled: Boolean) {
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
@@ -64,6 +67,19 @@ class JarvisForegroundService : Service() {
         fun isServiceEnabled(context: Context): Boolean {
             return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .getBoolean(KEY_SERVICE_ENABLED, true)
+        }
+    }
+
+    fun sendDataPacket(payload: JSONObject) {
+        val room = liveKitRoom ?: return
+        val bytes = payload.toString().toByteArray(Charsets.UTF_8)
+        serviceScope.launch {
+            try {
+                room.localParticipant.publishData(bytes, true)
+                Log.d(TAG, "Sent data packet to Python agent: $payload")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to send data packet: ${e.message}")
+            }
         }
     }
 
@@ -164,6 +180,7 @@ class JarvisForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         createNotificationChannel()
         acquireWakeLock()
         registerScreenStateReceiver()
@@ -234,6 +251,9 @@ class JarvisForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (instance == this) {
+            instance = null
+        }
         isRunning = false
         // ── Release audio focus & restore audio mode ──────────────────────
         releaseAudioFocusForAssistant()
