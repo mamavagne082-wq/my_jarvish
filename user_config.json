@@ -7,7 +7,7 @@
   },
   "api_keys": {
     "google": "AQ.Ab8RN6JHF6heRWfsnO5USnfzLeb-FWVFikfabKfams1pJ7oAxQ",
-    "openai": "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",
+    "openai": "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",
     "anthropic": "LLM_1089835267245217_rxi6Zx-GZZdWjNu-LknJ0GmY3Ig",
     "livekit_url": "wss://jarvish-cdq66wc9.livekit.cloud",
     "livekit_key": "APIudafoJVHneWA",
@@ -20,7 +20,7 @@
     "grok": "xai-ypttdk4AVUmfUif4nNjvCc1x8zSaWZz9b0EVgmsZUbGjeR4x8oy2u72SK4t89qvHX9YnT31IgGZg4ES0",
     "xiaomi_mimo": "sk-s9mnjmqs3jesdkhnls9x94jm5aoj248zo85t89anckwmva1m",
     "mimo": "sk-s9mnjmqs3jesdkhnls9x94jm5aoj248zo85t89anckwmva1m",
-    "elevenlabs": "sk_45073a61b5d3a4aa824e66b38cc80395a4669e2e7f1902c1"
+    "elevenlabs": "sk_9177b45b24484fbbc84b3ea08febf2445d061bfb2a003f17"
   },
   "specialized_roles": {
     "vision": "google",
@@ -57,5 +57,8 @@
     "min_enrollment_seconds": 20,
     "target_enrollment_seconds": 30,
     "backup_pin": "252646"
-  }
+  },
+  "voice_profile": "female",
+  "voice_name": "Aoede",
+  "elevenlabs_voice_id": "EXAVITQu4vr4xnSDxMaL"
 }

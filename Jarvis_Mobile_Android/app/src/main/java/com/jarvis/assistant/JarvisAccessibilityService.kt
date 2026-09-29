@@ -234,6 +234,25 @@ class JarvisAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun sendTaskResultPacket(
+        category: String,
+        taskId: String,
+        status: String,
+        message: String,
+        step: String
+    ) {
+        val packet = JSONObject().apply {
+            put("type", "JARVIS_MOBILE_TASK_RESULT")
+            put("category", category)
+            put("task_id", taskId)
+            put("status", status)
+            put("message", message)
+            put("step", step)
+        }
+        JarvisForegroundService.instance?.sendDataPacket(packet)
+        Log.d(TAG, "Dispatched mobile task packet: $packet")
+    }
+
     /**
      * Brings Jarvis MainActivity to the front immediately with system accessibility privileges.
      */
