@@ -9,6 +9,9 @@ color primary_dark
 color success_green
 color text_muted
 color text_white
+drawable ic_launcher
+drawable ic_launcher_background
+drawable ic_launcher_foreground
 id btnAccessibility
 id btnBatteryOptimization
 id btnToggleService
@@ -20,6 +23,8 @@ id tvServiceStatus
 id tvSubtitle
 id tvTitle
 layout activity_main
+mipmap ic_launcher
+mipmap ic_launcher_round
 string accessibility_service_description
 string app_name
 string btn_grant_accessibility

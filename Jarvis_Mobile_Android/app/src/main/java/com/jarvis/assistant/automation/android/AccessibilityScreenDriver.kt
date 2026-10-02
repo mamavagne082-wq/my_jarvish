@@ -79,7 +79,7 @@ class AccessibilityScreenDriver(
     private fun traverseNodeTree(
         node: AccessibilityNodeInfo,
         obsId: String,
-        elements: mutableListOf<UiElement>,
+        elements: MutableList<UiElement>,
         depth: Int,
         parentIndex: Int
     ) {

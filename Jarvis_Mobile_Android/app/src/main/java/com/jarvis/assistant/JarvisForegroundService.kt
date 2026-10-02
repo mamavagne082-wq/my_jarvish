@@ -31,6 +31,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
@@ -75,7 +76,7 @@ class JarvisForegroundService : Service() {
         val bytes = payload.toString().toByteArray(Charsets.UTF_8)
         serviceScope.launch {
             try {
-                room.localParticipant.publishData(bytes, true)
+                room.localParticipant.publishData(bytes)
                 Log.d(TAG, "Sent data packet to Python agent: $payload")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to send data packet: ${e.message}")
@@ -213,7 +214,7 @@ class JarvisForegroundService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && android.provider.Settings.canDrawOverlays(this)) {
             try {
                 val overlayIntent = Intent(this, JarvisOverlayService::class.java).apply {
-                    action = JarvisOverlayService.ACTION_SHOW_OVERLAY
+                    setAction(JarvisOverlayService.ACTION_SHOW_OVERLAY)
                     putExtra(JarvisOverlayService.EXTRA_OVERLAY_MODE, "bubble")
                     putExtra(JarvisOverlayService.EXTRA_AGENT_STATE, "idle")
                 }
@@ -389,7 +390,7 @@ class JarvisForegroundService : Service() {
 
                 // Listen to room events
                 serviceScope.launch {
-                    room.events.collect { event ->
+                    room.events.events.collect { event ->
                         when (event) {
                             is RoomEvent.Connected -> {
                                 Log.d(TAG, "Successfully connected to LiveKit Room!")
@@ -402,7 +403,7 @@ class JarvisForegroundService : Service() {
                                         put("platform", "mobile")
                                     }.toString().toByteArray(Charsets.UTF_8)
                                     serviceScope.launch {
-                                        room.localParticipant.publishData(identifyPayload, true)
+                                        room.localParticipant.publishData(identifyPayload)
                                     }
                                 } catch (e: Exception) {
                                     Log.w(TAG, "Failed to send platform identify: ${e.message}")

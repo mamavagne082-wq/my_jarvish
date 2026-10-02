@@ -957,16 +957,13 @@ class JarvisAccessibilityService : AccessibilityService() {
                         }
                     }
                 }
-                if (smsManager == null) {
-                    @Suppress("DEPRECATION")
-                    smsManager = android.telephony.SmsManager.getDefault()
-                }
+                val manager = smsManager ?: @Suppress("DEPRECATION") android.telephony.SmsManager.getDefault()
 
-                val parts = smsManager.divideMessage(message)
+                val parts = manager.divideMessage(message)
                 if (parts.size > 1) {
-                    smsManager.sendMultipartTextMessage(cleanNumber, null, parts, null, null)
+                    manager.sendMultipartTextMessage(cleanNumber, null, parts, null, null)
                 } else {
-                    smsManager.sendTextMessage(cleanNumber, null, message, null, null)
+                    manager.sendTextMessage(cleanNumber, null, message, null, null)
                 }
                 sentDirectly = true
                 Log.d(TAG, "SMS directly sent to $cleanNumber via SIM $simSlot: '$message'")
