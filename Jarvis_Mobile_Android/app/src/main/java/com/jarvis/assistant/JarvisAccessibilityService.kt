@@ -121,13 +121,13 @@ class JarvisAccessibilityService : AccessibilityService() {
             "execute_whatsapp_task" -> {
                 val taskId = payload.optString("task_id", UUID.randomUUID().toString())
                 val waActionStr = payload.optString("action", "send_message")
-                val action = WhatsAppAction.fromString(waActionStr) ?: WhatsAppAction.SEND_MESSAGE
+                val waAction = WhatsAppAction.fromString(waActionStr) ?: WhatsAppAction.SEND_MESSAGE
                 val contact = payload.optString("contact_query", "")
                 val message = payload.optString("message", "")
                 val mode = payload.optString("mode", "execute")
                 val task = WhatsAppTask(
                     taskId = taskId,
-                    action = action,
+                    action = waAction,
                     contactQuery = contact,
                     message = message,
                     mode = mode
@@ -150,14 +150,14 @@ class JarvisAccessibilityService : AccessibilityService() {
                 val platformStr = payload.optString("platform", "instagram")
                 val actionStr = payload.optString("action", "post")
                 val platform = SocialPlatform.fromString(platformStr) ?: SocialPlatform.INSTAGRAM
-                val action = SocialAction.fromString(actionStr) ?: SocialAction.POST
+                val smAction = SocialAction.fromString(actionStr) ?: SocialAction.POST
                 val mediaUri = payload.optString("media_uri", null)
                 val caption = payload.optString("caption", null)
                 val mode = payload.optString("mode", "execute")
                 val task = SocialMediaTask(
                     taskId = taskId,
                     platform = platform,
-                    action = action,
+                    action = smAction,
                     mediaUri = mediaUri,
                     caption = caption,
                     mode = mode
@@ -733,6 +733,7 @@ class JarvisAccessibilityService : AccessibilityService() {
      */
     fun sendTwitterMessage(target: String, message: String) {
         try {
+            Log.d(TAG, "sendTwitterMessage to $target: $message")
             openApplication("twitter")
             serviceScope.launch {
                 delay(2500)
@@ -1226,7 +1227,6 @@ class JarvisAccessibilityService : AccessibilityService() {
      */
     fun performSurveyAutomation(): Boolean {
         val root = rootInActiveWindow ?: return false
-        var clicked = false
 
         val nextKeywords = listOf("Next", "Continue", "Submit", "নেক্সট", "পরবর্তী", "Proceed", "Done", "Start")
         for (keyword in nextKeywords) {
@@ -1241,8 +1241,7 @@ class JarvisAccessibilityService : AccessibilityService() {
             }
         }
 
-        clicked = clickFirstInteractiveOption(root)
-        return clicked
+        return clickFirstInteractiveOption(root)
     }
 
     private fun clickFirstInteractiveOption(node: AccessibilityNodeInfo?): Boolean {
