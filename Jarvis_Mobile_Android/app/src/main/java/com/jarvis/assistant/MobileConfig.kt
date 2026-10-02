@@ -12,24 +12,24 @@ object MobileConfig {
 
     private const val PREFS_NAME = "jarvis_mobile_config"
 
-    // Default Fallback Keys populated from active user_config.json
+    // Default Settings (API keys are NOT hardcoded - securely stored locally by user after install)
     const val DEFAULT_USER_NAME = "ALAMIN"
     const val DEFAULT_ASSISTANT_NAME = "Jarvis"
     const val DEFAULT_LLM_PROVIDER = "google"
     const val DEFAULT_LLM_MODEL = "gemini-3.8-live"
 
     const val DEFAULT_LIVEKIT_URL = "wss://jarvish-cdq66wc9.livekit.cloud"
-    const val DEFAULT_LIVEKIT_KEY = "APIudafoJVHneWA"
-    const val DEFAULT_LIVEKIT_SECRET = "QQlG0TxB5wxhZ3hiSkTNnXVNgsgbwSY1Yh1XFTzuTgL"
+    const val DEFAULT_LIVEKIT_KEY = ""
+    const val DEFAULT_LIVEKIT_SECRET = ""
 
-    const val DEFAULT_GOOGLE_KEY = "AQ.Ab8RN6JHF6heRWfsnO5USnfzLeb-FWVFikfabKfams1pJ7oAxQ"
-    const val DEFAULT_OPENAI_KEY = "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"
-    const val DEFAULT_MEM0_KEY = "m0-zXEwUTUVUBNC6xUyne1UtoFr5jSHrsspEfcBLS3S"
-    const val DEFAULT_GOOGLE_SEARCH_KEY = "977565840084-3d463snmaaa7iq1rnr6lo26jdr3c38sk.apps.googleusercontent.com"
-    const val DEFAULT_SEARCH_ENGINE_ID = "0669cc931ac6f4b1e"
-    const val DEFAULT_OPENWEATHER_KEY = "df80983835aa91632af139cb1846be67"
-    const val DEFAULT_XIAOMI_MIMO_KEY = "sk-s9mnjmqs3jesdkhnls9x94jm5aoj248zo85t89anckwmva1m"
-    const val DEFAULT_ELEVENLABS_KEY = "sk_9177b45b24484fbbc84b3ea08febf2445d061bfb2a003f17"
+    const val DEFAULT_GOOGLE_KEY = ""
+    const val DEFAULT_OPENAI_KEY = ""
+    const val DEFAULT_MEM0_KEY = ""
+    const val DEFAULT_GOOGLE_SEARCH_KEY = ""
+    const val DEFAULT_SEARCH_ENGINE_ID = ""
+    const val DEFAULT_OPENWEATHER_KEY = ""
+    const val DEFAULT_XIAOMI_MIMO_KEY = ""
+    const val DEFAULT_ELEVENLABS_KEY = ""
     const val DEFAULT_ELEVENLABS_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"
 
     const val DEFAULT_ROOM_NAME = "jarvis-room"
@@ -95,6 +95,13 @@ object MobileConfig {
 
     fun setOrbTheme(context: Context, theme: String) {
         getPrefs(context).edit().putString("orb_theme", theme).apply()
+    }
+
+    fun hasValidCredentials(context: Context): Boolean {
+        val url = getLiveKitUrl(context)
+        val key = getLiveKitKey(context)
+        val sec = getLiveKitSecret(context)
+        return url.isNotBlank() && key.isNotBlank() && sec.isNotBlank()
     }
 
     /**

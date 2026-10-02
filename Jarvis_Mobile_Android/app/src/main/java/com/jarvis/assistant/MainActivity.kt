@@ -65,12 +65,26 @@ class MainActivity : AppCompatActivity() {
         resetAutoMinimizeTimer()
     }
 
-    // ── Wake Word & Idle Receiver ─────────────────────────────────────────
+    // ── Wake Word, Session State & Idle Receiver ─────────────────────────
     private val wakeWordReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val action = intent?.action ?: return
             if (action == JarvisForegroundService.ACTION_RESET_IDLE) {
                 resetAutoMinimizeTimer()
+                return
+            }
+            if (action == JarvisForegroundService.ACTION_SESSION_STATE_CHANGED) {
+                val active = intent.getBooleanExtra("active", false)
+                val state = intent.getStringExtra("state") ?: "idle"
+                val error = intent.getStringExtra("error")
+                webView.post {
+                    if (error == "missing_keys") {
+                        webView.evaluateJavascript("if (window.onMissingApiKeys) window.onMissingApiKeys();", null)
+                    } else {
+                        webView.evaluateJavascript("if (window.onNativeSessionState) window.onNativeSessionState($active, '$state');", null)
+                    }
+                }
+                updateUIState()
                 return
             }
             if (action == JarvisForegroundService.ACTION_WAKE_WORD_DETECTED) {
@@ -104,9 +118,10 @@ class MainActivity : AppCompatActivity() {
         setupWebView()
         checkAudioPermission()
 
-        // Register wake word receiver for Activity lifetime
+        // Register wake word and session receiver for Activity lifetime
         val filter = IntentFilter().apply {
             addAction(JarvisForegroundService.ACTION_WAKE_WORD_DETECTED)
+            addAction(JarvisForegroundService.ACTION_SESSION_STATE_CHANGED)
             addAction(JarvisForegroundService.ACTION_RESET_IDLE)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -197,10 +212,11 @@ class MainActivity : AppCompatActivity() {
         val isServiceRunning = JarvisForegroundService.isRunning
         val isAccEnabled = isAccessibilityEnabled()
         val isBatIgnored = isBatteryOptimizationIgnored()
+        val isSessionActive = JarvisForegroundService.isSessionActive
 
         webView.post {
             webView.evaluateJavascript(
-                "if (window.updateServiceStatus) window.updateServiceStatus($isServiceRunning, $isAccEnabled, $isBatIgnored);",
+                "if (window.updateServiceStatus) window.updateServiceStatus($isServiceRunning, $isAccEnabled, $isBatIgnored, $isSessionActive);",
                 null
             )
         }
@@ -385,10 +401,16 @@ class MainActivity : AppCompatActivity() {
         fun getServiceStatus(): String {
             val status = JSONObject().apply {
                 put("serviceRunning", JarvisForegroundService.isRunning)
+                put("sessionActive", JarvisForegroundService.isSessionActive)
                 put("accessibilityEnabled", activity.isAccessibilityEnabled())
                 put("batteryIgnored", activity.isBatteryOptimizationIgnored())
             }
             return status.toString()
+        }
+
+        @JavascriptInterface
+        fun isSessionActive(): Boolean {
+            return JarvisForegroundService.isSessionActive
         }
 
         @JavascriptInterface
@@ -435,6 +457,49 @@ class MainActivity : AppCompatActivity() {
         fun minimizeApp() {
             activity.runOnUiThread {
                 activity.moveTaskToBack(true)
+            }
+        }
+
+        @JavascriptInterface
+        fun startVoiceCall() {
+            activity.runOnUiThread {
+                if (!MobileConfig.hasValidCredentials(activity)) {
+                    Toast.makeText(activity, "⚠️ LiveKit API কী পাওয়া যায়নি! Settings ট্যাবে কী সংরক্ষণ করুন।", Toast.LENGTH_LONG).show()
+                    activity.webView.evaluateJavascript("if (window.onMissingApiKeys) window.onMissingApiKeys();", null)
+                    return@runOnUiThread
+                }
+                if (!JarvisForegroundService.isRunning) {
+                    activity.startJarvisService()
+                    activity.webView.postDelayed({
+                        JarvisForegroundService.instance?.connectSession()
+                    }, 600)
+                } else {
+                    JarvisForegroundService.instance?.connectSession()
+                }
+                Toast.makeText(activity, "Jarvis সেশন শুরু হয়েছে...", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        @JavascriptInterface
+        fun endVoiceCall() {
+            activity.runOnUiThread {
+                JarvisForegroundService.instance?.disconnectSession(sendByePacket = true)
+                Toast.makeText(activity, "Jarvis সেশন বন্ধ হয়েছে (বাই বাই!)", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        @JavascriptInterface
+        fun shutdownJarvis() {
+            activity.runOnUiThread {
+                activity.stopJarvisService()
+                Toast.makeText(activity, "Jarvis সম্পূর্ণ বন্ধ করা হয়েছে।", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        @JavascriptInterface
+        fun setSpeakerphone(enabled: Boolean) {
+            activity.runOnUiThread {
+                JarvisForegroundService.instance?.setSpeakerphone(enabled)
             }
         }
 

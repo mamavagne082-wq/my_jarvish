@@ -39,21 +39,85 @@
     <!-- TAB 1: HOME (Orb, Voice, Visualizer, Chat) -->
     <!-- ========================================== -->
     <section class="tab-content active" id="tab-home">
-      <!-- 3D Interactive Orb Stage -->
-      <div class="orb-stage-card">
-        <div class="orb-canvas-container" id="orbContainer">
-          <canvas id="orbCanvas" width="240" height="240"></canvas>
+
+      <!-- 1. STANDBY / WELCOME VIEW (When not in call) -->
+      <div id="welcomeView" class="welcome-hero-card">
+        <div class="arc-reactor-crest">
+          <div class="arc-outer-ring"></div>
+          <div class="arc-core"></div>
         </div>
-        <div class="orb-state-label" id="orbStateLabel">
-          <span class="orb-state-indicator" id="orbStateDot"></span>
-          <span id="orbStateText">READY // LISTENING</span>
+        <h2 class="welcome-title">JARVIS AI SYSTEM</h2>
+        <p class="welcome-subtitle">SYSTEM STATUS: STANDBY // READY FOR COMMAND</p>
+
+        <!-- Big Pulsing "Talk To Jarvis" Button (Matches PC Welcome) -->
+        <button class="btn-talk-to-jarvis" id="btnTalkToJarvis" onclick="startVoiceSession()">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" x2="12" y1="19" y2="22"/>
+          </svg>
+          <span>TALK TO JARVIS</span>
+          <small>(টক টু জারভিস - কথা শুরু করুন)</small>
+        </button>
+      </div>
+
+      <!-- 2. ACTIVE VOICE SESSION VIEW (When speaking/connected) -->
+      <div id="sessionView" class="view-hidden">
+        <!-- 3D Interactive Orb Stage -->
+        <div class="orb-stage-card">
+          <div class="orb-canvas-container" id="orbContainer">
+            <canvas id="orbCanvas" width="240" height="240"></canvas>
+          </div>
+          <div class="orb-state-label" id="orbStateLabel">
+            <span class="orb-state-indicator" id="orbStateDot"></span>
+            <span id="orbStateText">ONLINE // LISTENING</span>
+          </div>
+          <!-- Audio Spectrum Waves -->
+          <canvas class="spectrum-canvas" id="spectrumCanvas" width="300" height="48"></canvas>
         </div>
-        <!-- Audio Spectrum Waves -->
-        <canvas class="spectrum-canvas" id="spectrumCanvas" width="300" height="48"></canvas>
+
+        <!-- Live Session Transcript Card -->
+        <div class="transcript-card">
+          <div class="transcript-header">
+            <span>REAL-TIME VOICE STREAM</span>
+            <span id="activeModelTag" class="badge-green">GEMINI LIVE</span>
+          </div>
+          <div class="transcript-body" id="transcriptBody">
+            <div class="chat-bubble assistant">
+              Hello boss. Jarvis is active and listening. Speak your command.
+            </div>
+          </div>
+        </div>
+
+        <!-- Session Controls Row: End Call / Bye Jarvis (কেটে দাও বাটন) -->
+        <div class="session-controls-row">
+          <button class="btn-end-session" id="btnEndVoiceCall" onclick="endVoiceSession()">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11-.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+            </svg>
+            <div style="display:flex; flex-direction:column; align-items:flex-start;">
+              <span style="font-weight:800; font-size:15px; letter-spacing:1px;">BYE JARVIS // কেটে দাও (বন্ধ করো)</span>
+              <small style="font-size:11px; opacity:0.9; font-weight:normal;">চাপলে 'বাই বাই' বলে সম্পূর্ণ অফ হয়ে থাকবে</small>
+            </div>
+          </button>
+
+          <div class="controls-secondary-row">
+            <button class="btn-control-secondary" id="btnMicMute" onclick="toggleMuteMic()">
+              <span>🎙️ Mute Mic</span>
+            </button>
+            <button class="btn-control-secondary active" id="btnSpeaker" onclick="toggleSpeakerphone()">
+              <span>🔊 Loudspeaker: ON</span>
+            </button>
+          </div>
+
+          <button class="btn-shutdown-link" onclick="shutdownJarvis()">
+            <span>সম্পূর্ণ অ্যাপ অফ করুন (Full Shutdown)</span>
+          </button>
+        </div>
       </div>
 
       <!-- Quick Action Mobile Chips -->
-      <div class="quick-actions-grid">
+      <div class="quick-actions-grid" style="margin-top: 14px;">
         <div class="action-chip" onclick="executeAction('lock')">
           <i>🔒</i>
           <span>Lock Screen</span>
@@ -77,19 +141,6 @@
         <div class="action-chip" onclick="switchTab('settings')">
           <i>⚡</i>
           <span>API Keys</span>
-        </div>
-      </div>
-
-      <!-- Live Session Transcript Card -->
-      <div class="transcript-card">
-        <div class="transcript-header">
-          <span>REAL-TIME VOICE STREAM</span>
-          <span id="activeModelTag" class="badge-green">GEMINI LIVE</span>
-        </div>
-        <div class="transcript-body" id="transcriptBody">
-          <div class="chat-bubble assistant">
-            Hello boss. Jarvis Mobile AI Companion is online and connected. Say "Hey Jarvis" or tap the center mic to command.
-          </div>
         </div>
       </div>
     </section>
@@ -249,67 +300,70 @@
       <div class="settings-section-card">
         <div class="section-title">
           <i>🔑</i>
-          <span>CLOUD API KEYS</span>
+          <span>SECURE LOCAL API KEYS</span>
         </div>
+        <p style="font-size:11px; color:#94a3b8; margin-bottom:12px; line-height:1.5;">
+          🔒 <strong>নিরাপত্তা বার্তা:</strong> আপনার দেওয়া সকল API কী এই ডিভাইসে সুরক্ষিতভাবে লোকাল স্টোরেজে সেভ থাকে। কোনো কী কোথাও হার্ডকোড বা শেয়ার হয় না।
+        </p>
 
         <div class="form-group">
           <label>Google Gemini API Key</label>
-          <input type="password" id="cfgGoogleKey" class="form-control" placeholder="AQ.Ab8RN...">
+          <input type="password" id="cfgGoogleKey" class="form-control" placeholder="AIzaSy... (Enter your Google Gemini API Key)">
         </div>
 
         <div class="form-group">
           <label>OpenAI API Key</label>
-          <input type="password" id="cfgOpenAiKey" class="form-control" placeholder="sk-proj-...">
+          <input type="password" id="cfgOpenAiKey" class="form-control" placeholder="sk-proj-... (Enter your OpenAI API Key)">
         </div>
 
         <div class="form-group">
           <label>LiveKit Cloud Server URL</label>
-          <input type="text" id="cfgLiveKitUrl" class="form-control" placeholder="wss://jarvish-cdq66wc9.livekit.cloud">
+          <input type="text" id="cfgLiveKitUrl" class="form-control" placeholder="wss://...livekit.cloud">
         </div>
 
         <div class="form-group">
           <label>LiveKit API Key</label>
-          <input type="text" id="cfgLiveKitKey" class="form-control" placeholder="APIudafoJVHneWA">
+          <input type="text" id="cfgLiveKitKey" class="form-control" placeholder="API... (Enter your LiveKit Key)">
         </div>
 
         <div class="form-group">
           <label>LiveKit API Secret</label>
-          <input type="password" id="cfgLiveKitSecret" class="form-control" placeholder="QQlG0TxB5...">
+          <input type="password" id="cfgLiveKitSecret" class="form-control" placeholder="Enter your LiveKit Secret">
         </div>
 
         <div class="form-group">
-          <label>Mem0 Long-Term Memory Key</label>
-          <input type="password" id="cfgMem0Key" class="form-control" placeholder="m0-zXEw...">
+          <label>Mem0 Long-Term Memory Key (Optional)</label>
+          <input type="password" id="cfgMem0Key" class="form-control" placeholder="m0-... (Optional)">
         </div>
 
         <div class="form-group">
-          <label>Google Search Key</label>
-          <input type="password" id="cfgGoogleSearchKey" class="form-control" placeholder="Google Search Key...">
+          <label>Google Search Key (Optional)</label>
+          <input type="password" id="cfgGoogleSearchKey" class="form-control" placeholder="Search API Key (Optional)">
         </div>
 
         <div class="form-group">
-          <label>Search Engine ID (CX)</label>
-          <input type="text" id="cfgSearchEngineId" class="form-control" placeholder="0669cc931ac6f4b1e">
+          <label>Search Engine ID (CX) (Optional)</label>
+          <input type="text" id="cfgSearchEngineId" class="form-control" placeholder="Search Engine ID CX (Optional)">
         </div>
 
         <div class="form-group">
-          <label>OpenWeather API Key</label>
-          <input type="password" id="cfgOpenWeatherKey" class="form-control" placeholder="OpenWeather Key...">
+          <label>OpenWeather API Key (Optional)</label>
+          <input type="password" id="cfgOpenWeatherKey" class="form-control" placeholder="OpenWeather Key (Optional)">
         </div>
 
         <div class="form-group">
-          <label>Xiaomi Mimo API Key</label>
-          <input type="password" id="cfgXiaomiMimoKey" class="form-control" placeholder="sk-s9mn...">
+          <label>Xiaomi Mimo API Key (Optional)</label>
+          <input type="password" id="cfgXiaomiMimoKey" class="form-control" placeholder="sk-... (Optional)">
         </div>
 
         <div class="form-group">
-          <label>ElevenLabs Voice API Key</label>
-          <input type="password" id="cfgElevenLabsKey" class="form-control" placeholder="sk_9177b...">
+          <label>ElevenLabs Voice API Key (Optional)</label>
+          <input type="password" id="cfgElevenLabsKey" class="form-control" placeholder="sk_... (Optional)">
         </div>
 
         <div class="form-group">
-          <label>ElevenLabs Voice ID</label>
-          <input type="text" id="cfgElevenLabsVoiceId" class="form-control" placeholder="EXAVITQu4vr4xnSDxMaL">
+          <label>ElevenLabs Voice ID (Optional)</label>
+          <input type="text" id="cfgElevenLabsVoiceId" class="form-control" placeholder="EXAVITQu4vr4xnSDxMaL (Default Aoede)">
         </div>
       </div>
 

@@ -27,6 +27,7 @@ import androidx.core.app.NotificationCompat
 import io.livekit.android.LiveKit
 import io.livekit.android.events.RoomEvent
 import io.livekit.android.room.Room
+import io.livekit.android.room.track.RemoteAudioTrack
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -45,14 +46,18 @@ class JarvisForegroundService : Service() {
         const val ACTION_START = "com.jarvis.assistant.START"
         const val ACTION_STOP = "com.jarvis.assistant.STOP"
 
-        // ── [NEW] Wake Word & Idle broadcast actions ──────────────────────
+        // ── Wake Word, Session State & Idle broadcast actions ──────────────
         const val ACTION_WAKE_WORD_DETECTED = "com.jarvis.assistant.WAKE_WORD"
+        const val ACTION_SESSION_STATE_CHANGED = "com.jarvis.assistant.SESSION_STATE_CHANGED"
         const val ACTION_RESET_IDLE = "com.jarvis.assistant.RESET_IDLE"
 
         const val PREFS_NAME = "jarvis_mobile_prefs"
         const val KEY_SERVICE_ENABLED = "service_enabled"
 
         var isRunning = false
+            private set
+
+        var isSessionActive = false
             private set
 
         var instance: JarvisForegroundService? = null
@@ -95,78 +100,84 @@ class JarvisForegroundService : Service() {
     private var previousAudioMode = AudioManager.MODE_NORMAL
 
     /**
-     * Acquires exclusive audio focus for the Call Assistant.
-     * Sets MODE_IN_COMMUNICATION to prevent echo, Bluetooth routing issues,
-     * and mic dropping during active phone call or VoIP session.
+     * Applies loudspeaker routing and maximizes audio volume.
+     * Ensures Jarvis is loud and crystal clear through the device speaker.
+     */
+    fun applyLoudspeakerSettings() {
+        try {
+            audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            audioManager?.mode = AudioManager.MODE_IN_COMMUNICATION
+            audioManager?.isSpeakerphoneOn = true
+            audioManager?.isBluetoothScoOn = false
+
+            // Maximize volume streams so Jarvis voice is loud, clear, and doesn't get muffled
+            val maxVoice = audioManager?.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL) ?: 7
+            audioManager?.setStreamVolume(AudioManager.STREAM_VOICE_CALL, maxVoice, 0)
+            val maxMusic = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
+            audioManager?.setStreamVolume(AudioManager.STREAM_MUSIC, maxMusic, 0)
+            Log.d(TAG, "Loudspeaker configured at max volume (Voice: $maxVoice, Music: $maxMusic)")
+        } catch (e: Exception) {
+            Log.w(TAG, "Error applying loudspeaker settings: ${e.message}")
+        }
+    }
+
+    /**
+     * Acquires audio focus for active voice conversation.
+     * Sets MODE_IN_COMMUNICATION to enable hardware Acoustic Echo Cancellation (AEC)
+     * and Noise Suppression (NS) on the device chipset.
      */
     private fun acquireAudioFocusForAssistant() {
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         previousAudioMode = audioManager?.mode ?: AudioManager.MODE_NORMAL
 
-        // Switch to COMMUNICATION mode (eliminates mic cutoff on calls)
+        // Switch to COMMUNICATION mode for hardware AEC and clear VoIP audio
         audioManager?.mode = AudioManager.MODE_IN_COMMUNICATION
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+            val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
                 .setAudioAttributes(
                     AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                         .build()
                 )
-                .setAcceptsDelayedFocusGain(false)
+                .setAcceptsDelayedFocusGain(true)
                 .setOnAudioFocusChangeListener { focusChange ->
-                    when (focusChange) {
-                        AudioManager.AUDIOFOCUS_LOSS -> {
-                            Log.w(TAG, "Audio focus lost permanently. Re-requesting...")
-                            acquireAudioFocusForAssistant()
-                        }
-                        AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                            Log.d(TAG, "Audio focus lost transiently (phone call?). Holding...")
-                        }
-                        AudioManager.AUDIOFOCUS_GAIN -> {
-                            Log.d(TAG, "Audio focus regained.")
-                        }
+                    Log.d(TAG, "Audio focus changed: $focusChange")
+                    if (focusChange == AudioManager.AUDIOFOCUS_GAIN && isSessionActive) {
+                        applyLoudspeakerSettings()
                     }
                 }
                 .build()
             audioFocusRequest = focusRequest
-            val result = audioManager?.requestAudioFocus(focusRequest)
-            Log.d(TAG, "Audio focus request result: $result")
+            audioManager?.requestAudioFocus(focusRequest)
         } else {
             @Suppress("DEPRECATION")
             audioManager?.requestAudioFocus(
-                { focusChange ->
-                    Log.d(TAG, "Audio focus changed (legacy): $focusChange")
-                },
+                null,
                 AudioManager.STREAM_VOICE_CALL,
-                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
+                AudioManager.AUDIOFOCUS_GAIN
             )
         }
 
-        // Route audio through LOUDSPEAKER for crystal clear loud voice and zero echo
-        try {
-            audioManager?.isSpeakerphoneOn = true
-            audioManager?.isBluetoothScoOn = false
-            // Boost volume to clear loud level
-            val maxMusic = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
-            audioManager?.setStreamVolume(AudioManager.STREAM_MUSIC, (maxMusic * 0.90).toInt(), 0)
-            val maxVoice = audioManager?.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL) ?: 7
-            audioManager?.setStreamVolume(AudioManager.STREAM_VOICE_CALL, maxVoice, 0)
-        } catch (_: Exception) {}
+        applyLoudspeakerSettings()
         Log.d(TAG, "Call Assistant audio focus acquired. Mode: IN_COMMUNICATION, Loudspeaker: ON")
     }
 
     private fun releaseAudioFocusForAssistant() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            audioFocusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }
-        } else {
-            @Suppress("DEPRECATION")
-            audioManager?.abandonAudioFocus(null)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                audioFocusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager?.abandonAudioFocus(null)
+            }
+            audioManager?.mode = AudioManager.MODE_NORMAL
+            audioManager?.isSpeakerphoneOn = false
+        } catch (e: Exception) {
+            Log.w(TAG, "Error releasing audio focus: ${e.message}")
         }
-        // Restore previous audio mode
-        audioManager?.mode = previousAudioMode
-        Log.d(TAG, "Call Assistant audio focus released.")
+        Log.d(TAG, "Call Assistant audio focus released. Restored normal mode.")
     }
 
     // ── [NEW] Wake Word Engine ─────────────────────────────────────────────
@@ -200,6 +211,7 @@ class JarvisForegroundService : Service() {
         if (action == ACTION_STOP) {
             explicitlyStopped = true
             setServiceEnabled(this, false)
+            disconnectSession(sendByePacket = false)
             stopForegroundService()
             return START_NOT_STICKY
         }
@@ -207,23 +219,20 @@ class JarvisForegroundService : Service() {
         explicitlyStopped = false
         setServiceEnabled(this, true)
         startAsForeground()
-        // ── Acquire audio focus for clear microphone + speaker routing ─────
-        acquireAudioFocusForAssistant()
-        connectToLiveKitRoom()
 
-        // ── [NEW] Start wake word engine ("Hey Jarvis") ──────────────────
-        if (wakeWordEngine == null) {
+        // Standby mode: only start wake word engine if not in active call
+        if (wakeWordEngine == null && !isSessionActive) {
             wakeWordEngine = WakeWordEngine()
             wakeWordEngine?.start()
         }
 
-        // ── [NEW] Start Jarvis Mic Bubble / 3D Orb Overlay if permitted ──
+        // ── Start Jarvis Mic Bubble / 3D Orb Overlay if permitted ──
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && android.provider.Settings.canDrawOverlays(this)) {
             try {
                 val overlayIntent = Intent(this, JarvisOverlayService::class.java).apply {
                     setAction(JarvisOverlayService.ACTION_SHOW_OVERLAY)
                     putExtra(JarvisOverlayService.EXTRA_OVERLAY_MODE, "bubble")
-                    putExtra(JarvisOverlayService.EXTRA_AGENT_STATE, "idle")
+                    putExtra(JarvisOverlayService.EXTRA_AGENT_STATE, if (isSessionActive) "listening" else "idle")
                 }
                 startService(overlayIntent)
             } catch (e: Exception) {
@@ -380,7 +389,7 @@ class JarvisForegroundService : Service() {
 
     /**
      * Connects to LiveKit Room using MobileConfig credentials.
-     * Starts microphone and listens for remote commands via DataChannel.
+     * Enforces hardware AEC, loudspeaker output, and track filtering to eliminate any echo.
      */
     private fun connectToLiveKitRoom() {
         serviceScope.launch {
@@ -395,6 +404,18 @@ class JarvisForegroundService : Service() {
                 val livekitSecret = MobileConfig.getLiveKitSecret(this@JarvisForegroundService)
                 val userName = MobileConfig.getUserName(this@JarvisForegroundService)
 
+                if (livekitUrl.isBlank() || livekitKey.isBlank() || livekitSecret.isBlank()) {
+                    Log.w(TAG, "LiveKit credentials missing. Please configure in Settings.")
+                    isSessionActive = false
+                    sendBroadcast(Intent(ACTION_SESSION_STATE_CHANGED).apply {
+                        setPackage(packageName)
+                        putExtra("active", false)
+                        putExtra("state", "idle")
+                        putExtra("error", "missing_keys")
+                    })
+                    return@launch
+                }
+
                 Log.d(TAG, "Connecting to LiveKit room: $livekitUrl...")
                 
                 val room = LiveKit.create(applicationContext)
@@ -408,6 +429,8 @@ class JarvisForegroundService : Service() {
                                 Log.d(TAG, "Successfully connected to LiveKit Room!")
                                 // Automatically enable local microphone
                                 room.localParticipant.setMicrophoneEnabled(true)
+                                applyLoudspeakerSettings()
+
                                 // Send platform identity to Jarvis Agent
                                 try {
                                     val identifyPayload = JSONObject().apply {
@@ -420,12 +443,44 @@ class JarvisForegroundService : Service() {
                                 } catch (e: Exception) {
                                     Log.w(TAG, "Failed to send platform identify: ${e.message}")
                                 }
+
+                                sendBroadcast(Intent(ACTION_SESSION_STATE_CHANGED).apply {
+                                    setPackage(packageName)
+                                    putExtra("active", true)
+                                    putExtra("state", "listening")
+                                })
+                            }
+                            is RoomEvent.TrackSubscribed -> {
+                                if (event.track is RemoteAudioTrack) {
+                                    val remoteAudio = event.track as RemoteAudioTrack
+                                    val pId = (event.participant.identity?.toString() ?: "").lowercase()
+                                    // ZERO ECHO / NO SELF FEEDBACK:
+                                    // Only play audio from the Jarvis assistant! Mute any user or duplicate audio tracks
+                                    if (pId.contains("user") || (!pId.contains("jarvis") && !pId.contains("agent"))) {
+                                        Log.d(TAG, "Muting audio track from $pId to eliminate echo loop")
+                                        try { remoteAudio.rtcTrack.setVolume(0.0) } catch (_: Exception) {}
+                                    } else {
+                                        Log.d(TAG, "Unmuting Jarvis voice track at max volume from $pId")
+                                        try { remoteAudio.rtcTrack.setVolume(1.0) } catch (_: Exception) {}
+                                    }
+                                    applyLoudspeakerSettings()
+                                }
                             }
                             is RoomEvent.Disconnected -> {
-                                Log.w(TAG, "Room disconnected. Attempting auto-reconnect in 3s...")
-                                delay(3000)
-                                if (isRunning && isServiceEnabled(this@JarvisForegroundService)) {
-                                    connectToLiveKitRoom()
+                                Log.w(TAG, "LiveKit room disconnected.")
+                                if (isSessionActive && isRunning && isServiceEnabled(this@JarvisForegroundService)) {
+                                    Log.d(TAG, "Unexpected drop during active session. Auto-reconnecting in 3s...")
+                                    delay(3000)
+                                    if (isSessionActive) {
+                                        connectToLiveKitRoom()
+                                    }
+                                } else {
+                                    Log.d(TAG, "LiveKit session ended intentionally. Standby mode active.")
+                                    sendBroadcast(Intent(ACTION_SESSION_STATE_CHANGED).apply {
+                                        setPackage(packageName)
+                                        putExtra("active", false)
+                                        putExtra("state", "idle")
+                                    })
                                 }
                             }
                             is RoomEvent.DataReceived -> {
@@ -436,7 +491,10 @@ class JarvisForegroundService : Service() {
                     }
                 }
 
-                val identity = "mobile_user_${userName.lowercase()}_${System.currentTimeMillis() % 10000}"
+                // Deterministic participant identity - no random suffix that leaves stale audio streams!
+                val cleanUser = userName.trim().lowercase().replace(Regex("[^a-z0-9_]"), "")
+                val identity = "mobile_user_${cleanUser.ifEmpty { "alamin" }}"
+
                 val token = MobileConfig.generateLiveKitToken(
                     apiKey = livekitKey,
                     apiSecret = livekitSecret,
@@ -448,9 +506,11 @@ class JarvisForegroundService : Service() {
 
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to connect to LiveKit: ${e.message}", e)
-                delay(5000)
-                if (isRunning && isServiceEnabled(this@JarvisForegroundService)) {
-                    connectToLiveKitRoom()
+                if (isSessionActive && isRunning && isServiceEnabled(this@JarvisForegroundService)) {
+                    delay(5000)
+                    if (isSessionActive) {
+                        connectToLiveKitRoom()
+                    }
                 }
             }
         }
@@ -485,18 +545,66 @@ class JarvisForegroundService : Service() {
     }
 
     fun connectSession() {
+        if (!MobileConfig.hasValidCredentials(this)) {
+            Log.w(TAG, "Cannot connect session: Missing LiveKit credentials in Settings")
+            sendBroadcast(Intent(ACTION_SESSION_STATE_CHANGED).apply {
+                setPackage(packageName)
+                putExtra("active", false)
+                putExtra("state", "idle")
+                putExtra("error", "missing_keys")
+            })
+            return
+        }
+
+        isSessionActive = true
+        // Pause wake word engine so it releases the microphone completely for WebRTC
+        wakeWordEngine?.stop()
+        wakeWordEngine = null
+
         acquireAudioFocusForAssistant()
         connectToLiveKitRoom()
     }
 
-    fun disconnectSession() {
-        disconnectLiveKit()
-        releaseAudioFocusForAssistant()
+    fun disconnectSession(sendByePacket: Boolean = true) {
+        val wasActive = isSessionActive
+        isSessionActive = false
+
+        if (sendByePacket && liveKitRoom != null && liveKitRoom?.state == Room.State.CONNECTED) {
+            try {
+                val byeJson = JSONObject().apply { put("type", "SAY_BYE") }
+                sendDataPacket(byeJson)
+                Log.d(TAG, "SAY_BYE packet sent to Jarvis agent")
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not send SAY_BYE: ${e.message}")
+            }
+        }
+
+        serviceScope.launch {
+            if (sendByePacket && wasActive) {
+                delay(1200) // Allow SAY_BYE data packet to flush to agent before disconnecting socket
+            }
+            disconnectLiveKit()
+            releaseAudioFocusForAssistant()
+            sendBroadcast(Intent(ACTION_SESSION_STATE_CHANGED).apply {
+                setPackage(packageName)
+                putExtra("active", false)
+                putExtra("state", "idle")
+            })
+
+            // Resume wake word engine for standby listening if service is running
+            if (isRunning && isServiceEnabled(this@JarvisForegroundService) && wakeWordEngine == null) {
+                wakeWordEngine = WakeWordEngine()
+                wakeWordEngine?.start()
+            }
+        }
     }
 
     fun setSpeakerphone(enabled: Boolean) {
         try {
             audioManager?.isSpeakerphoneOn = enabled
+            if (enabled) {
+                applyLoudspeakerSettings()
+            }
             Log.d(TAG, "Speakerphone set to: $enabled")
         } catch (_: Exception) {}
     }
@@ -730,10 +838,8 @@ class JarvisForegroundService : Service() {
             }
             sendBroadcast(wakeIntent)
 
-            // Also ensure LiveKit is connected
-            if (liveKitRoom == null || liveKitRoom?.state != Room.State.CONNECTED) {
-                connectToLiveKitRoom()
-            }
+            // Connect voice call session upon wake word detection
+            connectSession()
         }
     }
 }

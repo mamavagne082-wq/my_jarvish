@@ -659,3 +659,183 @@ input:checked + .slider:before {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+/* ── Talk To Jarvis (Welcome / Standby View) ── */
+.welcome-hero-card {
+  background: radial-gradient(circle at center, rgba(15, 23, 42, 0.9) 0%, rgba(3, 7, 18, 0.98) 100%);
+  border: 1px solid var(--bg-card-border);
+  border-radius: 28px;
+  padding: 32px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), inset 0 0 40px rgba(6, 182, 212, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.arc-reactor-crest {
+  width: 140px;
+  height: 140px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.arc-core {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, #22d3ee 50%, #0891b2 100%);
+  box-shadow: 0 0 35px #22d3ee, 0 0 60px rgba(6, 182, 212, 0.5);
+  animation: arc-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes arc-pulse {
+  0%, 100% { transform: scale(0.95); opacity: 0.9; }
+  50% { transform: scale(1.08); opacity: 1; box-shadow: 0 0 45px #22d3ee, 0 0 80px rgba(6, 182, 212, 0.8); }
+}
+
+.arc-outer-ring {
+  position: absolute;
+  inset: 0;
+  border: 2px dashed rgba(34, 211, 238, 0.5);
+  border-radius: 50%;
+  animation: spin 16s linear infinite;
+}
+
+.welcome-title {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #fff;
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.6);
+  margin-bottom: 6px;
+}
+
+.welcome-subtitle {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+  margin-bottom: 24px;
+}
+
+.btn-talk-to-jarvis {
+  width: 100%;
+  max-width: 290px;
+  padding: 16px 20px;
+  border-radius: 20px;
+  border: 2px solid var(--cyan-bright);
+  background: radial-gradient(circle at center, #0e7490 0%, #083344 100%);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  cursor: pointer;
+  box-shadow: 0 0 30px rgba(34, 211, 238, 0.5), inset 0 0 20px rgba(34, 211, 238, 0.3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-talk-to-jarvis:active {
+  transform: scale(0.96);
+  box-shadow: 0 0 40px rgba(34, 211, 238, 0.8);
+}
+
+.btn-talk-to-jarvis small {
+  font-size: 11px;
+  color: var(--cyan-bright);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* ── Session Active Controls & End Call Button ── */
+.session-controls-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin-top: 14px;
+}
+
+.btn-end-session {
+  width: 100%;
+  padding: 15px 18px;
+  border-radius: 16px;
+  border: 1.5px solid #f43f5e;
+  background: linear-gradient(135deg, rgba(225, 29, 72, 0.9) 0%, rgba(159, 18, 57, 0.98) 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  box-shadow: 0 0 25px rgba(244, 63, 94, 0.5);
+  transition: all 0.2s ease;
+}
+
+.btn-end-session:active {
+  transform: scale(0.97);
+  box-shadow: 0 0 35px rgba(244, 63, 94, 0.8);
+}
+
+.btn-end-session svg {
+  width: 22px;
+  height: 22px;
+}
+
+.controls-secondary-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.btn-control-secondary {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.btn-control-secondary.active {
+  border-color: var(--cyan-bright);
+  background: rgba(6, 182, 212, 0.18);
+  color: var(--cyan-bright);
+}
+
+.btn-shutdown-link {
+  background: none;
+  border: none;
+  color: var(--text-subtle);
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+  margin-top: 6px;
+  text-align: center;
+  padding: 4px;
+}
+
+.view-hidden {
+  display: none !important;
+}

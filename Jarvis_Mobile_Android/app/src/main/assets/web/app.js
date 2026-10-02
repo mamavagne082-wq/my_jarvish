@@ -260,9 +260,113 @@ function renderSpectrum() {
 }
 
 // -------------------------------------------------------------------------
+// Call Session State Management (Talk To Jarvis & Bye Jarvis / End Call)
+// -------------------------------------------------------------------------
+function playByeAudio() {
+  try {
+    const audio = new Audio('bye.mp3');
+    audio.volume = 1.0;
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(e => {
+        console.warn('Audio element play failed, falling back to Web Speech:', e);
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const u = new SpeechSynthesisUtterance('বাই বাই জানু, ধন্যবাদ তোমাকে!');
+          u.lang = 'bn-BD';
+          window.speechSynthesis.speak(u);
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('playByeAudio exception:', err);
+  }
+}
+
+function startVoiceSession() {
+  state.isSessionActive = true;
+  state.isMicActive = true;
+
+  // Switch UI to Active Session View (3D Orb & Live Spectrum)
+  const welcome = document.getElementById('welcomeView');
+  const session = document.getElementById('sessionView');
+  if (welcome) welcome.classList.add('view-hidden');
+  if (session) session.classList.remove('view-hidden');
+
+  const micBtn = document.getElementById('centerMicBtn');
+  if (micBtn) micBtn.classList.add('active');
+
+  updateAgentState('listening', 'ONLINE // LISTENING');
+  addTranscript('Jarvis এ কানেক্ট হচ্ছে (Loudspeaker On)... কথা বলুন!', 'assistant');
+
+  // Trigger Native LiveKit Connection
+  callNative('startVoiceCall');
+  showToast('JARVIS VOICE SESSION STARTED // কথা বলুন');
+}
+
+function endVoiceSession() {
+  state.isSessionActive = false;
+  state.isMicActive = false;
+
+  // 1. Play crystal clear Bengali verbal bye: 'বাই বাই জানু, ধন্যবাদ তোমাকে!'
+  playByeAudio();
+
+  // 2. Switch UI back to Standby Welcome View with big Talk To Jarvis button
+  const welcome = document.getElementById('welcomeView');
+  const session = document.getElementById('sessionView');
+  if (session) session.classList.add('view-hidden');
+  if (welcome) welcome.classList.remove('view-hidden');
+
+  const micBtn = document.getElementById('centerMicBtn');
+  if (micBtn) micBtn.classList.remove('active');
+
+  updateAgentState('idle', 'STANDBY // READY');
+  addTranscript('Jarvis বন্ধ করা হয়েছে। বাই বাই জানু, ধন্যবাদ তোমাকে!', 'assistant');
+
+  // 3. Trigger Native LiveKit Disconnect (with SAY_BYE data packet)
+  callNative('endVoiceCall');
+  showToast('JARVIS DISCONNECTED // বন্ধ করা হয়েছে (বাই বাই!)');
+}
+
+function shutdownJarvis() {
+  endVoiceSession();
+  callNative('shutdownJarvis');
+  showToast('JARVIS SYSTEM SHUTDOWN COMPLETED');
+}
+
+let isMicMuted = false;
+function toggleMuteMic() {
+  isMicMuted = !isMicMuted;
+  const btn = document.getElementById('btnMicMute');
+  if (btn) {
+    btn.innerHTML = isMicMuted ? '<span>🔇 Mic Muted</span>' : '<span>🎙️ Mute Mic</span>';
+    if (isMicMuted) btn.classList.add('active'); else btn.classList.remove('active');
+  }
+  callNative('toggleMic');
+  showToast(isMicMuted ? 'MICROPHONE MUTED' : 'MICROPHONE LIVE');
+}
+
+let isSpeakerphoneOn = true;
+function toggleSpeakerphone() {
+  isSpeakerphoneOn = !isSpeakerphoneOn;
+  const btn = document.getElementById('btnSpeaker');
+  if (btn) {
+    btn.innerHTML = isSpeakerphoneOn ? '<span>🔊 Loudspeaker: ON</span>' : '<span>🔈 Earpiece Mode</span>';
+    if (isSpeakerphoneOn) btn.classList.add('active'); else btn.classList.remove('active');
+  }
+  callNative('setSpeakerphone', isSpeakerphoneOn);
+  showToast(isSpeakerphoneOn ? 'LOUDSPEAKER ACTIVE (হাই সাউন্ড)' : 'EARPIECE ACTIVE');
+}
+
+// -------------------------------------------------------------------------
 // Microphone & Voice Trigger
 // -------------------------------------------------------------------------
 function toggleMicrophone() {
+  if (!state.isSessionActive) {
+    startVoiceSession();
+    return;
+  }
+
   state.isMicActive = !state.isMicActive;
   const micBtn = document.getElementById('centerMicBtn');
   const ring = document.getElementById('micPulsingRing');
@@ -466,10 +570,51 @@ window.onAgentStateChanged = function(agentState, responseText) {
   }
 };
 
-window.updateServiceStatus = function(serviceRunning, accessibilityEnabled, batteryIgnored) {
+window.onNativeSessionState = function(active, agentState) {
+  state.isSessionActive = !!active;
+  state.isMicActive = !!active;
+  const welcome = document.getElementById('welcomeView');
+  const session = document.getElementById('sessionView');
+  const micBtn = document.getElementById('centerMicBtn');
+
+  if (active) {
+    if (welcome) welcome.classList.add('view-hidden');
+    if (session) session.classList.remove('view-hidden');
+    if (micBtn) micBtn.classList.add('active');
+    updateAgentState(agentState || 'listening', 'ONLINE // LISTENING');
+  } else {
+    if (session) session.classList.add('view-hidden');
+    if (welcome) welcome.classList.remove('view-hidden');
+    if (micBtn) micBtn.classList.remove('active');
+    updateAgentState('idle', 'STANDBY // READY');
+  }
+};
+
+window.onMissingApiKeys = function() {
+  switchTab('settings');
+  showToast('⚠️ লাইভকিট API কী মিসিং! Settings ট্যাবে সেভ করুন।');
+};
+
+window.updateServiceStatus = function(serviceRunning, accessibilityEnabled, batteryIgnored, sessionActive) {
   state.serviceRunning = serviceRunning;
   state.accessibilityEnabled = accessibilityEnabled;
   state.batteryIgnored = batteryIgnored;
+
+  if (sessionActive !== undefined) {
+    state.isSessionActive = !!sessionActive;
+    const welcome = document.getElementById('welcomeView');
+    const session = document.getElementById('sessionView');
+    const micBtn = document.getElementById('centerMicBtn');
+    if (sessionActive) {
+      if (welcome) welcome.classList.add('view-hidden');
+      if (session) session.classList.remove('view-hidden');
+      if (micBtn) micBtn.classList.add('active');
+    } else {
+      if (session) session.classList.add('view-hidden');
+      if (welcome) welcome.classList.remove('view-hidden');
+      if (micBtn) micBtn.classList.remove('active');
+    }
+  }
 
   // Header Pill
   const statusLabel = document.getElementById('serviceStatusLabel');
@@ -525,7 +670,7 @@ setInterval(() => {
     const raw = callNative('getServiceStatus');
     if (raw) {
       const s = JSON.parse(raw);
-      window.updateServiceStatus(s.serviceRunning, s.accessibilityEnabled, s.batteryIgnored);
+      window.updateServiceStatus(s.serviceRunning, s.accessibilityEnabled, s.batteryIgnored, s.sessionActive);
     }
   } catch (_) {}
 }, 2500);
