@@ -10,7 +10,11 @@ echo.
 set ROOT_DIR=%~dp0
 set MOBILE_DIR=%ROOT_DIR%Jarvis_Mobile_Android
 
-if not defined JAVA_HOME (
+if exist "C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot" (
+    set "JAVA_HOME=C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot"
+) else if exist "C:\Program Files\Java\jdk-17" (
+    set "JAVA_HOME=C:\Program Files\Java\jdk-17"
+) else if not defined JAVA_HOME (
     if exist "C:\Program Files\Java\jdk-27" (
         set "JAVA_HOME=C:\Program Files\Java\jdk-27"
     )
