@@ -383,7 +383,12 @@ class JarvisForegroundService : Service() {
                     return@launch
                 }
 
-                Log.d(TAG, "Connecting to LiveKit room: ${MobileConfig.LIVEKIT_URL}...")
+                val livekitUrl = MobileConfig.getLiveKitUrl(this@JarvisForegroundService)
+                val livekitKey = MobileConfig.getLiveKitKey(this@JarvisForegroundService)
+                val livekitSecret = MobileConfig.getLiveKitSecret(this@JarvisForegroundService)
+                val userName = MobileConfig.getUserName(this@JarvisForegroundService)
+
+                Log.d(TAG, "Connecting to LiveKit room: $livekitUrl...")
                 
                 val room = LiveKit.create(applicationContext)
                 liveKitRoom = room
@@ -424,8 +429,15 @@ class JarvisForegroundService : Service() {
                     }
                 }
 
-                val token = generateOrFetchToken()
-                room.connect(MobileConfig.LIVEKIT_URL, token)
+                val identity = "mobile_user_${userName.lowercase()}_${System.currentTimeMillis() % 10000}"
+                val token = MobileConfig.generateLiveKitToken(
+                    apiKey = livekitKey,
+                    apiSecret = livekitSecret,
+                    roomName = MobileConfig.DEFAULT_ROOM_NAME,
+                    identity = identity,
+                    participantName = userName
+                )
+                room.connect(livekitUrl, token)
 
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to connect to LiveKit: ${e.message}", e)
@@ -459,10 +471,6 @@ class JarvisForegroundService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "Error handling incoming data packet: ${e.message}")
         }
-    }
-
-    private fun generateOrFetchToken(): String {
-        return "jarvis-mobile-client-token"
     }
 
     private fun disconnectLiveKit() {

@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>JARVIS // AI Mobile Companion</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Top Cyberpunk Status Header -->
+  <header class="header-bar">
+    <div class="brand-section">
+      <div class="brand-logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 3v6"/>
+          <path d="M12 15v6"/>
+          <path d="M3 12h6"/>
+          <path d="M15 12h6"/>
+        </svg>
+      </div>
+      <div class="brand-titles">
+        <span class="brand-name">JARVIS</span>
+        <span class="brand-badge">MOBILE HUD // 24/7</span>
+      </div>
+    </div>
+
+    <div class="header-status-pill" id="headerStatusPill">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="serviceStatusLabel">ONLINE</span>
+    </div>
+  </header>
+
+  <!-- Main Viewport containing Tabs -->
+  <main class="main-viewport" id="mainViewport">
+
+    <!-- ========================================== -->
+    <!-- TAB 1: HOME (Orb, Voice, Visualizer, Chat) -->
+    <!-- ========================================== -->
+    <section class="tab-content active" id="tab-home">
+      <!-- 3D Interactive Orb Stage -->
+      <div class="orb-stage-card">
+        <div class="orb-canvas-container" id="orbContainer">
+          <canvas id="orbCanvas" width="240" height="240"></canvas>
+        </div>
+        <div class="orb-state-label" id="orbStateLabel">
+          <span class="orb-state-indicator" id="orbStateDot"></span>
+          <span id="orbStateText">READY // LISTENING</span>
+        </div>
+        <!-- Audio Spectrum Waves -->
+        <canvas class="spectrum-canvas" id="spectrumCanvas" width="300" height="48"></canvas>
+      </div>
+
+      <!-- Quick Action Mobile Chips -->
+      <div class="quick-actions-grid">
+        <div class="action-chip" onclick="executeAction('lock')">
+          <i>🔒</i>
+          <span>Lock Screen</span>
+        </div>
+        <div class="action-chip" onclick="executeAction('call_phone', { target: '1', sim_slot: 1 })">
+          <i>📞</i>
+          <span>Call SIM 1</span>
+        </div>
+        <div class="action-chip" onclick="executeAction('whatsapp_message')">
+          <i>💬</i>
+          <span>WhatsApp</span>
+        </div>
+        <div class="action-chip" onclick="executeAction('youtube_search', { target: 'Iron Man theme' })">
+          <i>▶️</i>
+          <span>YouTube</span>
+        </div>
+        <div class="action-chip" onclick="executeAction('survey_auto')">
+          <i>📋</i>
+          <span>Auto Survey</span>
+        </div>
+        <div class="action-chip" onclick="switchTab('settings')">
+          <i>⚡</i>
+          <span>API Keys</span>
+        </div>
+      </div>
+
+      <!-- Live Session Transcript Card -->
+      <div class="transcript-card">
+        <div class="transcript-header">
+          <span>REAL-TIME VOICE STREAM</span>
+          <span id="activeModelTag" class="badge-green">GEMINI LIVE</span>
+        </div>
+        <div class="transcript-body" id="transcriptBody">
+          <div class="chat-bubble assistant">
+            Hello boss. Jarvis Mobile AI Companion is online and connected. Say "Hey Jarvis" or tap the center mic to command.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 2: INTELLIGENCE MODES                  -->
+    <!-- ========================================== -->
+    <section class="tab-content" id="tab-modes">
+      <div class="settings-section-card">
+        <div class="section-title">
+          <i>🧠</i>
+          <span>AI ENGINE & MODEL ROUTING</span>
+        </div>
+
+        <div class="form-group">
+          <label>Primary LLM Provider</label>
+          <select id="modeProviderSelect" class="form-control select-control" onchange="onProviderSelectChanged()">
+            <option value="google">Google Gemini (Native Audio Realtime)</option>
+            <option value="openai">OpenAI (GPT-4o Realtime)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Voice Assistant Model</label>
+          <select id="modeModelSelect" class="form-control select-control">
+            <option value="gemini-3.8-live">Gemini 3.8 Live (Ultra-low Latency)</option>
+            <option value="gemini-2.5-flash-native-audio-preview-12-2025">Gemini 2.5 Flash Native Audio</option>
+            <option value="gpt-4o-realtime-preview">GPT-4o Realtime Preview</option>
+            <option value="mimo-v2.6-flash">Xiaomi Mimo Flash</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-section-card">
+        <div class="section-title">
+          <i>🎯</i>
+          <span>SPECIALIZED WORKLOAD AGENTS</span>
+        </div>
+
+        <div class="form-group">
+          <label>Screen Vision & OCR</label>
+          <input type="text" class="form-control" value="Gemini 3.8 Flash Vision (Automated)" readonly>
+        </div>
+
+        <div class="form-group">
+          <label>Coding & Reasoning</label>
+          <input type="text" class="form-control" value="Gemini 3.8 Flash / Mimo v2.6" readonly>
+        </div>
+
+        <div class="form-group">
+          <label>Survey Auto-Tapper</label>
+          <input type="text" class="form-control" value="Closed-Loop Accessibility Engine" readonly>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 3: AURA THEMES                         -->
+    <!-- ========================================== -->
+    <section class="tab-content" id="tab-aura">
+      <div class="settings-section-card">
+        <div class="section-title">
+          <i>✨</i>
+          <span>3D ORB VISUAL THEME</span>
+        </div>
+
+        <div class="form-group">
+          <label>Holographic Theme</label>
+          <select id="auraThemeSelect" class="form-control select-control" onchange="changeOrbTheme(this.value)">
+            <option value="neon">Neon Cyan (Default Jarvis HUD)</option>
+            <option value="arc">Arc Reactor (Stark Blue & White)</option>
+            <option value="purple">Obsidian Purple (Cosmic Nebula)</option>
+            <option value="gold">Golden Matrix (Billionaire Edition)</option>
+            <option value="emerald">Emerald Nexus (Tactical Green)</option>
+          </select>
+        </div>
+
+        <div class="switch-row">
+          <div class="switch-label-group">
+            <span class="switch-title">Particle Aura Waves</span>
+            <span class="switch-subtitle">Simulate real-time energetic field</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="auraParticlesToggle" checked onchange="toggleParticles(this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="switch-row">
+          <div class="switch-label-group">
+            <span class="switch-title">Audio Spectrum Dynamics</span>
+            <span class="switch-subtitle">Orb expands with voice frequency</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="auraAudioDynamics" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 4: PC CONNECT & SYNC                   -->
+    <!-- ========================================== -->
+    <section class="tab-content" id="tab-pc-connect">
+      <div class="settings-section-card">
+        <div class="section-title">
+          <i>💻</i>
+          <span>PC JARVIS LINK</span>
+        </div>
+
+        <div class="form-group">
+          <label>PC Host Address (IP:Port)</label>
+          <input type="text" id="pcHostInput" class="form-control" placeholder="http://192.168.0.100:3000">
+        </div>
+
+        <div class="switch-row">
+          <div class="switch-label-group">
+            <span class="switch-title">Companion Cloud Sync</span>
+            <span class="switch-subtitle">Sync memory and task checkpoints with PC</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="pcSyncToggle" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <button class="btn-secondary" onclick="testPcConnection()">
+          <span>🔗 Test PC Link</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 5: SETTINGS & API KEYS (FULL CONFIG)   -->
+    <!-- ========================================== -->
+    <section class="tab-content" id="tab-settings">
+      <!-- Profile Identity Section -->
+      <div class="settings-section-card">
+        <div class="section-title">
+          <i>👤</i>
+          <span>USER & ASSISTANT IDENTITY</span>
+        </div>
+
+        <div class="form-group">
+          <label>User Name</label>
+          <input type="text" id="cfgUserName" class="form-control" placeholder="ALAMIN">
+        </div>
+
+        <div class="form-group">
+          <label>Assistant Name</label>
+          <input type="text" id="cfgAssistantName" class="form-control" placeholder="Jarvis">
+        </div>
+      </div>
+
+      <!-- Cloud API Keys Section -->
+      <div class="settings-section-card">
+        <div class="section-title">
+          <i>🔑</i>
+          <span>CLOUD API KEYS</span>
+        </div>
+
+        <div class="form-group">
+          <label>Google Gemini API Key</label>
+          <input type="password" id="cfgGoogleKey" class="form-control" placeholder="AQ.Ab8RN...">
+        </div>
+
+        <div class="form-group">
+          <label>OpenAI API Key</label>
+          <input type="password" id="cfgOpenAiKey" class="form-control" placeholder="sk-proj-...">
+        </div>
+
+        <div class="form-group">
+          <label>LiveKit Cloud Server URL</label>
+          <input type="text" id="cfgLiveKitUrl" class="form-control" placeholder="wss://jarvish-cdq66wc9.livekit.cloud">
+        </div>
+
+        <div class="form-group">
+          <label>LiveKit API Key</label>
+          <input type="text" id="cfgLiveKitKey" class="form-control" placeholder="APIudafoJVHneWA">
+        </div>
+
+        <div class="form-group">
+          <label>LiveKit API Secret</label>
+          <input type="password" id="cfgLiveKitSecret" class="form-control" placeholder="QQlG0TxB5...">
+        </div>
+
+        <div class="form-group">
+          <label>Mem0 Long-Term Memory Key</label>
+          <input type="password" id="cfgMem0Key" class="form-control" placeholder="m0-zXEw...">
+        </div>
+
+        <div class="form-group">
+          <label>Google Search Key</label>
+          <input type="password" id="cfgGoogleSearchKey" class="form-control" placeholder="Google Search Key...">
+        </div>
+
+        <div class="form-group">
+          <label>Search Engine ID (CX)</label>
+          <input type="text" id="cfgSearchEngineId" class="form-control" placeholder="0669cc931ac6f4b1e">
+        </div>
+
+        <div class="form-group">
+          <label>OpenWeather API Key</label>
+          <input type="password" id="cfgOpenWeatherKey" class="form-control" placeholder="OpenWeather Key...">
+        </div>
+
+        <div class="form-group">
+          <label>Xiaomi Mimo API Key</label>
+          <input type="password" id="cfgXiaomiMimoKey" class="form-control" placeholder="sk-s9mn...">
+        </div>
+
+        <div class="form-group">
+          <label>ElevenLabs Voice API Key</label>
+          <input type="password" id="cfgElevenLabsKey" class="form-control" placeholder="sk_9177b...">
+        </div>
+
+        <div class="form-group">
+          <label>ElevenLabs Voice ID</label>
+          <input type="text" id="cfgElevenLabsVoiceId" class="form-control" placeholder="EXAVITQu4vr4xnSDxMaL">
+        </div>
+      </div>
+
+      <!-- Mobile Permissions & 24/7 Engine -->
+      <div class="settings-section-card">
+        <div class="section-title">
+          <i>⚙️</i>
+          <span>24/7 SYSTEM PERMISSIONS</span>
+        </div>
+
+        <div class="switch-row">
+          <div class="switch-label-group">
+            <span class="switch-title">24/7 Background Service</span>
+            <span class="switch-subtitle" id="serviceStatusSub">Active (Foreground Mic & Wake Word)</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="serviceToggle" checked onchange="onServiceToggleChanged(this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="switch-row">
+          <div class="switch-label-group">
+            <span class="switch-title">Accessibility Service</span>
+            <span class="switch-subtitle" id="accessibilityStatusSub">Checking...</span>
+          </div>
+          <button class="badge-green" id="btnGrantAccessibility" onclick="requestAccessibilityPermission()">ENABLE</button>
+        </div>
+
+        <div class="switch-row">
+          <div class="switch-label-group">
+            <span class="switch-title">Battery Optimization Whitelist</span>
+            <span class="switch-subtitle" id="batteryStatusSub">Checking...</span>
+          </div>
+          <button class="badge-green" id="btnIgnoreBattery" onclick="requestBatteryOptimization()">WHITELIST</button>
+        </div>
+      </div>
+
+      <!-- Save Configuration Button -->
+      <button class="btn-primary" onclick="saveConfiguration()">
+        <span>💾 SAVE ALL SETTINGS</span>
+      </button>
+    </section>
+
+  </main>
+
+  <!-- Persistent Bottom Cyberpunk Navigation Bar -->
+  <nav class="bottom-nav-bar">
+    <div class="nav-item active" id="nav-home" onclick="switchTab('home')">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      <span>Home</span>
+    </div>
+
+    <div class="nav-item" id="nav-modes" onclick="switchTab('modes')">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="4"/>
+        <path d="M12 2v2"/>
+        <path d="M12 20v2"/>
+        <path d="m4.93 4.93 1.41 1.41"/>
+        <path d="m17.66 17.66 1.41 1.41"/>
+        <path d="M2 12h2"/>
+        <path d="M20 12h2"/>
+        <path d="m6.34 17.66-1.41 1.41"/>
+        <path d="m19.07 4.93-1.41 1.41"/>
+      </svg>
+      <span>Modes</span>
+    </div>
+
+    <!-- Center Elevated Glowing Mic Button -->
+    <div class="center-mic-wrapper">
+      <div class="mic-pulsing-ring" id="micPulsingRing"></div>
+      <div class="center-mic-btn" id="centerMicBtn" onclick="toggleMicrophone()">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" x2="12" y1="19" y2="22"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="nav-item" id="nav-aura" onclick="switchTab('aura')">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+      </svg>
+      <span>Aura</span>
+    </div>
+
+    <div class="nav-item" id="nav-settings" onclick="switchTab('settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+        <circle cx="12" cy="12" r="3"/>
+      </svg>
+      <span>Settings</span>
+    </div>
+  </nav>
+
+  <!-- Notification Toast -->
+  <div class="toast-notice" id="toastNotice">Settings Saved Successfully</div>
+
+  <script src="app.js"></script>
+</body>
+</html>

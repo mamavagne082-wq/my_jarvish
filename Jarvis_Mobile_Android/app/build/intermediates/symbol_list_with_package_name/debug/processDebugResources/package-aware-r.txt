@@ -3184,14 +3184,10 @@ id bounce
 id bounceBoth
 id bounceEnd
 id bounceStart
-id btnAccessibility
-id btnBatteryOptimization
-id btnToggleService
 id buttonPanel
 id cache_measures
 id callMeasure
 id cancel_button
-id cardStatus
 id carryVelocity
 id center
 id centerCrop
@@ -3330,6 +3326,7 @@ id line3
 id linear
 id listMode
 id list_item
+id loadingOverlay
 id m3_side_sheet
 id marquee
 id masked
@@ -3443,6 +3440,7 @@ id pin
 id position
 id postLayout
 id pressed
+id progressLoading
 id progress_circular
 id progress_horizontal
 id radio
@@ -3563,12 +3561,6 @@ id transition_position
 id transition_scene_layoutid_cache
 id transition_transform
 id triangle
-id tvAccessibilityStatus
-id tvBatteryStatus
-id tvInstructions
-id tvServiceStatus
-id tvSubtitle
-id tvTitle
 id unchecked
 id uniform
 id unlabeled
@@ -3583,6 +3575,7 @@ id view_tree_saved_state_registry_owner
 id view_tree_view_model_store_owner
 id visible
 id visible_removing_fragment_view_tag
+id webViewMain
 id west
 id withText
 id with_icon

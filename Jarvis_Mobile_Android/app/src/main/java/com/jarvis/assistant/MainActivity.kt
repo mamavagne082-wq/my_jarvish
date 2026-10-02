@@ -1,11 +1,13 @@
 package com.jarvis.assistant
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -13,42 +15,45 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
-import android.widget.Button
-import android.widget.TextView
+import android.util.Log
+import android.view.View
+import android.webkit.JavascriptInterface
+import android.webkit.PermissionRequest
+import android.webkit.WebChromeClient
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var tvServiceStatus: TextView
-    private lateinit var tvAccessibilityStatus: TextView
-    private lateinit var tvBatteryStatus: TextView
-    private lateinit var btnToggleService: Button
-    private lateinit var btnAccessibility: Button
-    private lateinit var btnBatteryOptimization: Button
+    private lateinit var webView: WebView
+    private var loadingOverlay: View? = null
 
     companion object {
+        private const val TAG = "MainActivity"
         private const val REQUEST_RECORD_AUDIO = 101
     }
 
-    // ── Inactivity Auto-Minimize (20-30s timeout) ─────────────────────────
+    // ── Inactivity Auto-Minimize (20-30s timeout matching PC) ─────────────
     private val AUTO_MINIMIZE_DELAY_MS = 25000L // 25 seconds idle timeout
     private val idleHandler = Handler(Looper.getMainLooper())
     private val autoMinimizeRunnable = Runnable {
-        android.util.Log.i("MainActivity", "25s of inactivity elapsed. Automatically returning to background...")
+        Log.i(TAG, "25s of inactivity elapsed. Automatically returning to background...")
         try {
             moveTaskToBack(true)
         } catch (e: Exception) {
-            android.util.Log.w("MainActivity", "Error moving task to back: ${e.message}")
+            Log.w(TAG, "Error moving task to back: ${e.message}")
         }
     }
 
     fun resetAutoMinimizeTimer() {
         idleHandler.removeCallbacks(autoMinimizeRunnable)
         idleHandler.postDelayed(autoMinimizeRunnable, AUTO_MINIMIZE_DELAY_MS)
-        android.util.Log.d("MainActivity", "Inactivity timer reset (25s countdown started).")
     }
 
     fun cancelAutoMinimizeTimer() {
@@ -57,30 +62,27 @@ class MainActivity : AppCompatActivity() {
 
     override fun onUserInteraction() {
         super.onUserInteraction()
-        // Reset 25-second timer on every touch/interaction
         resetAutoMinimizeTimer()
     }
 
-    // ── [NEW] Wake Word & Idle Receiver ──────────────────────────────────
-    // Listens for "Hey Jarvis" from JarvisForegroundService and speech/data updates.
-    // Brings MainActivity to front and manages 25-second auto-hide lifecycle.
+    // ── Wake Word & Idle Receiver ─────────────────────────────────────────
     private val wakeWordReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val action = intent?.action ?: return
             if (action == JarvisForegroundService.ACTION_RESET_IDLE) {
-                // Speech or command received → keep UI alive
                 resetAutoMinimizeTimer()
                 return
             }
             if (action == JarvisForegroundService.ACTION_WAKE_WORD_DETECTED) {
                 val phrase = intent.getStringExtra("phrase") ?: "hey jarvis"
-                android.util.Log.i("MainActivity", "Wake word received: \"$phrase\" → bringing app to foreground.")
+                Log.i(TAG, "Wake word received: \"$phrase\" → bringing app to foreground.")
 
-                // Bring MainActivity to foreground
                 val bringToFront = Intent(applicationContext, MainActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
-                             Intent.FLAG_ACTIVITY_NEW_TASK or
-                             Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    addFlags(
+                        Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    )
                     putExtra("from_wake_word", true)
                     putExtra("phrase", phrase)
                 }
@@ -91,15 +93,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        initViews()
-        setupListeners()
+        webView = findViewById(R.id.webViewMain)
+        loadingOverlay = findViewById(R.id.loadingOverlay)
+
+        setupWebView()
         checkAudioPermission()
 
-        // Register wake word receiver for entire Activity lifetime
+        // Register wake word receiver for Activity lifetime
         val filter = IntentFilter().apply {
             addAction(JarvisForegroundService.ACTION_WAKE_WORD_DETECTED)
             addAction(JarvisForegroundService.ACTION_RESET_IDLE)
@@ -115,6 +120,47 @@ class MainActivity : AppCompatActivity() {
             val phrase = intent?.getStringExtra("phrase") ?: "hey jarvis"
             handleWakeWordActivation(phrase)
         }
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun setupWebView() {
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        val settings: WebSettings = webView.settings
+        settings.javaScriptEnabled = true
+        settings.domStorageEnabled = true
+        settings.databaseEnabled = true
+        settings.mediaPlaybackRequiresUserGesture = false
+        settings.allowFileAccess = true
+        settings.allowContentAccess = true
+        settings.loadsImagesAutomatically = true
+        settings.useWideViewPort = true
+        settings.loadWithOverviewMode = true
+        settings.cacheMode = WebSettings.LOAD_DEFAULT
+
+        webView.addJavascriptInterface(JarvisNativeBridge(this), "JarvisNative")
+
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onPermissionRequest(request: PermissionRequest?) {
+                // Grant audio capture permissions inside webview if requested
+                request?.grant(request.resources)
+            }
+        }
+
+        webView.webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                loadingOverlay?.visibility = View.VISIBLE
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                loadingOverlay?.visibility = View.GONE
+                updateUIState()
+            }
+        }
+
+        // Load bundled Cyberpunk HUD UI
+        webView.loadUrl("file:///android_asset/web/index.html")
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -147,70 +193,20 @@ class MainActivity : AppCompatActivity() {
         try { unregisterReceiver(wakeWordReceiver) } catch (_: Exception) {}
     }
 
-    private fun initViews() {
-        tvServiceStatus = findViewById(R.id.tvServiceStatus)
-        tvAccessibilityStatus = findViewById(R.id.tvAccessibilityStatus)
-        tvBatteryStatus = findViewById(R.id.tvBatteryStatus)
-        btnToggleService = findViewById(R.id.btnToggleService)
-        btnAccessibility = findViewById(R.id.btnAccessibility)
-        btnBatteryOptimization = findViewById(R.id.btnBatteryOptimization)
-    }
-
-    private fun setupListeners() {
-        btnToggleService.setOnClickListener {
-            if (JarvisForegroundService.isRunning) {
-                stopJarvisService()
-            } else {
-                startJarvisService()
-            }
-            updateUIState()
-        }
-
-        btnAccessibility.setOnClickListener {
-            openAccessibilitySettings()
-        }
-
-        btnBatteryOptimization.setOnClickListener {
-            requestIgnoreBatteryOptimization()
-        }
-    }
-
-    private fun updateUIState() {
+    fun updateUIState() {
         val isServiceRunning = JarvisForegroundService.isRunning
-        if (isServiceRunning) {
-            tvServiceStatus.text = "Service: Active & Listening (24/7)"
-            tvServiceStatus.setTextColor(ContextCompat.getColor(this, R.color.success_green))
-            btnToggleService.text = getString(R.string.btn_stop_service)
-        } else {
-            tvServiceStatus.text = "Service: Inactive"
-            tvServiceStatus.setTextColor(ContextCompat.getColor(this, R.color.text_white))
-            btnToggleService.text = getString(R.string.btn_start_service)
-        }
+        val isAccEnabled = isAccessibilityEnabled()
+        val isBatIgnored = isBatteryOptimizationIgnored()
 
-        val isAccessibilityReady = isAccessibilityEnabled()
-        if (isAccessibilityReady) {
-            tvAccessibilityStatus.text = "Accessibility: Enabled (Screen & Lock Control Ready)"
-            tvAccessibilityStatus.setTextColor(ContextCompat.getColor(this, R.color.success_green))
-            btnAccessibility.isEnabled = false
-        } else {
-            tvAccessibilityStatus.text = "Accessibility: Disabled (Tap to enable)"
-            tvAccessibilityStatus.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
-            btnAccessibility.isEnabled = true
-        }
-
-        val isIgnoringBattery = isBatteryOptimizationIgnored()
-        if (isIgnoringBattery) {
-            tvBatteryStatus.text = "Battery Optimization: Unrestricted (Will not be killed)"
-            tvBatteryStatus.setTextColor(ContextCompat.getColor(this, R.color.success_green))
-            btnBatteryOptimization.isEnabled = false
-        } else {
-            tvBatteryStatus.text = "Battery Optimization: Standard (Tap to allow 24/7 run)"
-            tvBatteryStatus.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
-            btnBatteryOptimization.isEnabled = true
+        webView.post {
+            webView.evaluateJavascript(
+                "if (window.updateServiceStatus) window.updateServiceStatus($isServiceRunning, $isAccEnabled, $isBatIgnored);",
+                null
+            )
         }
     }
 
-    private fun startJarvisService() {
+    fun startJarvisService() {
         JarvisForegroundService.setServiceEnabled(this, true)
         val serviceIntent = Intent(this, JarvisForegroundService::class.java).apply {
             action = JarvisForegroundService.ACTION_START
@@ -220,19 +216,26 @@ class MainActivity : AppCompatActivity() {
         } else {
             startService(serviceIntent)
         }
-        Toast.makeText(this, "Jarvis Background Voice Service Started!", Toast.LENGTH_SHORT).show()
+        updateUIState()
     }
 
-    private fun stopJarvisService() {
+    fun stopJarvisService() {
         JarvisForegroundService.setServiceEnabled(this, false)
         val serviceIntent = Intent(this, JarvisForegroundService::class.java).apply {
             action = JarvisForegroundService.ACTION_STOP
         }
         startService(serviceIntent)
-        Toast.makeText(this, "Jarvis Service Stopped.", Toast.LENGTH_SHORT).show()
+        updateUIState()
     }
 
-    private fun openAccessibilitySettings() {
+    fun restartJarvisService() {
+        stopJarvisService()
+        Handler(Looper.getMainLooper()).postDelayed({
+            startJarvisService()
+        }, 1000)
+    }
+
+    fun openAccessibilitySettings() {
         val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
@@ -262,7 +265,7 @@ class MainActivity : AppCompatActivity() {
         return false
     }
 
-    private fun isBatteryOptimizationIgnored(): Boolean {
+    fun isBatteryOptimizationIgnored(): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
             return pm.isIgnoringBatteryOptimizations(packageName)
@@ -270,7 +273,7 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
-    private fun requestIgnoreBatteryOptimization() {
+    fun requestIgnoreBatteryOptimization() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
                 data = Uri.parse("package:$packageName")
@@ -281,6 +284,14 @@ class MainActivity : AppCompatActivity() {
                 val fallbackIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
                 startActivity(fallbackIntent)
             }
+        }
+    }
+
+    fun toggleMicrophoneFromUI() {
+        resetAutoMinimizeTimer()
+        // If service is not running, start it
+        if (!JarvisForegroundService.isRunning) {
+            startJarvisService()
         }
     }
 
@@ -314,8 +325,6 @@ class MainActivity : AppCompatActivity() {
             if (allGranted) {
                 Toast.makeText(this, "সব পারমিশন সক্রিয় হয়েছে (মাইক, কল, কন্টাক্ট)!", Toast.LENGTH_SHORT).show()
                 checkOverlayPermission()
-            } else {
-                Toast.makeText(this, "কল দেওয়া ও ভয়েস শোনার জন্য পারমিশন প্রয়োজন।", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -328,25 +337,112 @@ class MainActivity : AppCompatActivity() {
             )
             try {
                 startActivity(intent)
-                Toast.makeText(this, "Jarvis ফ্লোটিং বাবল ও ৩ডি ওভারলে সক্রিয় করতে পারমিশন দিন", Toast.LENGTH_LONG).show()
-            } catch (e: Exception) {
-                android.util.Log.w("MainActivity", "Failed to open overlay settings: ${e.message}")
-            }
+            } catch (_: Exception) {}
         }
     }
 
-    // ── [NEW] Wake word activation handler ────────────────────────────────
     private fun handleWakeWordActivation(phrase: String = "Hey Jarvis") {
-        android.util.Log.i("MainActivity", "Handling wake word activation: \"$phrase\"")
-        // Ensure service is running
+        Log.i(TAG, "Handling wake word activation: \"$phrase\"")
         if (!JarvisForegroundService.isRunning) {
             startJarvisService()
         }
-        // Auto-start Jarvis session with a short delay to allow UI to settle
-        Handler(Looper.getMainLooper()).postDelayed({
-            Toast.makeText(this, "🔊 Jarvis জাগ্রত! \"$phrase\" শোনা গেছে...", Toast.LENGTH_SHORT).show()
-            updateUIState()
-            resetAutoMinimizeTimer()
-        }, 300)
+        webView.post {
+            webView.evaluateJavascript(
+                "if (window.onWakeWordDetected) window.onWakeWordDetected('$phrase');",
+                null
+            )
+        }
+        resetAutoMinimizeTimer()
+    }
+
+    // ── Bidirectional JavaScript Bridge (Exposed as window.JarvisNative) ──
+    class JarvisNativeBridge(private val activity: MainActivity) {
+
+        @JavascriptInterface
+        fun getConfig(): String {
+            return MobileConfig.getAllConfigJson(activity).toString()
+        }
+
+        @JavascriptInterface
+        fun saveConfig(jsonStr: String): Boolean {
+            return try {
+                val json = JSONObject(jsonStr)
+                MobileConfig.save(activity, json)
+                activity.runOnUiThread {
+                    Toast.makeText(activity, "Configuration saved successfully!", Toast.LENGTH_SHORT).show()
+                    if (JarvisForegroundService.isRunning) {
+                        activity.restartJarvisService()
+                    }
+                }
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "Error saving config: ${e.message}")
+                false
+            }
+        }
+
+        @JavascriptInterface
+        fun getServiceStatus(): String {
+            val status = JSONObject().apply {
+                put("serviceRunning", JarvisForegroundService.isRunning)
+                put("accessibilityEnabled", activity.isAccessibilityEnabled())
+                put("batteryIgnored", activity.isBatteryOptimizationIgnored())
+            }
+            return status.toString()
+        }
+
+        @JavascriptInterface
+        fun toggleService(enable: Boolean) {
+            activity.runOnUiThread {
+                if (enable) activity.startJarvisService() else activity.stopJarvisService()
+            }
+        }
+
+        @JavascriptInterface
+        fun openAccessibilitySettings() {
+            activity.runOnUiThread {
+                activity.openAccessibilitySettings()
+            }
+        }
+
+        @JavascriptInterface
+        fun requestBatteryOptimization() {
+            activity.runOnUiThread {
+                activity.requestIgnoreBatteryOptimization()
+            }
+        }
+
+        @JavascriptInterface
+        fun toggleMic() {
+            activity.runOnUiThread {
+                activity.toggleMicrophoneFromUI()
+            }
+        }
+
+        @JavascriptInterface
+        fun executeMobileAction(action: String, payloadJson: String) {
+            activity.runOnUiThread {
+                try {
+                    val payload = if (payloadJson.isNotBlank()) JSONObject(payloadJson) else JSONObject()
+                    JarvisAccessibilityService.instance?.handleCommand(action, payload)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error executing action: ${e.message}")
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun minimizeApp() {
+            activity.runOnUiThread {
+                activity.moveTaskToBack(true)
+            }
+        }
+
+        @JavascriptInterface
+        fun resetIdleTimer() {
+            activity.runOnUiThread {
+                activity.resetAutoMinimizeTimer()
+            }
+        }
     }
 }
