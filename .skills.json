@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "skills": {
+    "quickstart": {
+      "version": "1.0.1",
+      "installedAt": "2026-10-02T04:25:28.696Z",
+      "platform": "claude-code"
+    },
+    "code-review": {
+      "version": "1.0.0",
+      "installedAt": "2026-10-02T04:21:06.055Z",
+      "platform": "gemini",
+      "contentHash": "a36edc8e90bf772b3577c3819abc824edca4e5e434b843c23cce91836e91d00c"
+    },
+    "alirezarezvani-ui-design-system": {
+      "version": "1.0.1",
+      "installedAt": "2026-10-02T04:22:03.620Z",
+      "platform": "claude-code"
+    },
+    "alirezarezvani-self-improving-agent": {
+      "version": "1.0.2",
+      "installedAt": "2026-10-02T04:23:32.952Z",
+      "platform": "claude-code"
+    },
+    "superpowers-using-superpowers": {
+      "version": "1.0.5",
+      "installedAt": "2026-10-02T04:24:39.260Z",
+      "platform": "claude-code"
+    },
+    "alirezarezvani-social-media-manager": {
+      "version": "1.0.1",
+      "installedAt": "2026-10-02T04:26:13.059Z",
+      "platform": "claude-code"
+    },
+    "alirezarezvani-senior-frontend": {
+      "version": "1.0.2",
+      "installedAt": "2026-10-02T04:27:27.210Z",
+      "platform": "claude-code"
+    },
+    "anthropic-frontend-design": {
+      "version": "1.0.2",
+      "installedAt": "2026-10-02T04:36:52.436Z",
+      "platform": "claude-code"
+    },
+    "web-research-agent": {
+      "version": "1.0.0",
+      "installedAt": "2026-10-02T04:28:46.721Z",
+      "platform": "claude-code",
+      "contentHash": "e07bdcc948dae034fc03bbf0716dd6bcf0f28d7029ceddf64fc98010c61a279e"
+    },
+    "scientific-skills-markitdown": {
+      "version": "1.0.2",
+      "installedAt": "2026-10-02T04:29:24.594Z",
+      "platform": "claude-code"
+    },
+    "skill-finder": {
+      "version": "2.0.0",
+      "installedAt": "2026-10-02T04:29:55.217Z",
+      "platform": "claude-code"
+    },
+    "alirezarezvani-senior-backend": {
+      "version": "1.0.2",
+      "installedAt": "2026-10-02T04:30:30.741Z",
+      "platform": "claude-code"
+    },
+    "refactor": {
+      "version": "1.0.0",
+      "installedAt": "2026-10-02T04:30:57.986Z",
+      "platform": "claude-code",
+      "contentHash": "718bfd8d8a6b18d4894e23e98f1924d8cf3a09d3e67ca37bd7be0ba6c11847cf"
+    },
+    "design-to-code": {
+      "version": "2.0.350",
+      "installedAt": "2026-10-02T04:31:31.650Z",
+      "platform": "claude-code"
+    },
+    "security-review": {
+      "version": "2.0.1",
+      "installedAt": "2026-10-02T04:32:03.083Z",
+      "platform": "claude-code"
+    },
+    "anthropic-pptx": {
+      "version": "1.0.1",
+      "installedAt": "2026-10-02T04:32:51.095Z",
+      "platform": "claude-code",
+      "contentHash": "0ad30dc117a4ab72970b282bd864d77bf3cc5503100d22cd478acffad6419d95"
+    },
+    "alirezarezvani-marketing-strategy-pmm": {
+      "version": "1.0.0",
+      "installedAt": "2026-10-02T04:33:15.534Z",
+      "platform": "claude-code"
+    },
+    "security-audit": {
+      "version": "1.0.0",
+      "installedAt": "2026-10-02T04:33:40.457Z",
+      "platform": "claude-code",
+      "contentHash": "00c1fd837d045d7906629543c8f3d2268e8800365083373c7ed151fb53828230"
+    },
+    "web-game": {
+      "version": "2.0.1",
+      "installedAt": "2026-10-02T04:34:07.063Z",
+      "platform": "claude-code"
+    },
+    "mobile-publish": {
+      "version": "2.0.0",
+      "installedAt": "2026-10-02T04:35:27.080Z",
+      "platform": "claude-code"
+    },
+    "perplexity-search": {
+      "version": "1.0.1",
+      "installedAt": "2026-10-02T04:38:04.818Z",
+      "platform": "claude-code"
+    },
+    "debug": {
+      "version": "1.0.0",
+      "installedAt": "2026-10-02T04:38:42.296Z",
+      "platform": "claude-code",
+      "contentHash": "940d1b6ffd55bd60a9eaded2f029acd15defa9a57a78b843c4215c3bd32b5e9f"
+    },
+    "automated-code-quality-analysis": {
+      "version": "1.0.0",
+      "installedAt": "2026-10-02T04:39:22.211Z",
+      "platform": "claude-code"
+    },
+    "prompt-engineering": {
+      "version": "1.0.0",
+      "installedAt": "2026-10-02T04:40:03.318Z",
+      "platform": "claude-code"
+    },
+    "android-app": {
+      "version": "2.0.1",
+      "installedAt": "2026-10-02T04:41:08.589Z",
+      "platform": "claude-code"
+    },
+    "api-review": {
+      "version": "2.0.1",
+      "installedAt": "2026-10-02T04:41:34.815Z",
+      "platform": "claude-code"
+    }
+  }
+}
