@@ -1,0 +1,37 @@
+R_DEF: Internal format may change without notice
+local
+color accent
+color bg_dark
+color card_bg
+color cyan_bright
+color primary
+color primary_dark
+color success_green
+color text_muted
+color text_white
+id btnAccessibility
+id btnBatteryOptimization
+id btnToggleService
+id cardStatus
+id tvAccessibilityStatus
+id tvBatteryStatus
+id tvInstructions
+id tvServiceStatus
+id tvSubtitle
+id tvTitle
+layout activity_main
+string accessibility_service_description
+string app_name
+string btn_grant_accessibility
+string btn_ignore_battery
+string btn_start_service
+string btn_stop_service
+string service_running_desc
+string service_running_title
+string status_connected
+string status_disconnected
+style Theme.JarvisAssistant
+xml accessibility_service_config
+xml backup_rules
+xml data_extraction_rules
+xml file_paths

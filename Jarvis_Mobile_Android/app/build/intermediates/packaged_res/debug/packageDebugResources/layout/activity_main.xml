@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_dark"
+    android:padding="24dp">
+
+    <!-- Header Section -->
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/app_name"
+        android:textColor="@color/accent"
+        android:textSize="26sp"
+        android:textStyle="bold"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="20dp" />
+
+    <TextView
+        android:id="@+id/tvSubtitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="24/7 Mobile Voice &amp; Remote Automation Engine"
+        android:textColor="@color/text_muted"
+        android:textSize="14sp"
+        app:layout_constraintTop_toBottomOf="@id/tvTitle"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="6dp" />
+
+    <!-- Status Card -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/cardStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardBackgroundColor="@color/card_bg"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="4dp"
+        app:layout_constraintTop_toBottomOf="@id/tvSubtitle"
+        android:layout_marginTop="32dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp">
+
+            <TextView
+                android:id="@+id/tvServiceStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Service Status: Checking..."
+                android:textColor="@color/text_white"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvAccessibilityStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Accessibility: Disabled"
+                android:textColor="@color/text_muted"
+                android:textSize="14sp"
+                android:layout_marginTop="10dp" />
+
+            <TextView
+                android:id="@+id/tvBatteryStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Battery Optimization: Active"
+                android:textColor="@color/text_muted"
+                android:textSize="14sp"
+                android:layout_marginTop="6dp" />
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- Action Buttons -->
+    <Button
+        android:id="@+id/btnToggleService"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="@string/btn_start_service"
+        android:backgroundTint="@color/accent"
+        android:textColor="@color/primary_dark"
+        android:textStyle="bold"
+        android:textSize="16sp"
+        app:layout_constraintTop_toBottomOf="@id/cardStatus"
+        android:layout_marginTop="32dp" />
+
+    <Button
+        android:id="@+id/btnAccessibility"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:text="@string/btn_grant_accessibility"
+        android:backgroundTint="@color/card_bg"
+        android:textColor="@color/text_white"
+        app:layout_constraintTop_toBottomOf="@id/btnToggleService"
+        android:layout_marginTop="16dp" />
+
+    <Button
+        android:id="@+id/btnBatteryOptimization"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:text="@string/btn_ignore_battery"
+        android:backgroundTint="@color/card_bg"
+        android:textColor="@color/text_white"
+        app:layout_constraintTop_toBottomOf="@id/btnAccessibility"
+        android:layout_marginTop="12dp" />
+
+    <!-- Info Notice -->
+    <TextView
+        android:id="@+id/tvInstructions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="একবার পারমিশন দিলে ফোন রিস্টার্ট হলেও জারভিস স্বয়ংক্রিয়ভাবে ব্যাকগ্রাউন্ডে চালু থাকবে। কথা বললেই কাজ করবে।"
+        android:textColor="@color/text_muted"
+        android:textSize="13sp"
+        android:textAlignment="center"
+        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_marginBottom="20dp" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -24,6 +24,10 @@
 @rem Set local scope for the variables with windows NT shell
 if "%OS%"=="Windows_NT" setlocal
 
+if exist "C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot" (
+    set "JAVA_HOME=C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot"
+)
+
 set DIRNAME=%~dp0
 if "%DIRNAME%"=="" set DIRNAME=.
 @rem This is normally unused
