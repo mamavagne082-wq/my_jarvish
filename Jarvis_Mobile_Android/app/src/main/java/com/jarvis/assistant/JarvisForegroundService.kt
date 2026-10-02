@@ -144,10 +144,17 @@ class JarvisForegroundService : Service() {
             )
         }
 
-        // Route audio through earpiece/speaker for clear 2-way voice
-        audioManager?.isSpeakerphoneOn = false
-        audioManager?.isBluetoothScoOn = false
-        Log.d(TAG, "Call Assistant audio focus acquired. Mode: IN_COMMUNICATION")
+        // Route audio through LOUDSPEAKER for crystal clear loud voice and zero echo
+        try {
+            audioManager?.isSpeakerphoneOn = true
+            audioManager?.isBluetoothScoOn = false
+            // Boost volume to clear loud level
+            val maxMusic = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
+            audioManager?.setStreamVolume(AudioManager.STREAM_MUSIC, (maxMusic * 0.90).toInt(), 0)
+            val maxVoice = audioManager?.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL) ?: 7
+            audioManager?.setStreamVolume(AudioManager.STREAM_VOICE_CALL, maxVoice, 0)
+        } catch (_: Exception) {}
+        Log.d(TAG, "Call Assistant audio focus acquired. Mode: IN_COMMUNICATION, Loudspeaker: ON")
     }
 
     private fun releaseAudioFocusForAssistant() {
@@ -473,7 +480,28 @@ class JarvisForegroundService : Service() {
         }
     }
 
-    private fun disconnectLiveKit() {
+    fun isSessionConnected(): Boolean {
+        return liveKitRoom != null && liveKitRoom?.state == Room.State.CONNECTED
+    }
+
+    fun connectSession() {
+        acquireAudioFocusForAssistant()
+        connectToLiveKitRoom()
+    }
+
+    fun disconnectSession() {
+        disconnectLiveKit()
+        releaseAudioFocusForAssistant()
+    }
+
+    fun setSpeakerphone(enabled: Boolean) {
+        try {
+            audioManager?.isSpeakerphoneOn = enabled
+            Log.d(TAG, "Speakerphone set to: $enabled")
+        } catch (_: Exception) {}
+    }
+
+    fun disconnectLiveKit() {
         serviceScope.launch {
             try {
                 liveKitRoom?.disconnect()
