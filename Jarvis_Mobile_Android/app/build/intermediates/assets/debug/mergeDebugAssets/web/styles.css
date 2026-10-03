@@ -27,7 +27,12 @@
   padding: 0;
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
   user-select: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(6, 182, 212, 0.3) transparent;
 }
 
 body {
@@ -365,6 +370,9 @@ body {
   font-size: 13px;
   outline: none;
   transition: all 0.2s ease;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
   user-select: text;
 }
 
@@ -375,6 +383,8 @@ body {
 }
 
 .select-control {
+  -webkit-appearance: none;
+  -moz-appearance: none;
   appearance: none;
   background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2306b6d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
   background-repeat: no-repeat;
@@ -427,12 +437,12 @@ body {
   cursor: pointer;
   inset: 0;
   background-color: #334155;
-  transition: .3s;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
   border-radius: 26px;
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.slider:before {
+.slider::before {
   position: absolute;
   content: "";
   height: 20px;
@@ -440,7 +450,7 @@ body {
   left: 3px;
   bottom: 2px;
   background-color: white;
-  transition: .3s;
+  transition: transform 0.3s ease;
   border-radius: 50%;
 }
 
@@ -449,7 +459,7 @@ input:checked + .slider {
   box-shadow: 0 0 12px var(--cyan-glow);
 }
 
-input:checked + .slider:before {
+input:checked + .slider::before {
   transform: translateX(20px);
 }
 

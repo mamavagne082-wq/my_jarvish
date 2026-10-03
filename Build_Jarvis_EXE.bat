@@ -14,37 +14,23 @@ if exist "%ROOT_DIR%Jarvis\Jarvis_code" (
     set JARVIS_DIR=%ROOT_DIR%
 )
 
-echo [1/3] Compiling Native Jarvis.exe...
+echo [1/2] Compiling Native Jarvis.exe and service.exe with Self-Healing Watchdog...
 if exist "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" (
     C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /target:winexe "/out:%JARVIS_DIR%Jarvis.exe" "%JARVIS_DIR%Jarvis.cs"
     copy /y "%JARVIS_DIR%Jarvis.exe" "%ROOT_DIR%Jarvis.exe" >nul 2>nul
-    echo       [SUCCESS] Native Jarvis.exe compiled successfully!
-)
-
-echo.
-echo [2/3] Locating Python Environment...
-if exist "%JARVIS_DIR%Jarvis_code\venv\Scripts\python.exe" (
-    set PYTHON_EXE="%JARVIS_DIR%Jarvis_code\venv\Scripts\python.exe"
-) else if exist "%ROOT_DIR%venv\Scripts\python.exe" (
-    set PYTHON_EXE="%ROOT_DIR%venv\Scripts\python.exe"
+    copy /y "%JARVIS_DIR%Jarvis.exe" "%JARVIS_DIR%service.exe" >nul 2>nul
+    copy /y "%JARVIS_DIR%Jarvis.exe" "%ROOT_DIR%service.exe" >nul 2>nul
+    echo       [SUCCESS] Native Jarvis.exe and service.exe compiled successfully!
 ) else (
-    set PYTHON_EXE=python
+    echo [ERROR] csc.exe compiler not found in standard .NET Framework location.
 )
-echo       Using Python: %PYTHON_EXE%
-
-echo.
-echo [3/3] Compiling Background Service EXE (service.exe)...
-cd /d "%JARVIS_DIR%"
-%PYTHON_EXE% build_service_exe.py
-copy /y "%JARVIS_DIR%service.exe" "%ROOT_DIR%service.exe" >nul 2>nul
 
 echo.
 echo ===============================================================
 echo  [SUCCESS] All Jarvis Executables successfully built!
 echo  [সফল] সকল জারভিস ইএক্সই (EXE) সফলভাবে তৈরি সম্পন্ন হয়েছে!
 echo.
-echo  - Jarvis.exe:  %JARVIS_DIR%Jarvis.exe
-echo  - service.exe: %JARVIS_DIR%service.exe
+echo  - Jarvis.exe:  %ROOT_DIR%Jarvis.exe
+echo  - service.exe: %ROOT_DIR%service.exe
 echo ===============================================================
 echo.
-pause

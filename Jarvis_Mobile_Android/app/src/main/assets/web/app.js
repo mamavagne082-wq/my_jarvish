@@ -484,6 +484,18 @@ function loadConfiguration() {
     if (keys.xiaomi_mimo) document.getElementById('cfgXiaomiMimoKey').value = keys.xiaomi_mimo;
     if (keys.elevenlabs) document.getElementById('cfgElevenLabsKey').value = keys.elevenlabs;
     if (keys.elevenlabs_voice_id) document.getElementById('cfgElevenLabsVoiceId').value = keys.elevenlabs_voice_id;
+
+    // Load initial PC Pairing Status
+    try {
+      const pairStatusRaw = callNative('getPcPairingStatus');
+      if (pairStatusRaw) {
+        const pStatus = JSON.parse(pairStatusRaw);
+        if (pStatus.ip) document.getElementById('pcHostIpInput').value = pStatus.ip;
+        if (pStatus.port) document.getElementById('pcPortInput').value = pStatus.port;
+        if (pStatus.secret) document.getElementById('pcSecretKeyInput').value = pStatus.secret;
+        window.onPcPairStatusChanged(pStatus.paired, `${pStatus.ip}:${pStatus.port}`);
+      }
+    } catch (_) {}
   } catch (e) {
     console.error('Failed to load initial config from native bridge:', e);
   }
@@ -519,7 +531,7 @@ function saveConfiguration() {
 
 function executeAction(action, payload) {
   callNative('executeMobileAction', action, JSON.stringify(payload || {}));
-  showToast(`Action dispatched: ${action.toUpperCase()}`);
+  showToast(`Action: ${action.toUpperCase()}`);
 }
 
 function onServiceToggleChanged(enabled) {
@@ -535,12 +547,166 @@ function requestBatteryOptimization() {
   callNative('requestBatteryOptimization');
 }
 
-function testPcConnection() {
-  const host = document.getElementById('pcHostInput').value;
-  showToast(`Linking to PC at ${host}...`);
-  setTimeout(() => {
-    showToast('PC SYNC ONLINE // READY');
-  }, 1200);
+// -------------------------------------------------------------------------
+// PC Pairing & Remote Controls Matrix
+// -------------------------------------------------------------------------
+function pairWithPcManual() {
+  const ip = (document.getElementById('pcHostIpInput').value || '').trim();
+  const port = parseInt(document.getElementById('pcPortInput').value || '8765');
+  const secret = (document.getElementById('pcSecretKeyInput').value || '').trim();
+  if (!ip) {
+    showToast('⚠️ পিসির আইপি এড্রেস দিন!');
+    return;
+  }
+  showToast(`পিসির সাথে পেয়ার করার চেষ্টা করা হচ্ছে (${ip}:${port})...`);
+  callNative('pairWithPc', ip, port, secret);
+}
+
+function unpairFromPc() {
+  callNative('unpairFromPc');
+}
+
+function sendPcAction(action, target) {
+  callNative('sendPcAction', action, target || '');
+}
+
+function fetchPcScreenNow() {
+  callNative('fetchPcScreen');
+  showToast('🖥️ পিসির স্ক্রিন রিফ্রেশ করা হচ্ছে...');
+}
+
+window.onPcPairStatusChanged = function(isPaired, hostStr, pcName) {
+  state.isPcPaired = !!isPaired;
+  const unpairedBanner = document.getElementById('pcUnpairedBanner');
+  const pairedBanner = document.getElementById('pcPairedBanner');
+  const hostBadge = document.getElementById('pairedHostBadge');
+
+  if (isPaired) {
+    if (unpairedBanner) unpairedBanner.classList.add('view-hidden');
+    if (pairedBanner) pairedBanner.classList.remove('view-hidden');
+    if (hostBadge && hostStr) hostBadge.innerText = `${hostStr} (${pcName || 'PC'})`;
+    showToast('✅ পিসির সাথে সফলভাবে কানেক্টেড!');
+    setTimeout(fetchPcScreenNow, 800);
+  } else {
+    if (pairedBanner) pairedBanner.classList.add('view-hidden');
+    if (unpairedBanner) unpairedBanner.classList.remove('view-hidden');
+    const screenImg = document.getElementById('pcScreenImg');
+    const screenPlaceholder = document.getElementById('pcScreenPlaceholder');
+    if (screenImg) screenImg.style.display = 'none';
+    if (screenPlaceholder) screenPlaceholder.style.display = 'block';
+  }
+};
+
+window.onPcScreenReceived = function(b64Data) {
+  const screenImg = document.getElementById('pcScreenImg');
+  const screenPlaceholder = document.getElementById('pcScreenPlaceholder');
+  if (screenImg) {
+    screenImg.src = b64Data;
+    screenImg.style.display = 'block';
+  }
+  if (screenPlaceholder) {
+    screenPlaceholder.style.display = 'none';
+  }
+};
+
+// QR Scanner Handlers
+let qrMediaStream = null;
+let qrScanInterval = null;
+
+async function startQrScan() {
+  const container = document.getElementById('qrScannerContainer');
+  const video = document.getElementById('qrVideo');
+  if (!container || !video) return;
+
+  container.classList.remove('view-hidden');
+  try {
+    qrMediaStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment' }
+    });
+    video.srcObject = qrMediaStream;
+    await video.play();
+
+    if ('BarcodeDetector' in window) {
+      const barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+      qrScanInterval = setInterval(async () => {
+        try {
+          const barcodes = await barcodeDetector.detect(video);
+          if (barcodes.length > 0) {
+            handleQrScannedResult(barcodes[0].rawValue);
+          }
+        } catch (_) {}
+      }, 500);
+    } else {
+      showToast('ক্যামেরা সক্রিয়। পিসির কিউআর কোডের দিকে ধরুন...');
+    }
+  } catch (err) {
+    console.error('Camera QR error:', err);
+    showToast('⚠️ ক্যামেরা এক্সেস পাওয়া যায়নি। ছবি আপলোড বা আইপি দিয়ে পেয়ার করুন।');
+    stopQrScan();
+  }
+}
+
+function stopQrScan() {
+  const container = document.getElementById('qrScannerContainer');
+  const video = document.getElementById('qrVideo');
+  if (qrScanInterval) {
+    clearInterval(qrScanInterval);
+    qrScanInterval = null;
+  }
+  if (qrMediaStream) {
+    qrMediaStream.getTracks().forEach(t => t.stop());
+    qrMediaStream = null;
+  }
+  if (video) video.srcObject = null;
+  if (container) container.classList.add('view-hidden');
+}
+
+function handleQrFile(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = async function() {
+      if ('BarcodeDetector' in window) {
+        try {
+          const barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+          const barcodes = await barcodeDetector.detect(img);
+          if (barcodes.length > 0) {
+            handleQrScannedResult(barcodes[0].rawValue);
+            return;
+          }
+        } catch (_) {}
+      }
+      showToast('⚠️ কিউআর কোড পড়া যায়নি। আইপি ও সিকিউরিটি কোড লিখে পেয়ার করুন।');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleQrScannedResult(rawText) {
+  stopQrScan();
+  showToast('📷 কিউআর কোড স্ক্যান সফল!');
+  try {
+    let obj = null;
+    if (rawText.trim().startsWith('{')) {
+      obj = JSON.parse(rawText);
+    } else if (rawText.includes(':')) {
+      const parts = rawText.split(':');
+      if (parts.length >= 3) {
+        obj = { ip: parts[0], port: parts[1], secret: parts[2] };
+      }
+    }
+    if (obj) {
+      if (obj.ip) document.getElementById('pcHostIpInput').value = obj.ip;
+      if (obj.port) document.getElementById('pcPortInput').value = obj.port;
+      if (obj.secret) document.getElementById('pcSecretKeyInput').value = obj.secret;
+      pairWithPcManual();
+      return;
+    }
+  } catch (_) {}
+  showToast(`কিউআর ডেটা: ${rawText}`);
 }
 
 function showToast(msg) {

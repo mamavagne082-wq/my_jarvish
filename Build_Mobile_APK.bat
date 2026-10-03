@@ -36,8 +36,6 @@ if exist "%MOBILE_DIR%\app\build\outputs\apk\debug\app-debug.apk" (
     echo.
     echo ===============================================================
     echo  [SUCCESS] Mobile APK successfully compiled!
-    echo  [সফল] মোবাইল এপিকে (APK) সফলভাবে তৈরি সম্পন্ন হয়েছে!
-    echo.
     echo  Location: %ROOT_DIR%Jarvis_Mobile.apk
     echo ===============================================================
 )

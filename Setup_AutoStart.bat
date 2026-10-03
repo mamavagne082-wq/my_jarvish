@@ -89,11 +89,10 @@ echo.
 echo Starting Jarvis in background...
 if defined JARVIS_EXE (
     start "" %JARVIS_EXE%
-)
-if defined SERVICE_EXE (
-    start "" %SERVICE_EXE% start
+) else if defined SERVICE_EXE (
+    start "" %SERVICE_EXE%
 ) else (
-    start "" python "%ROOT_DIR%service.py" start
+    start "" python "%ROOT_DIR%service.py"
 )
 echo Jarvis has been started! Say 'Hey Jarvis' or 'হে জারভিস' to bring up the UI.
 timeout /t 3 >nul

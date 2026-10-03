@@ -6,17 +6,22 @@ import android.accessibilityservice.GestureDescription
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.Path
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.ContactsContract
+import android.provider.Settings
 import android.telecom.TelecomManager
 import android.telephony.SubscriptionManager
+import android.util.Base64
 import android.util.Log
+import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import java.io.ByteArrayOutputStream
 import androidx.core.content.ContextCompat
 import com.jarvis.assistant.automation.core.*
 import com.jarvis.assistant.automation.whatsapp.*
@@ -94,6 +99,9 @@ class JarvisAccessibilityService : AccessibilityService() {
         Log.d(TAG, "Handling mobile command: action=$action, payload=$payload")
         when (action.lowercase().trim()) {
             "lock", "turn_off_screen" -> lockDevice()
+            "capture_screen", "screenshot", "take_screenshot" -> {
+                captureAndSendScreenshot()
+            }
             "open_app" -> {
                 val target = payload.optString("target", "")
                 openApplication(target)
@@ -207,6 +215,11 @@ class JarvisAccessibilityService : AccessibilityService() {
             }
             "volume_up" -> adjustVolume(increase = true)
             "volume_down" -> adjustVolume(increase = false)
+            "volume_set", "set_volume" -> setVolumePercent(payload.optInt("percent", 50))
+            "volume_mute", "mute" -> muteVolume()
+            "brightness_up" -> adjustScreenBrightness(increase = true)
+            "brightness_down" -> adjustScreenBrightness(increase = false)
+            "brightness_set", "set_brightness" -> setScreenBrightnessPercent(payload.optInt("percent", 50))
             "scroll", "swipe" -> {
                 val direction = payload.optString("direction", "down")
                 performScroll(direction)
@@ -1166,38 +1179,197 @@ class JarvisAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Opens apps by name or package identifier.
+     * Captures current mobile screen using AccessibilityService API (Android 11+)
+     * and streams it to Jarvis via LiveKit DataChannel.
+     */
+    fun captureAndSendScreenshot() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                takeScreenshot(
+                    Display.DEFAULT_DISPLAY,
+                    mainExecutor,
+                    object : TakeScreenshotCallback {
+                        override fun onSuccess(screenshotResult: ScreenshotResult) {
+                            serviceScope.launch(Dispatchers.Default) {
+                                try {
+                                    val hwBuffer = screenshotResult.hardwareBuffer
+                                    val colorSpace = screenshotResult.colorSpace
+                                    val bitmap = Bitmap.wrapHardwareBuffer(hwBuffer, colorSpace)
+                                    if (bitmap != null) {
+                                        val softBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false)
+                                        hwBuffer.close()
+
+                                        // Downscale to max dimension 800 for fast WebRTC DataChannel delivery
+                                        val maxDim = 800
+                                        val maxSide = Math.max(softBitmap.width, softBitmap.height)
+                                        val scale = if (maxSide > maxDim) maxDim.toFloat() / maxSide else 1.0f
+                                        val scaledBitmap = if (scale < 1.0f) {
+                                            Bitmap.createScaledBitmap(
+                                                softBitmap,
+                                                (softBitmap.width * scale).toInt(),
+                                                (softBitmap.height * scale).toInt(),
+                                                true
+                                            )
+                                        } else {
+                                            softBitmap
+                                        }
+
+                                        val baos = ByteArrayOutputStream()
+                                        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 60, baos)
+                                        val base64Img = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+
+                                        val packet = JSONObject().apply {
+                                            put("type", "JARVIS_MOBILE_SCREENSHOT")
+                                            put("image", base64Img)
+                                        }
+                                        JarvisForegroundService.instance?.sendDataPacket(packet)
+                                        Log.d(TAG, "Sent mobile screenshot packet: ${baos.size()} bytes compressed")
+
+                                        if (scaledBitmap != softBitmap) scaledBitmap.recycle()
+                                        softBitmap.recycle()
+                                        bitmap.recycle()
+                                    } else {
+                                        hwBuffer.close()
+                                        Log.w(TAG, "Bitmap wrapHardwareBuffer returned null")
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Error encoding screenshot: ${e.message}", e)
+                                }
+                            }
+                        }
+
+                        override fun onFailure(errorCode: Int) {
+                            Log.e(TAG, "takeScreenshot failed with error code: $errorCode")
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception calling takeScreenshot: ${e.message}", e)
+            }
+        } else {
+            Log.w(TAG, "Accessibility takeScreenshot requires Android 11 (API 30)+")
+        }
+    }
+
+    /**
+     * Opens apps by name or package identifier with comprehensive Bengali/English mapping
+     * and dynamic fallback across all installed launcher applications.
+     * NEVER redirects to a browser Google search if app is not found!
      */
     fun openApplication(appName: String) {
         val packageMap = mapOf(
-            "youtube" to "com.google.android.youtube",
-            "whatsapp" to "com.whatsapp",
-            "facebook" to "com.facebook.katana",
+            // Specific Official & Lite variants requested by user
+            "facebook_official" to "com.facebook.katana",
+            "facebook official" to "com.facebook.katana",
+            "ফেসবুক অফিসিয়াল" to "com.facebook.katana",
+            "ফেসবুক অফিশিয়াল" to "com.facebook.katana",
+            "facebook_lite" to "com.facebook.lite",
+            "facebook lite" to "com.facebook.lite",
+            "ফেসবুক লাইট" to "com.facebook.lite",
+            "messenger_lite" to "com.facebook.mlite",
+            "messenger lite" to "com.facebook.mlite",
+            "মেসেঞ্জার লাইট" to "com.facebook.mlite",
+            "instagram_lite" to "com.instagram.lite",
+            "instagram lite" to "com.instagram.lite",
+            "ইনস্টাগ্রাম লাইট" to "com.instagram.lite",
+            "youtube_music" to "com.google.android.apps.youtube.music",
+            "youtube music" to "com.google.android.apps.youtube.music",
+            "ইউটিউব মিউজিক" to "com.google.android.apps.youtube.music",
+            "whatsapp_business" to "com.whatsapp.w4b",
+            "whatsapp business" to "com.whatsapp.w4b",
+            "হোয়াটসঅ্যাপ বিজনেস" to "com.whatsapp.w4b",
+
+            // Bengali names
+            "মেসেঞ্জার" to "com.facebook.orca",
+            "ফেসবুক" to "com.facebook.katana",
+            "এফবি" to "com.facebook.katana",
+            "হোয়াটসঅ্যাপ" to "com.whatsapp",
+            "ইউটিউব" to "com.google.android.youtube",
+            "ক্যামেরা" to "com.android.camera",
+            "গ্যালারি" to "com.google.android.apps.photos",
+            "গ্যালারী" to "com.google.android.apps.photos",
+            "সেটিংস" to "com.android.settings",
+            "প্লে স্টোর" to "com.android.vending",
+            "ডায়ালার" to "com.google.android.dialer",
+            "ফোন" to "com.google.android.dialer",
+            "কন্টাক্ট" to "com.google.android.contacts",
+            "ক্রোম" to "com.android.chrome",
+            "ব্রাউজার" to "com.android.chrome",
+            "ইনস্টাগ্রাম" to "com.instagram.android",
+            "ইন্সটাগ্রাম" to "com.instagram.android",
+            "টুইটার" to "com.twitter.android",
+            "টেলিগ্রাম" to "org.telegram.messenger",
+            "ইমো" to "com.imo.android.imoim",
+            "বিকাশ" to "com.bKash.customerapp",
+            "নগদ" to "com.konasl.nagad",
+            "রকেট" to "com.dbbl.mbs.apps.ayushman",
+            // English names
             "messenger" to "com.facebook.orca",
+            "facebook" to "com.facebook.katana",
+            "fb" to "com.facebook.katana",
+            "whatsapp" to "com.whatsapp",
+            "youtube" to "com.google.android.youtube",
+            "instagram" to "com.instagram.android",
+            "twitter" to "com.twitter.android",
+            "x" to "com.twitter.android",
+            "telegram" to "org.telegram.messenger",
+            "imo" to "com.imo.android.imoim",
+            "tiktok" to "com.zhiliaoapp.musically",
             "chrome" to "com.android.chrome",
+            "browser" to "com.android.chrome",
             "camera" to "com.android.camera",
             "settings" to "com.android.settings",
             "gallery" to "com.google.android.apps.photos",
+            "photos" to "com.google.android.apps.photos",
             "playstore" to "com.android.vending",
+            "play store" to "com.android.vending",
             "dialer" to "com.google.android.dialer",
             "phone" to "com.google.android.dialer",
-            "contacts" to "com.google.android.contacts"
+            "contacts" to "com.google.android.contacts",
+            "calculator" to "com.google.android.calculator",
+            "calendar" to "com.google.android.calendar",
+            "clock" to "com.google.android.deskclock",
+            "maps" to "com.google.android.apps.maps",
+            "gmail" to "com.google.android.gm",
+            "bkash" to "com.bKash.customerapp",
+            "nagad" to "com.konasl.nagad",
+            "rocket" to "com.dbbl.mbs.apps.ayushman"
         )
 
-        val targetPackage = packageMap[appName.lowercase().trim()] ?: appName
+        val cleanName = appName.lowercase().trim()
+        var targetPackage = packageMap[cleanName]
+
+        // If not in static map, dynamically query installed apps by label
+        if (targetPackage == null) {
+            try {
+                val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
+                    addCategory(Intent.CATEGORY_LAUNCHER)
+                }
+                val pkgAppsList = packageManager.queryIntentActivities(mainIntent, 0)
+                for (resolveInfo in pkgAppsList) {
+                    val label = resolveInfo.loadLabel(packageManager).toString().lowercase()
+                    if (label.contains(cleanName) || (cleanName.length >= 3 && cleanName.contains(label))) {
+                        targetPackage = resolveInfo.activityInfo.packageName
+                        Log.d(TAG, "Found dynamic package match for '$appName': $targetPackage (label='$label')")
+                        break
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Dynamic app search failed: ${e.message}")
+            }
+        }
+
+        if (targetPackage == null) {
+            targetPackage = cleanName
+        }
+
         val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
         if (launchIntent != null) {
-            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
             startActivity(launchIntent)
             Log.d(TAG, "Launched application: $targetPackage")
         } else {
-            try {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$appName"))
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(intent)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error launching app $appName: ${e.message}")
-            }
+            Log.w(TAG, "App '$appName' ($targetPackage) is not installed on this device. (NO BROWSER REDIRECT)")
         }
     }
 
@@ -1292,5 +1464,53 @@ class JarvisAccessibilityService : AccessibilityService() {
         val direction = if (increase) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER
         audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, AudioManager.FLAG_SHOW_UI)
         Log.d(TAG, "Adjusted volume: increase=$increase")
+    }
+
+    fun setVolumePercent(percent: Int) {
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+        val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val safePercent = percent.coerceIn(0, 100)
+        val targetVol = (maxVol * safePercent) / 100
+        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, targetVol, AudioManager.FLAG_SHOW_UI)
+        Log.d(TAG, "Set volume to $safePercent% (index: $targetVol/$maxVol)")
+    }
+
+    fun muteVolume() {
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, AudioManager.FLAG_SHOW_UI)
+        Log.d(TAG, "Muted volume")
+    }
+
+    fun adjustScreenBrightness(increase: Boolean) {
+        try {
+            val resolver = contentResolver
+            val currentBrightness = Settings.System.getInt(resolver, Settings.System.SCREEN_BRIGHTNESS, 128)
+            val delta = if (increase) 40 else -40
+            val newBrightness = (currentBrightness + delta).coerceIn(10, 255)
+            if (Settings.System.canWrite(applicationContext)) {
+                Settings.System.putInt(resolver, Settings.System.SCREEN_BRIGHTNESS, newBrightness)
+                Log.d(TAG, "Adjusted screen brightness to: $newBrightness/255")
+            } else {
+                Log.w(TAG, "Cannot write system settings for brightness without permission")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Brightness adjustment exception: ${e.message}")
+        }
+    }
+
+    fun setScreenBrightnessPercent(percent: Int) {
+        try {
+            val resolver = contentResolver
+            val safePercent = percent.coerceIn(5, 100)
+            val targetBrightness = (255 * safePercent) / 100
+            if (Settings.System.canWrite(applicationContext)) {
+                Settings.System.putInt(resolver, Settings.System.SCREEN_BRIGHTNESS, targetBrightness)
+                Log.d(TAG, "Set screen brightness to: $safePercent% ($targetBrightness/255)")
+            } else {
+                Log.w(TAG, "Cannot write system settings for brightness without permission")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Set brightness exception: ${e.message}")
+        }
     }
 }

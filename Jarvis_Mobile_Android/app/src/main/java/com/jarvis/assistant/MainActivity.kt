@@ -28,6 +28,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import org.json.JSONObject
+import kotlinx.coroutines.*
 
 class MainActivity : AppCompatActivity() {
 
@@ -171,6 +172,19 @@ class MainActivity : AppCompatActivity() {
                 super.onPageFinished(view, url)
                 loadingOverlay?.visibility = View.GONE
                 updateUIState()
+
+                // Auto-start Jarvis service and connect to voice session on launch
+                if (MobileConfig.hasValidCredentials(this@MainActivity)) {
+                    if (!JarvisForegroundService.isRunning) {
+                        startJarvisService()
+                    }
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        if (!JarvisForegroundService.isSessionActive) {
+                            JarvisForegroundService.instance?.connectSession()
+                            webView.evaluateJavascript("if (window.startVoiceSession) window.startVoiceSession();", null)
+                        }
+                    }, 800)
+                }
             }
         }
 
@@ -192,6 +206,14 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         if (JarvisForegroundService.isServiceEnabled(this) && !JarvisForegroundService.isRunning) {
             startJarvisService()
+        }
+        if (MobileConfig.hasValidCredentials(this) && !JarvisForegroundService.isSessionActive) {
+            Handler(Looper.getMainLooper()).postDelayed({
+                if (!JarvisForegroundService.isSessionActive) {
+                    JarvisForegroundService.instance?.connectSession()
+                    webView.evaluateJavascript("if (window.startVoiceSession) window.startVoiceSession();", null)
+                }
+            }, 600)
         }
         updateUIState()
         resetAutoMinimizeTimer()
@@ -446,9 +468,104 @@ class MainActivity : AppCompatActivity() {
             activity.runOnUiThread {
                 try {
                     val payload = if (payloadJson.isNotBlank()) JSONObject(payloadJson) else JSONObject()
-                    JarvisAccessibilityService.instance?.handleCommand(action, payload)
+                    val target = payload.optString("target", "")
+
+                    when (action.lowercase().trim()) {
+                        "lock" -> {
+                            if (JarvisAccessibilityService.instance != null) {
+                                JarvisAccessibilityService.instance?.handleCommand("lock", payload)
+                                Toast.makeText(activity, "🔒 মোবাইল স্ক্রিন লক করা হচ্ছে...", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(activity, "⚠️ স্ক্রিন লক করার জন্য Accessibility Settings থেকে Jarvis Assistant অন করুন।", Toast.LENGTH_LONG).show()
+                                activity.openAccessibilitySettings()
+                            }
+                        }
+                        "call_phone" -> {
+                            if (target == "1" || target.isEmpty() || target.equals("dialer", true)) {
+                                val intent = Intent(Intent.ACTION_DIAL).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                }
+                                activity.startActivity(intent)
+                                Toast.makeText(activity, "📞 ফোন ডায়ালার ওপেন করা হয়েছে (SIM 1)", Toast.LENGTH_SHORT).show()
+                            } else {
+                                if (JarvisAccessibilityService.instance != null) {
+                                    JarvisAccessibilityService.instance?.handleCommand("call_phone", payload)
+                                } else {
+                                    val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$target")).apply {
+                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                    }
+                                    activity.startActivity(dialIntent)
+                                }
+                            }
+                        }
+                        "whatsapp", "whatsapp_message" -> {
+                            val msg = payload.optString("message", "")
+                            if (target.isNotBlank() && msg.isNotBlank() && JarvisAccessibilityService.instance != null) {
+                                JarvisAccessibilityService.instance?.handleCommand("whatsapp_message", payload)
+                            } else {
+                                val launchIntent = activity.packageManager.getLaunchIntentForPackage("com.whatsapp")
+                                if (launchIntent != null) {
+                                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    activity.startActivity(launchIntent)
+                                    Toast.makeText(activity, "💬 WhatsApp ওপেন করা হয়েছে", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(activity, "WhatsApp ফোনে ইনস্টল নেই!", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                        "youtube", "youtube_search" -> {
+                            if (target.isNotBlank() && target != "Iron Man theme") {
+                                if (JarvisAccessibilityService.instance != null) {
+                                    JarvisAccessibilityService.instance?.handleCommand("youtube_search", payload)
+                                } else {
+                                    val intent = Intent(Intent.ACTION_SEARCH).apply {
+                                        setPackage("com.google.android.youtube")
+                                        putExtra("query", target)
+                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                    }
+                                    try {
+                                        activity.startActivity(intent)
+                                    } catch (_: Exception) {
+                                        val launchIntent = activity.packageManager.getLaunchIntentForPackage("com.google.android.youtube")
+                                        if (launchIntent != null) activity.startActivity(launchIntent)
+                                    }
+                                }
+                                Toast.makeText(activity, "▶️ YouTube-এ সার্চ ও প্লে করা হচ্ছে...", Toast.LENGTH_SHORT).show()
+                            } else {
+                                val launchIntent = activity.packageManager.getLaunchIntentForPackage("com.google.android.youtube")
+                                if (launchIntent != null) {
+                                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    activity.startActivity(launchIntent)
+                                    Toast.makeText(activity, "▶️ YouTube ওপেন করা হয়েছে", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(activity, "YouTube ফোনে ইনস্টল নেই!", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                        "survey_auto" -> {
+                            if (JarvisAccessibilityService.instance != null) {
+                                val ran = JarvisAccessibilityService.instance?.performSurveyAutomation() ?: false
+                                Toast.makeText(activity, if (ran) "📋 সার্ভে অটোমেশন কার্যকর হয়েছে" else "📋 কোনো সক্রিয় সার্ভে পেজ পাওয়া যায়নি", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(activity, "⚠️ অটো সার্ভের জন্য Accessibility Settings থেকে Jarvis অন করুন।", Toast.LENGTH_LONG).show()
+                                activity.openAccessibilitySettings()
+                            }
+                        }
+                        else -> {
+                            if (JarvisAccessibilityService.instance != null) {
+                                JarvisAccessibilityService.instance?.handleCommand(action, payload)
+                            } else {
+                                val launchIntent = activity.packageManager.getLaunchIntentForPackage(target)
+                                if (launchIntent != null) {
+                                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    activity.startActivity(launchIntent)
+                                }
+                            }
+                        }
+                    }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error executing action: ${e.message}")
+                    Toast.makeText(activity, "Action error: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -507,6 +624,176 @@ class MainActivity : AppCompatActivity() {
         fun resetIdleTimer() {
             activity.runOnUiThread {
                 activity.resetAutoMinimizeTimer()
+            }
+        }
+
+        @JavascriptInterface
+        fun pairWithPc(ip: String, port: Int, secret: String) {
+            val safeIp = ip.trim()
+            val safePort = if (port > 0) port else 8765
+            val safeSecret = secret.trim()
+
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val url = java.net.URL("http://$safeIp:$safePort/pair")
+                    val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        connectTimeout = 4000
+                        readTimeout = 4000
+                        doOutput = true
+                        setRequestProperty("Content-Type", "application/json")
+                    }
+                    val reqJson = JSONObject().apply {
+                        put("device_name", "Jarvis Mobile Assistant")
+                        put("secret", safeSecret)
+                    }
+                    java.io.OutputStreamWriter(conn.outputStream).use { it.write(reqJson.toString()) }
+                    val code = conn.responseCode
+                    if (code == 200) {
+                        val respStr = conn.inputStream.bufferedReader().use { it.readText() }
+                        val resp = JSONObject(respStr)
+                        if (resp.optBoolean("success", false)) {
+                            MobileConfig.setPcIp(activity, safeIp)
+                            MobileConfig.setPcPort(activity, safePort)
+                            MobileConfig.setPcSecret(activity, safeSecret)
+                            MobileConfig.setPcPaired(activity, true)
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(activity, "✅ পিসির সাথে সফলভাবে কানেক্ট ও পেয়ার হয়েছে!", Toast.LENGTH_LONG).show()
+                                activity.webView.evaluateJavascript("if (window.onPcPairStatusChanged) window.onPcPairStatusChanged(true, '$safeIp:$safePort', '${resp.optString("pc_name", "PC")}');", null)
+                            }
+                            return@launch
+                        }
+                    }
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(activity, "❌ পেয়ারিং ব্যর্থ হয়েছে: সিকিউরিটি কোড ভুল অথবা পিসি রিজেক্ট করেছে।", Toast.LENGTH_LONG).show()
+                        activity.webView.evaluateJavascript("if (window.onPcPairStatusChanged) window.onPcPairStatusChanged(false, null, null);", null)
+                    }
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Pair with PC error: ${e.message}")
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(activity, "⚠️ পিসির সাথে সংযোগ করা যায়নি! পিসি ও মোবাইল একই ওয়াইফাই বা নেটওয়ার্কে আছে কিনা নিশ্চিত করুন।", Toast.LENGTH_LONG).show()
+                        activity.webView.evaluateJavascript("if (window.onPcPairStatusChanged) window.onPcPairStatusChanged(false, null, null);", null)
+                    }
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun unpairFromPc() {
+            val ip = MobileConfig.getPcIp(activity)
+            val port = MobileConfig.getPcPort(activity)
+            MobileConfig.setPcPaired(activity, false)
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val url = java.net.URL("http://$ip:$port/unpair")
+                    val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        connectTimeout = 3000
+                        readTimeout = 3000
+                        doOutput = true
+                        setRequestProperty("Content-Type", "application/json")
+                    }
+                    java.io.OutputStreamWriter(conn.outputStream).use { it.write("{}") }
+                    conn.responseCode
+                } catch (_: Exception) {}
+            }
+            activity.runOnUiThread {
+                Toast.makeText(activity, "🔌 পিসি থেকে আনপেয়ার করা হয়েছে।", Toast.LENGTH_SHORT).show()
+                activity.webView.evaluateJavascript("if (window.onPcPairStatusChanged) window.onPcPairStatusChanged(false, null, null);", null)
+            }
+        }
+
+        @JavascriptInterface
+        fun getPcPairingStatus(): String {
+            val paired = MobileConfig.isPcPaired(activity)
+            val ip = MobileConfig.getPcIp(activity)
+            val port = MobileConfig.getPcPort(activity)
+            val secret = MobileConfig.getPcSecret(activity)
+            val obj = JSONObject().apply {
+                put("paired", paired)
+                put("ip", ip)
+                put("port", port)
+                put("secret", secret)
+            }
+            return obj.toString()
+        }
+
+        @JavascriptInterface
+        fun sendPcAction(action: String, target: String) {
+            if (!MobileConfig.isPcPaired(activity)) {
+                activity.runOnUiThread {
+                    Toast.makeText(activity, "⚠️ পিসির সাথে মোবাইল এখনো পেয়ার বা কানেক্ট করা হয়নি!", Toast.LENGTH_SHORT).show()
+                }
+                return
+            }
+            val ip = MobileConfig.getPcIp(activity)
+            val port = MobileConfig.getPcPort(activity)
+
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val url = java.net.URL("http://$ip:$port/pc_action")
+                    val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        connectTimeout = 4000
+                        readTimeout = 4000
+                        doOutput = true
+                        setRequestProperty("Content-Type", "application/json")
+                    }
+                    val reqJson = JSONObject().apply {
+                        put("action", action)
+                        put("target", target)
+                    }
+                    java.io.OutputStreamWriter(conn.outputStream).use { it.write(reqJson.toString()) }
+                    val code = conn.responseCode
+                    if (code == 200) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(activity, "🖥️ পিসি কমান্ড কার্যকর হয়েছে: $action", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(activity, "❌ পিসি কমান্ড গ্রহণ করেনি ($code)", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(activity, "পিসিতে কমান্ড পাঠাতে সমস্যা: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun fetchPcScreen() {
+            if (!MobileConfig.isPcPaired(activity)) {
+                activity.runOnUiThread {
+                    Toast.makeText(activity, "পিসির স্ক্রিন দেখতে আগে পিসির সাথে পেয়ার করুন।", Toast.LENGTH_SHORT).show()
+                }
+                return
+            }
+            val ip = MobileConfig.getPcIp(activity)
+            val port = MobileConfig.getPcPort(activity)
+
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val url = java.net.URL("http://$ip:$port/pc_screen")
+                    val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        connectTimeout = 4000
+                        readTimeout = 6000
+                    }
+                    if (conn.responseCode == 200) {
+                        val resp = conn.inputStream.bufferedReader().use { it.readText() }
+                        val json = JSONObject(resp)
+                        val b64 = json.optString("image", "")
+                        if (b64.isNotBlank()) {
+                            withContext(Dispatchers.Main) {
+                                activity.webView.evaluateJavascript("if (window.onPcScreenReceived) window.onPcScreenReceived('$b64');", null)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Error fetching PC screen: ${e.message}")
+                }
             }
         }
     }

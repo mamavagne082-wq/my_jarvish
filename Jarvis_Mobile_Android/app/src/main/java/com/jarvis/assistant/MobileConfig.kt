@@ -12,24 +12,24 @@ object MobileConfig {
 
     private const val PREFS_NAME = "jarvis_mobile_config"
 
-    // Default Settings (API keys are NOT hardcoded - securely stored locally by user after install)
+    // Default Settings & Pre-configured Credentials
     const val DEFAULT_USER_NAME = "ALAMIN"
     const val DEFAULT_ASSISTANT_NAME = "Jarvis"
     const val DEFAULT_LLM_PROVIDER = "google"
     const val DEFAULT_LLM_MODEL = "gemini-3.8-live"
 
     const val DEFAULT_LIVEKIT_URL = "wss://jarvish-cdq66wc9.livekit.cloud"
-    const val DEFAULT_LIVEKIT_KEY = ""
-    const val DEFAULT_LIVEKIT_SECRET = ""
+    const val DEFAULT_LIVEKIT_KEY = "APIudafoJVHneWA"
+    const val DEFAULT_LIVEKIT_SECRET = "QQlG0TxB5wxhZ3hiSkTNnXVNgsgbwSY1Yh1XFTzuTgL"
 
-    const val DEFAULT_GOOGLE_KEY = ""
-    const val DEFAULT_OPENAI_KEY = ""
-    const val DEFAULT_MEM0_KEY = ""
-    const val DEFAULT_GOOGLE_SEARCH_KEY = ""
-    const val DEFAULT_SEARCH_ENGINE_ID = ""
-    const val DEFAULT_OPENWEATHER_KEY = ""
-    const val DEFAULT_XIAOMI_MIMO_KEY = ""
-    const val DEFAULT_ELEVENLABS_KEY = ""
+    const val DEFAULT_GOOGLE_KEY = "AQ.Ab8RN6JHF6heRWfsnO5USnfzLeb-FWVFikfabKfams1pJ7oAxQ"
+    const val DEFAULT_OPENAI_KEY = "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"
+    const val DEFAULT_MEM0_KEY = "m0-zXEwUTUVUBNC6xUyne1UtoFr5jSHrsspEfcBLS3S"
+    const val DEFAULT_GOOGLE_SEARCH_KEY = "977565840084-3d463snmaaa7iq1rnr6lo26jdr3c38sk.apps.googleusercontent.com"
+    const val DEFAULT_SEARCH_ENGINE_ID = "0669cc931ac6f4b1e"
+    const val DEFAULT_OPENWEATHER_KEY = "df80983835aa91632af139cb1846be67"
+    const val DEFAULT_XIAOMI_MIMO_KEY = "sk-s9mnjmqs3jesdkhnls9x94jm5aoj248zo85t89anckwmva1m"
+    const val DEFAULT_ELEVENLABS_KEY = "sk_9177b45b24484fbbc84b3ea08febf2445d061bfb2a003f17"
     const val DEFAULT_ELEVENLABS_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"
 
     const val DEFAULT_ROOM_NAME = "jarvis-room"
@@ -39,53 +39,85 @@ object MobileConfig {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
-    fun getUserName(context: Context): String =
-        getPrefs(context).getString("user_name", DEFAULT_USER_NAME) ?: DEFAULT_USER_NAME
+    fun getUserName(context: Context): String {
+        val v = getPrefs(context).getString("user_name", DEFAULT_USER_NAME) ?: DEFAULT_USER_NAME
+        return if (v.isNotBlank()) v else DEFAULT_USER_NAME
+    }
 
-    fun getAssistantName(context: Context): String =
-        getPrefs(context).getString("assistant_name", DEFAULT_ASSISTANT_NAME) ?: DEFAULT_ASSISTANT_NAME
+    fun getAssistantName(context: Context): String {
+        val v = getPrefs(context).getString("assistant_name", DEFAULT_ASSISTANT_NAME) ?: DEFAULT_ASSISTANT_NAME
+        return if (v.isNotBlank()) v else DEFAULT_ASSISTANT_NAME
+    }
 
-    fun getLlmProvider(context: Context): String =
-        getPrefs(context).getString("llm_provider", DEFAULT_LLM_PROVIDER) ?: DEFAULT_LLM_PROVIDER
+    fun getLlmProvider(context: Context): String {
+        val v = getPrefs(context).getString("llm_provider", DEFAULT_LLM_PROVIDER) ?: DEFAULT_LLM_PROVIDER
+        return if (v.isNotBlank()) v else DEFAULT_LLM_PROVIDER
+    }
 
-    fun getLlmModel(context: Context): String =
-        getPrefs(context).getString("llm_model", DEFAULT_LLM_MODEL) ?: DEFAULT_LLM_MODEL
+    fun getLlmModel(context: Context): String {
+        val v = getPrefs(context).getString("llm_model", DEFAULT_LLM_MODEL) ?: DEFAULT_LLM_MODEL
+        return if (v.isNotBlank()) v else DEFAULT_LLM_MODEL
+    }
 
-    fun getLiveKitUrl(context: Context): String =
-        getPrefs(context).getString("livekit_url", DEFAULT_LIVEKIT_URL) ?: DEFAULT_LIVEKIT_URL
+    fun getLiveKitUrl(context: Context): String {
+        val v = getPrefs(context).getString("livekit_url", DEFAULT_LIVEKIT_URL) ?: DEFAULT_LIVEKIT_URL
+        return if (v.isNotBlank()) v else DEFAULT_LIVEKIT_URL
+    }
 
-    fun getLiveKitKey(context: Context): String =
-        getPrefs(context).getString("livekit_key", DEFAULT_LIVEKIT_KEY) ?: DEFAULT_LIVEKIT_KEY
+    fun getLiveKitKey(context: Context): String {
+        val v = getPrefs(context).getString("livekit_key", DEFAULT_LIVEKIT_KEY) ?: DEFAULT_LIVEKIT_KEY
+        return if (v.isNotBlank()) v else DEFAULT_LIVEKIT_KEY
+    }
 
-    fun getLiveKitSecret(context: Context): String =
-        getPrefs(context).getString("livekit_secret", DEFAULT_LIVEKIT_SECRET) ?: DEFAULT_LIVEKIT_SECRET
+    fun getLiveKitSecret(context: Context): String {
+        val v = getPrefs(context).getString("livekit_secret", DEFAULT_LIVEKIT_SECRET) ?: DEFAULT_LIVEKIT_SECRET
+        return if (v.isNotBlank()) v else DEFAULT_LIVEKIT_SECRET
+    }
 
-    fun getGoogleKey(context: Context): String =
-        getPrefs(context).getString("google_key", DEFAULT_GOOGLE_KEY) ?: DEFAULT_GOOGLE_KEY
+    fun getGoogleKey(context: Context): String {
+        val v = getPrefs(context).getString("google_key", DEFAULT_GOOGLE_KEY) ?: DEFAULT_GOOGLE_KEY
+        return if (v.isNotBlank()) v else DEFAULT_GOOGLE_KEY
+    }
 
-    fun getOpenAiKey(context: Context): String =
-        getPrefs(context).getString("openai_key", DEFAULT_OPENAI_KEY) ?: DEFAULT_OPENAI_KEY
+    fun getOpenAiKey(context: Context): String {
+        val v = getPrefs(context).getString("openai_key", DEFAULT_OPENAI_KEY) ?: DEFAULT_OPENAI_KEY
+        return if (v.isNotBlank()) v else DEFAULT_OPENAI_KEY
+    }
 
-    fun getMem0Key(context: Context): String =
-        getPrefs(context).getString("mem0_key", DEFAULT_MEM0_KEY) ?: DEFAULT_MEM0_KEY
+    fun getMem0Key(context: Context): String {
+        val v = getPrefs(context).getString("mem0_key", DEFAULT_MEM0_KEY) ?: DEFAULT_MEM0_KEY
+        return if (v.isNotBlank()) v else DEFAULT_MEM0_KEY
+    }
 
-    fun getGoogleSearchKey(context: Context): String =
-        getPrefs(context).getString("google_search_key", DEFAULT_GOOGLE_SEARCH_KEY) ?: DEFAULT_GOOGLE_SEARCH_KEY
+    fun getGoogleSearchKey(context: Context): String {
+        val v = getPrefs(context).getString("google_search_key", DEFAULT_GOOGLE_SEARCH_KEY) ?: DEFAULT_GOOGLE_SEARCH_KEY
+        return if (v.isNotBlank()) v else DEFAULT_GOOGLE_SEARCH_KEY
+    }
 
-    fun getSearchEngineId(context: Context): String =
-        getPrefs(context).getString("search_engine_id", DEFAULT_SEARCH_ENGINE_ID) ?: DEFAULT_SEARCH_ENGINE_ID
+    fun getSearchEngineId(context: Context): String {
+        val v = getPrefs(context).getString("search_engine_id", DEFAULT_SEARCH_ENGINE_ID) ?: DEFAULT_SEARCH_ENGINE_ID
+        return if (v.isNotBlank()) v else DEFAULT_SEARCH_ENGINE_ID
+    }
 
-    fun getOpenWeatherKey(context: Context): String =
-        getPrefs(context).getString("openweather_key", DEFAULT_OPENWEATHER_KEY) ?: DEFAULT_OPENWEATHER_KEY
+    fun getOpenWeatherKey(context: Context): String {
+        val v = getPrefs(context).getString("openweather_key", DEFAULT_OPENWEATHER_KEY) ?: DEFAULT_OPENWEATHER_KEY
+        return if (v.isNotBlank()) v else DEFAULT_OPENWEATHER_KEY
+    }
 
-    fun getXiaomiMimoKey(context: Context): String =
-        getPrefs(context).getString("xiaomi_mimo_key", DEFAULT_XIAOMI_MIMO_KEY) ?: DEFAULT_XIAOMI_MIMO_KEY
+    fun getXiaomiMimoKey(context: Context): String {
+        val v = getPrefs(context).getString("xiaomi_mimo_key", DEFAULT_XIAOMI_MIMO_KEY) ?: DEFAULT_XIAOMI_MIMO_KEY
+        return if (v.isNotBlank()) v else DEFAULT_XIAOMI_MIMO_KEY
+    }
 
-    fun getElevenLabsKey(context: Context): String =
-        getPrefs(context).getString("elevenlabs_key", DEFAULT_ELEVENLABS_KEY) ?: DEFAULT_ELEVENLABS_KEY
+    fun getElevenLabsKey(context: Context): String {
+        val v = getPrefs(context).getString("elevenlabs_key", DEFAULT_ELEVENLABS_KEY) ?: DEFAULT_ELEVENLABS_KEY
+        return if (v.isNotBlank()) v else DEFAULT_ELEVENLABS_KEY
+    }
 
-    fun getElevenLabsVoiceId(context: Context): String =
-        getPrefs(context).getString("elevenlabs_voice_id", DEFAULT_ELEVENLABS_VOICE_ID) ?: DEFAULT_ELEVENLABS_VOICE_ID
+    fun getElevenLabsVoiceId(context: Context): String {
+        val v = getPrefs(context).getString("elevenlabs_voice_id", DEFAULT_ELEVENLABS_VOICE_ID) ?: DEFAULT_ELEVENLABS_VOICE_ID
+        return if (v.isNotBlank()) v else DEFAULT_ELEVENLABS_VOICE_ID
+    }
 
     fun getPcHost(context: Context): String =
         getPrefs(context).getString("pc_host", DEFAULT_PC_HOST) ?: DEFAULT_PC_HOST
@@ -245,5 +277,37 @@ object MobileConfig {
             bytes,
             Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP
         )
+    }
+
+    fun isPcPaired(context: Context): Boolean {
+        return getPrefs(context).getBoolean("pc_is_paired", false)
+    }
+
+    fun setPcPaired(context: Context, paired: Boolean) {
+        getPrefs(context).edit().putBoolean("pc_is_paired", paired).apply()
+    }
+
+    fun getPcIp(context: Context): String {
+        return getPrefs(context).getString("pc_ip", "192.168.31.163") ?: "192.168.31.163"
+    }
+
+    fun setPcIp(context: Context, ip: String) {
+        getPrefs(context).edit().putString("pc_ip", ip).apply()
+    }
+
+    fun getPcPort(context: Context): Int {
+        return getPrefs(context).getInt("pc_port", 8765)
+    }
+
+    fun setPcPort(context: Context, port: Int) {
+        getPrefs(context).edit().putInt("pc_port", port).apply()
+    }
+
+    fun getPcSecret(context: Context): String {
+        return getPrefs(context).getString("pc_secret", "JARVIS-CORE-77") ?: "JARVIS-CORE-77"
+    }
+
+    fun setPcSecret(context: Context, secret: String) {
+        getPrefs(context).edit().putString("pc_secret", secret).apply()
     }
 }

@@ -243,34 +243,145 @@
     </section>
 
     <!-- ========================================== -->
-    <!-- TAB 4: PC CONNECT & SYNC                   -->
+    <!-- TAB 4: PC CONNECT & REMOTE MATRIX          -->
     <!-- ========================================== -->
     <section class="tab-content" id="tab-pc-connect">
+      <!-- Status & Independence Banner -->
       <div class="settings-section-card">
         <div class="section-title">
           <i>💻</i>
-          <span>PC JARVIS LINK</span>
+          <span>PC JARVIS LINK // PAIRING MATRIX</span>
         </div>
 
-        <div class="form-group">
-          <label>PC Host Address (IP:Port)</label>
-          <input type="text" id="pcHostInput" class="form-control" placeholder="http://192.168.0.100:3000">
-        </div>
-
-        <div class="switch-row">
-          <div class="switch-label-group">
-            <span class="switch-title">Companion Cloud Sync</span>
-            <span class="switch-subtitle">Sync memory and task checkpoints with PC</span>
+        <div id="pcUnpairedBanner" class="p-3" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; margin-bottom: 12px; padding: 12px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+            <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#ef4444; box-shadow:0 0 8px #ef4444;"></span>
+            <strong style="color:#ef4444; font-size:13px; letter-spacing:0.5px;">পিসি ডিসকানেক্টেড (আলাদা স্বাধীন মোড)</strong>
           </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="pcSyncToggle" checked>
-            <span class="slider"></span>
+          <p style="font-size:12px; color:#cbd5e1; line-height:1.5;">
+            বর্তমানে মোবাইল এবং পিসি সম্পূর্ণ আলাদা। মোবাইল শুধুমাত্র আপনার মোবাইল নিয়ন্ত্রণ করছে। পিসি থেকে কোনোভাবেই মোবাইল কন্ট্রোল করা সম্ভব নয়। মোবাইল দিয়ে পিসি কন্ট্রোল করতে চাইলে নিচে পেয়ার করুন।
+          </p>
+        </div>
+
+        <div id="pcPairedBanner" class="p-3 view-hidden" style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 12px; margin-bottom: 12px; padding: 12px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#10b981; box-shadow:0 0 8px #10b981;"></span>
+              <strong style="color:#10b981; font-size:13px; letter-spacing:0.5px;">পিসি কানেক্টেড (পেয়ার্ড মোড সক্রিয়)</strong>
+            </div>
+            <span id="pairedHostBadge" class="badge-green" style="font-size:10px;">192.168.31.163:8765</span>
+          </div>
+          <p style="font-size:12px; color:#cbd5e1; line-height:1.5;">
+            আপনার মোবাইল পিসির সাথে সফলভাবে পেয়ার হয়েছে। এখন মোবাইল দিয়ে পিসি নিয়ন্ত্রণ এবং পিসির লাইভ স্ক্রিন দেখা যাচ্ছে।
+          </p>
+          <button class="btn-shutdown-link" style="margin-top:10px; color:#ef4444;" onclick="unpairFromPc()">
+            <span>🔌 পিসি থেকে আনপেয়ার / ডিসকানেক্ট করুন</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Pairing Section: QR Scanner & Manual Connect -->
+      <div class="settings-section-card" id="pairingFormSection">
+        <div class="section-title">
+          <i>📷</i>
+          <span>QR CODE & MANUAL PAIRING</span>
+        </div>
+
+        <p style="font-size:12px; color:#94a3b8; margin-bottom:14px; line-height:1.5;">
+          পিসির <strong>Connect</strong> অপশনে দেখানো কিউআর কোড স্ক্যান করুন অথবা নিচের ফিল্ডে পিসির আইপি, পোর্ট ও সিকিউরিটি কোড বসিয়ে কানেক্ট করুন:
+        </p>
+
+        <!-- QR Scanner Trigger -->
+        <div style="display:flex; gap:10px; margin-bottom:14px;">
+          <button class="btn-primary" style="flex:1;" onclick="startQrScan()">
+            <span>📷 QR কোড স্ক্যান করুন</span>
+          </button>
+          <label class="btn-secondary" style="flex:1; margin-bottom:0; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+            <span>📁 ছবি থেকে QR স্ক্যান</span>
+            <input type="file" id="qrFileInput" accept="image/*" style="display:none;" onchange="handleQrFile(this)">
           </label>
         </div>
 
-        <button class="btn-secondary" onclick="testPcConnection()">
-          <span>🔗 Test PC Link</span>
+        <div id="qrScannerContainer" class="view-hidden" style="margin-bottom:14px; position:relative; background:#000; border-radius:12px; overflow:hidden; border:1px solid #06b6d4;">
+          <video id="qrVideo" style="width:100%; height:220px; object-fit:cover; display:block;"></video>
+          <div style="position:absolute; inset:20px; border:2px dashed #22d3ee; border-radius:8px; pointer-events:none;"></div>
+          <button class="btn-shutdown-link" style="position:absolute; top:8px; right:8px; padding:4px 8px; background:rgba(0,0,0,0.7);" onclick="stopQrScan()">
+            ✕ বন্ধ করুন
+          </button>
+        </div>
+
+        <!-- Manual IP / Port / PIN Form -->
+        <div class="form-group">
+          <label>পিসির আইপি এড্রেস (PC Host IP)</label>
+          <input type="text" id="pcHostIpInput" class="form-control" placeholder="192.168.31.163" value="192.168.31.163">
+        </div>
+
+        <div class="form-group">
+          <label>পোর্ট (Port)</label>
+          <input type="number" id="pcPortInput" class="form-control" placeholder="8765" value="8765">
+        </div>
+
+        <div class="form-group">
+          <label>সিকিউরিটি কোড (PIN / Secret Key)</label>
+          <input type="password" id="pcSecretKeyInput" class="form-control" placeholder="JARVIS-CORE-77" value="JARVIS-CORE-77">
+        </div>
+
+        <button class="btn-primary" id="btnPairWithPc" onclick="pairWithPcManual()">
+          <span>🔗 পিসির সাথে পেয়ার ও কানেক্ট করুন</span>
         </button>
+      </div>
+
+      <!-- Paired Mode Controls: Live PC Screen & Remote Command -->
+      <div class="settings-section-card" id="pairedControlSection">
+        <div class="section-title">
+          <i>🖥️</i>
+          <span>PC LIVE SCREEN & CONTROLS</span>
+        </div>
+
+        <!-- PC Screen Box -->
+        <div style="background: rgba(2, 6, 23, 0.9); border: 1px solid rgba(6, 182, 212, 0.3); border-radius: 12px; padding: 10px; margin-bottom: 14px; text-align: center;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <span style="font-size:12px; font-weight:700; color:#38bdf8;">🖥️ পিসির লাইভ স্ক্রিন প্রিভিউ</span>
+            <button class="badge-green" style="cursor:pointer;" onclick="fetchPcScreenNow()">🔄 রিফ্রেশ স্ক্রিন</button>
+          </div>
+          <div id="pcScreenWrapper" style="width:100%; min-height:160px; max-height:260px; background:#000; border-radius:8px; display:flex; align-items:center; justify-content:center; overflow:hidden; border:1px solid #1e293b;">
+            <img id="pcScreenImg" style="width:100%; height:auto; display:none; border-radius:8px;" alt="PC Screen">
+            <span id="pcScreenPlaceholder" style="font-size:12px; color:#64748b; padding:20px;">
+              স্ক্রিন দেখতে উপরের 'রিফ্রেশ স্ক্রিন' চাপুন (পিসি পেয়ার্ড থাকা আবশ্যক)
+            </span>
+          </div>
+        </div>
+
+        <!-- Remote PC Actions Grid -->
+        <label style="font-size:11px; text-transform:uppercase; color:#94a3b8; font-weight:700; margin-bottom:8px; display:block;">
+          মোবাইল দিয়ে পিসি রিমোট অ্যাকশন
+        </label>
+        <div class="quick-actions-grid" style="margin-top:0;">
+          <div class="action-chip" onclick="sendPcAction('lock_pc')">
+            <i>🔒</i>
+            <span>Lock PC</span>
+          </div>
+          <div class="action-chip" onclick="sendPcAction('sleep_pc')">
+            <i>💤</i>
+            <span>Sleep PC</span>
+          </div>
+          <div class="action-chip" onclick="sendPcAction('shutdown_pc')">
+            <i>🛑</i>
+            <span>Shutdown</span>
+          </div>
+          <div class="action-chip" onclick="sendPcAction('media_play_pause')">
+            <i>⏯️</i>
+            <span>Play/Pause</span>
+          </div>
+          <div class="action-chip" onclick="sendPcAction('volume_up')">
+            <i>🔊</i>
+            <span>Vol Up</span>
+          </div>
+          <div class="action-chip" onclick="sendPcAction('volume_down')">
+            <i>🔉</i>
+            <span>Vol Down</span>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -420,19 +531,13 @@
       <span>Home</span>
     </div>
 
-    <div class="nav-item" id="nav-modes" onclick="switchTab('modes')">
+    <div class="nav-item" id="nav-pc-connect" onclick="switchTab('pc-connect')">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="4"/>
-        <path d="M12 2v2"/>
-        <path d="M12 20v2"/>
-        <path d="m4.93 4.93 1.41 1.41"/>
-        <path d="m17.66 17.66 1.41 1.41"/>
-        <path d="M2 12h2"/>
-        <path d="M20 12h2"/>
-        <path d="m6.34 17.66-1.41 1.41"/>
-        <path d="m19.07 4.93-1.41 1.41"/>
+        <rect width="20" height="14" x="2" y="3" rx="2"/>
+        <line x1="8" x2="16" y1="21" y2="21"/>
+        <line x1="12" x2="17" y1="21" y2="21"/>
       </svg>
-      <span>Modes</span>
+      <span>PC Link</span>
     </div>
 
     <!-- Center Elevated Glowing Mic Button -->
@@ -447,11 +552,19 @@
       </div>
     </div>
 
-    <div class="nav-item" id="nav-aura" onclick="switchTab('aura')">
+    <div class="nav-item" id="nav-modes" onclick="switchTab('modes')">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+        <circle cx="12" cy="12" r="4"/>
+        <path d="M12 2v2"/>
+        <path d="M12 20v2"/>
+        <path d="m4.93 4.93 1.41 1.41"/>
+        <path d="m17.66 17.66 1.41 1.41"/>
+        <path d="M2 12h2"/>
+        <path d="M20 12h2"/>
+        <path d="m6.34 17.66-1.41 1.41"/>
+        <path d="m19.07 4.93-1.41 1.41"/>
       </svg>
-      <span>Aura</span>
+      <span>Modes</span>
     </div>
 
     <div class="nav-item" id="nav-settings" onclick="switchTab('settings')">
