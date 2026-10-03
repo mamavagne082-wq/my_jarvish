@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>JARVIS // AI Mobile Companion</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Top Cyberpunk Status Header -->
+  <header class="header-bar">
+    <div class="brand-section">
+      <div class="brand-logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 3v6"/>
+          <path d="M12 15v6"/>
+          <path d="M3 12h6"/>
+          <path d="M15 12h6"/>
+        </svg>
+      </div>
+      <div class="brand-titles">
+        <span class="brand-name">JARVIS</span>
+        <span class="brand-badge">MOBILE HUD // 24/7</span>
+      </div>
+    </div>
+
+    <div class="header-status-pill" id="headerStatusPill">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="serviceStatusLabel">ONLINE</span>
+    </div>
+  </header>
+
+  <!-- Main Viewport containing Tabs -->
+  <main class="main-viewport" id="mainViewport">
+
+    <!-- ========================================== -->
+    <!-- TAB 1: HOME (Orb, Voice, Visualizer, Chat) -->
+    <!-- ========================================== -->
+    <section class="tab-content active" id="tab-home">
+
+      <!-- 1. STANDBY / WELCOME VIEW (When not in call) -->
+      <div id="welcomeView" class="welcome-hero-card">
+        <div class="arc-reactor-crest">
+          <div class="arc-outer-ring"></div>
+          <div class="arc-core"></div>
+        </div>
+        <h2 class="welcome-title">JARVIS AI SYSTEM</h2>
+        <p class="welcome-subtitle">SYSTEM STATUS: STANDBY // READY FOR COMMAND</p>
+
+        <!-- Big Pulsing "Talk To Jarvis" Button (Matches PC Welcome) -->
+        <button class="btn-talk-to-jarvis" id="btnTalkToJarvis" onclick="startVoiceSession()">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" x2="12" y1="19" y2="22"/>
+          </svg>
+          <span>TALK TO JARVIS</span>
+          <small>(টক টু জারভিস - কথা শুরু করুন)</small>
+        </button>
+      </div>
+
+      <!-- 2. ACTIVE VOICE SESSION VIEW (When speaking/connected) -->
+      <div id="sessionView" class="view-hidden">
+        <!-- 3D Interactive Orb Stage -->
+        <div class="orb-stage-card">
+          <div class="orb-canvas-container" id="orbContainer">
+            <canvas id="orbCanvas" width="240" height="240"></canvas>
+          </div>
+          <div class="orb-state-label" id="orbStateLabel">
+            <span class="orb-state-indicator" id="orbStateDot"></span>
+            <span id="orbStateText">ONLINE // LISTENING</span>
+          </div>
+          <!-- Audio Spectrum Waves -->
+          <canvas class="spectrum-canvas" id="spectrumCanvas" width="300" height="48"></canvas>
+        </div>
+
+        <!-- Live Session Transcript Card -->
+        <div class="transcript-card">
+          <div class="transcript-header">
+            <span>REAL-TIME VOICE STREAM</span>
+            <span id="activeModelTag" class="badge-green">GEMINI LIVE</span>
+          </div>
+          <div class="transcript-body" id="transcriptBody">
+            <div class="chat-bubble assistant">
+              Hello boss. Jarvis is active and listening. Speak your command.
+            </div>
+          </div>
+        </div>
+
+        <!-- Session Controls Row: End Call / Bye Jarvis (কেটে দাও বাটন) -->
+        <div class="session-controls-row">
+          <button class="btn-end-session" id="btnEndVoiceCall" onclick="endVoiceSession()">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11-.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+            </svg>
+            <div style="display:flex; flex-direction:column; align-items:flex-start;">
+              <span style="font-weight:800; font-size:15px; letter-spacing:1px;">BYE JARVIS // কেটে দাও (বন্ধ করো)</span>
+              <small style="font-size:11px; opacity:0.9; font-weight:normal;">চাপলে 'বাই বাই' বলে সম্পূর্ণ অফ হয়ে থাকবে</small>
+            </div>
+          </button>
+
+          <div class="controls-secondary-row">
+            <button class="btn-control-secondary" id="btnMicMute" onclick="toggleMuteMic()">
+              <span>🎙️ Mute Mic</span>
+            </button>
+            <button class="btn-control-secondary active" id="btnSpeaker" onclick="toggleSpeakerphone()">
+              <span>🔊 Loudspeaker: ON</span>
+            </button>
+          </div>
+
+          <button class="btn-shutdown-link" onclick="shutdownJarvis()">
+            <span>সম্পূর্ণ অ্যাপ অফ করুন (Full Shutdown)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Action Mobile Chips -->
+      <div class="quick-actions-grid" style="margin-top: 14px;">
+        <div class="action-chip" onclick="executeAction('lock')">
+          <i>🔒</i>
+          <span>Lock Screen</span>
+        </div>
+        <div class="action-chip" onclick="executeAction('call_phone', { target: '1', sim_slot: 1 })">
+          <i>📞</i>
+          <span>Call SIM 1</span>
+        </div>
+        <div class="action-chip" onclick="executeAction('whatsapp_message')">
+          <i>💬</i>
+          <span>WhatsApp</span>
+        </div>
+        <div class="action-chip" onclick="executeAction('youtube_search', { target: 'Iron Man theme' })">
+          <i>▶️</i>
+          <span>YouTube</span>
+        </div>
+        <div class="action-chip" onclick="executeAction('survey_auto')">
+          <i>📋</i>
+          <span>Auto Survey</span>
+        </div>
+        <div class="action-chip" onclick="switchTab('settings')">
+          <i>⚡</i>
+          <span>API Keys</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 2: INTELLIGENCE MODES                  -->
+    <!-- ========================================== -->
+    <section class="tab-content" id="tab-modes">
+      <div class="settings-section-card">
+        <div class="section-title">
+          <i>🧠</i>
+          <span>AI ENGINE & MODEL ROUTING</span>
+        </div>
+
+        <div class="form-group">
+          <label for="modeProviderSelect">Primary LLM Provider</label>
+          <select id="modeProviderSelect" class="form-control select-control" onchange="onProviderSelectChanged()" title="Primary LLM Provider" aria-label="Primary LLM Provider">
+            <option value="google">Google Gemini (Native Audio Realtime)</option>
+            <option value="openai">OpenAI (GPT-4o Realtime)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="modeModelSelect">Voice Assistant Model</label>
+          <select id="modeModelSelect" class="form-control select-control" title="Voice Assistant Model" aria-label="Voice Assistant Model">
+            <option value="gemini-3.8-live">Gemini 3.8 Live (Ultra-low Latency)</option>
+            <option value="gemini-2.5-flash-native-audio-preview-12-2025">Gemini 2.5 Flash Native Audio</option>
+            <option value="gpt-4o-realtime-preview">GPT-4o Realtime Preview</option>
+            <option value="mimo-v2.6-flash">Xiaomi Mimo Flash</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-section-card">
+        <div class="section-title">
+          <i>🎯</i>
+          <span>SPECIALIZED WORKLOAD AGENTS</span>
+        </div>
+
+        <div class="form-group">
+          <label for="screenVisionInput">Screen Vision & OCR</label>
+          <input type="text" id="screenVisionInput" class="form-control" value="Gemini 3.8 Flash Vision (Automated)" readonly title="Screen Vision & OCR" aria-label="Screen Vision & OCR">
+        </div>
+
+        <div class="form-group">
+          <label for="codingReasoningInput">Coding & Reasoning</label>
+          <input type="text" id="codingReasoningInput" class="form-control" value="Gemini 3.8 Flash / Mimo v2.6" readonly title="Coding & Reasoning" aria-label="Coding & Reasoning">
+        </div>
+
+        <div class="form-group">
+          <label for="surveyAutoTapperInput">Survey Auto-Tapper</label>
+          <input type="text" id="surveyAutoTapperInput" class="form-control" value="Closed-Loop Accessibility Engine" readonly title="Survey Auto-Tapper" aria-label="Survey Auto-Tapper">
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 3: AURA THEMES                         -->
+    <!-- ========================================== -->
+    <section class="tab-content" id="tab-aura">
+      <div class="settings-section-card">
+        <div class="section-title">
+          <i>✨</i>
+          <span>3D ORB VISUAL THEME</span>
+        </div>
+
+        <div class="form-group">
+          <label for="auraThemeSelect">Holographic Theme</label>
+          <select id="auraThemeSelect" class="form-control select-control" onchange="changeOrbTheme(this.value)" title="Holographic Theme" aria-label="Holographic Theme">
+            <option value="neon">Neon Cyan (Default Jarvis HUD)</option>
+            <option value="arc">Arc Reactor (Stark Blue & White)</option>
+            <option value="purple">Obsidian Purple (Cosmic Nebula)</option>
+            <option value="gold">Golden Matrix (Billionaire Edition)</option>
+            <option value="emerald">Emerald Nexus (Tactical Green)</option>
+          </select>
+        </div>
+
+        <div class="switch-row">
+          <div class="switch-label-group">
+            <span class="switch-title">Particle Aura Waves</span>
+            <span class="switch-subtitle">Simulate real-time energetic field</span>
+          </div>
+          <label for="auraParticlesToggle" class="toggle-switch">
+            <input type="checkbox" id="auraParticlesToggle" checked onchange="toggleParticles(this.checked)" title="Particle Aura Waves" aria-label="Particle Aura Waves">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="switch-row">
+          <div class="switch-label-group">
+            <span class="switch-title">Audio Spectrum Dynamics</span>
+            <span class="switch-subtitle" id="auraAudioDynamicsSub">Orb expands with voice frequency</span>
+          </div>
+          <label for="auraAudioDynamics" class="toggle-switch">
+            <input type="checkbox" id="auraAudioDynamics" checked title="Audio Spectrum Dynamics" aria-label="Audio Spectrum Dynamics">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 4: PC CONNECT & REMOTE MATRIX          -->
+    <!-- ========================================== -->
+    <section class="tab-content" id="tab-pc-connect">
+      <!-- Status & Independence Banner -->
+      <div class="settings-section-card">
+        <div class="section-title">
+          <i>💻</i>
+          <span>PC JARVIS LINK // PAIRING MATRIX</span>
+        </div>
+
+        <div id="pcUnpairedBanner" class="p-3" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; margin-bottom: 12px; padding: 12px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+            <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#ef4444; box-shadow:0 0 8px #ef4444;"></span>
+            <strong style="color:#ef4444; font-size:13px; letter-spacing:0.5px;">পিসি ডিসকানেক্টেড (আলাদা স্বাধীন মোড)</strong>
+          </div>
+          <p style="font-size:12px; color:#cbd5e1; line-height:1.5;">
+            বর্তমানে মোবাইল এবং পিসি সম্পূর্ণ আলাদা। মোবাইল শুধুমাত্র আপনার মোবাইল নিয়ন্ত্রণ করছে। পিসি থেকে কোনোভাবেই মোবাইল কন্ট্রোল করা সম্ভব নয়। মোবাইল দিয়ে পিসি কন্ট্রোল করতে চাইলে নিচে পেয়ার করুন।
+          </p>
+        </div>
+
+        <div id="pcPairedBanner" class="p-3 view-hidden" style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 12px; margin-bottom: 12px; padding: 12px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#10b981; box-shadow:0 0 8px #10b981;"></span>
+              <strong style="color:#10b981; font-size:13px; letter-spacing:0.5px;">পিসি কানেক্টেড (পেয়ার্ড মোড সক্রিয়)</strong>
+            </div>
+            <span id="pairedHostBadge" class="badge-green" style="font-size:10px;">192.168.31.163:8765</span>
+          </div>
+          <p style="font-size:12px; color:#cbd5e1; line-height:1.5;">
+            আপনার মোবাইল পিসির সাথে সফলভাবে পেয়ার হয়েছে। এখন মোবাইল দিয়ে পিসি নিয়ন্ত্রণ এবং পিসির লাইভ স্ক্রিন দেখা যাচ্ছে।
+          </p>
+          <button class="btn-shutdown-link" style="margin-top:10px; color:#ef4444;" onclick="unpairFromPc()">
+            <span>🔌 পিসি থেকে আনপেয়ার / ডিসকানেক্ট করুন</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Pairing Section: QR Scanner & Manual Connect -->
+      <div class="settings-section-card" id="pairingFormSection">
+        <div class="section-title">
+          <i>📷</i>
+          <span>QR CODE & MANUAL PAIRING</span>
+        </div>
+
+        <p style="font-size:12px; color:#94a3b8; margin-bottom:14px; line-height:1.5;">
+          পিসির <strong>Connect</strong> অপশনে দেখানো কিউআর কোড স্ক্যান করুন অথবা নিচের ফিল্ডে পিসির আইপি, পোর্ট ও সিকিউরিটি কোড বসিয়ে কানেক্ট করুন:
+        </p>
+
+        <!-- QR Scanner Trigger -->
+        <div style="display:flex; gap:10px; margin-bottom:14px;">
+          <button class="btn-primary" style="flex:1;" onclick="startQrScan()">
+            <span>📷 QR কোড স্ক্যান করুন</span>
+          </button>
+          <label for="qrFileInput" class="btn-secondary" style="flex:1; margin-bottom:0; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+            <span>📁 ছবি থেকে QR স্ক্যান</span>
+            <input type="file" id="qrFileInput" accept="image/*" style="display:none;" onchange="handleQrFile(this)" title="QR Image File" aria-label="QR Image File">
+          </label>
+        </div>
+
+        <div id="qrScannerContainer" class="view-hidden" style="margin-bottom:14px; position:relative; background:#000; border-radius:12px; overflow:hidden; border:1px solid #06b6d4;">
+          <video id="qrVideo" style="width:100%; height:220px; object-fit:cover; display:block;"></video>
+          <div style="position:absolute; inset:20px; border:2px dashed #22d3ee; border-radius:8px; pointer-events:none;"></div>
+          <button class="btn-shutdown-link" style="position:absolute; top:8px; right:8px; padding:4px 8px; background:rgba(0,0,0,0.7);" onclick="stopQrScan()">
+            ✕ বন্ধ করুন
+          </button>
+        </div>
+
+        <!-- Manual IP / Port / PIN Form -->
+        <div class="form-group">
+          <label for="pcHostIpInput">পিসির আইপি এড্রেস (PC Host IP)</label>
+          <input type="text" id="pcHostIpInput" class="form-control" placeholder="192.168.31.163" value="192.168.31.163" title="PC Host IP" aria-label="PC Host IP">
+        </div>
+
+        <div class="form-group">
+          <label for="pcPortInput">পোর্ট (Port)</label>
+          <input type="number" id="pcPortInput" class="form-control" placeholder="8765" value="8765" title="Port" aria-label="Port">
+        </div>
+
+        <div class="form-group">
+          <label for="pcSecretKeyInput">সিকিউরিটি কোড (PIN / Secret Key)</label>
+          <input type="password" id="pcSecretKeyInput" class="form-control" placeholder="JARVIS-CORE-77" value="JARVIS-CORE-77" title="Security PIN Secret Key" aria-label="Security PIN Secret Key">
+        </div>
+
+        <button class="btn-primary" id="btnPairWithPc" onclick="pairWithPcManual()">
+          <span>🔗 পিসির সাথে পেয়ার ও কানেক্ট করুন</span>
+        </button>
+      </div>
+
+      <!-- Paired Mode Controls: Live PC Screen & Remote Command -->
+      <div class="settings-section-card" id="pairedControlSection">
+        <div class="section-title">
+          <i>🖥️</i>
+          <span>PC LIVE SCREEN & CONTROLS</span>
+        </div>
+
+        <!-- PC Screen Box -->
+        <div style="background: rgba(2, 6, 23, 0.9); border: 1px solid rgba(6, 182, 212, 0.3); border-radius: 12px; padding: 10px; margin-bottom: 14px; text-align: center;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <span style="font-size:12px; font-weight:700; color:#38bdf8;">🖥️ পিসির লাইভ স্ক্রিন প্রিভিউ</span>
+            <button class="badge-green" style="cursor:pointer;" onclick="fetchPcScreenNow()">🔄 রিফ্রেশ স্ক্রিন</button>
+          </div>
+          <div id="pcScreenWrapper" style="width:100%; min-height:160px; max-height:260px; background:#000; border-radius:8px; display:flex; align-items:center; justify-content:center; overflow:hidden; border:1px solid #1e293b;">
+            <img id="pcScreenImg" style="width:100%; height:auto; display:none; border-radius:8px;" alt="PC Screen">
+            <span id="pcScreenPlaceholder" style="font-size:12px; color:#64748b; padding:20px;">
+              স্ক্রিন দেখতে উপরের 'রিফ্রেশ স্ক্রিন' চাপুন (পিসি পেয়ার্ড থাকা আবশ্যক)
+            </span>
+          </div>
+        </div>
+
+        <!-- Remote PC Actions Grid -->
+        <label style="font-size:11px; text-transform:uppercase; color:#94a3b8; font-weight:700; margin-bottom:8px; display:block;">
+          মোবাইল দিয়ে পিসি রিমোট অ্যাকশন
+        </label>
+        <div class="quick-actions-grid" style="margin-top:0;">
+          <div class="action-chip" onclick="sendPcAction('lock_pc')">
+            <i>🔒</i>
+            <span>Lock PC</span>
+          </div>
+          <div class="action-chip" onclick="sendPcAction('sleep_pc')">
+            <i>💤</i>
+            <span>Sleep PC</span>
+          </div>
+          <div class="action-chip" onclick="sendPcAction('shutdown_pc')">
+            <i>🛑</i>
+            <span>Shutdown</span>
+          </div>
+          <div class="action-chip" onclick="sendPcAction('media_play_pause')">
+            <i>⏯️</i>
+            <span>Play/Pause</span>
+          </div>
+          <div class="action-chip" onclick="sendPcAction('volume_up')">
+            <i>🔊</i>
+            <span>Vol Up</span>
+          </div>
+          <div class="action-chip" onclick="sendPcAction('volume_down')">
+            <i>🔉</i>
+            <span>Vol Down</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 5: SETTINGS & API KEYS (FULL CONFIG)   -->
+    <!-- ========================================== -->
+    <section class="tab-content" id="tab-settings">
+      <!-- Profile Identity Section -->
+      <div class="settings-section-card">
+        <div class="section-title">
+          <i>👤</i>
+          <span>USER & ASSISTANT IDENTITY</span>
+        </div>
+
+        <div class="form-group">
+          <label for="cfgUserName">User Name</label>
+          <input type="text" id="cfgUserName" class="form-control" placeholder="ALAMIN" title="User Name" aria-label="User Name">
+        </div>
+
+        <div class="form-group">
+          <label for="cfgAssistantName">Assistant Name</label>
+          <input type="text" id="cfgAssistantName" class="form-control" placeholder="Jarvis" title="Assistant Name" aria-label="Assistant Name">
+        </div>
+      </div>
+
+      <!-- Cloud API Keys Section -->
+      <div class="settings-section-card">
+        <div class="section-title">
+          <i>🔑</i>
+          <span>SECURE LOCAL API KEYS</span>
+          <span class="auto-save-tag">⚡ অটো-সেভ সক্রিয়</span>
+        </div>
+        <p style="font-size:11px; color:#94a3b8; margin-bottom:12px; line-height:1.5;">
+          🔒 <strong>নিরাপত্তা বার্তা:</strong> আপনার দেওয়া সকল API কী এই ডিভাইসে সুরক্ষিতভাবে লোকাল স্টোরেজে স্বয়ংক্রিয়ভাবে সেভ থাকে। কোনো কী কোথাও হার্ডকোড বা শেয়ার হয় না। দেখতে 👁️ আইকনে চাপুন।
+        </p>
+
+        <div class="form-group">
+          <label for="cfgGoogleKey">Google Gemini API Key</label>
+          <div class="input-toggle-group">
+            <input type="password" id="cfgGoogleKey" class="form-control" placeholder="AIzaSy... (Enter your Google Gemini API Key)" oninput="triggerAutoSave()" title="Google Gemini API Key" aria-label="Google Gemini API Key">
+            <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgGoogleKey')" title="Show/Hide">👁️</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="cfgOpenAiKey">OpenAI API Key</label>
+          <div class="input-toggle-group">
+            <input type="password" id="cfgOpenAiKey" class="form-control" placeholder="sk-proj-... (Enter your OpenAI API Key)" oninput="triggerAutoSave()" title="OpenAI API Key" aria-label="OpenAI API Key">
+            <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgOpenAiKey')" title="Show/Hide">👁️</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="cfgLiveKitUrl">LiveKit Cloud Server URL</label>
+          <input type="text" id="cfgLiveKitUrl" class="form-control" placeholder="wss://...livekit.cloud" oninput="triggerAutoSave()" title="LiveKit Cloud Server URL" aria-label="LiveKit Cloud Server URL">
+        </div>
+
+        <div class="form-group">
+          <label for="cfgLiveKitKey">LiveKit API Key</label>
+          <input type="text" id="cfgLiveKitKey" class="form-control" placeholder="API... (Enter your LiveKit Key)" oninput="triggerAutoSave()" title="LiveKit API Key" aria-label="LiveKit API Key">
+        </div>
+
+        <div class="form-group">
+          <label for="cfgLiveKitSecret">LiveKit API Secret</label>
+          <div class="input-toggle-group">
+            <input type="password" id="cfgLiveKitSecret" class="form-control" placeholder="Enter your LiveKit Secret" oninput="triggerAutoSave()" title="LiveKit API Secret" aria-label="LiveKit API Secret">
+            <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgLiveKitSecret')" title="Show/Hide">👁️</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="cfgMem0Key">Mem0 Long-Term Memory Key (Optional)</label>
+          <div class="input-toggle-group">
+            <input type="password" id="cfgMem0Key" class="form-control" placeholder="m0-... (Optional)" oninput="triggerAutoSave()" title="Mem0 Long-Term Memory Key" aria-label="Mem0 Long-Term Memory Key">
+            <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgMem0Key')" title="Show/Hide">👁️</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="cfgGoogleSearchKey">Google Search Key (Optional)</label>
+          <div class="input-toggle-group">
+            <input type="password" id="cfgGoogleSearchKey" class="form-control" placeholder="Search API Key (Optional)" oninput="triggerAutoSave()" title="Google Search Key" aria-label="Google Search Key">
+            <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgGoogleSearchKey')" title="Show/Hide">👁️</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="cfgSearchEngineId">Search Engine ID (CX) (Optional)</label>
+          <input type="text" id="cfgSearchEngineId" class="form-control" placeholder="Search Engine ID CX (Optional)" oninput="triggerAutoSave()" title="Search Engine ID CX" aria-label="Search Engine ID CX">
+        </div>
+
+        <div class="form-group">
+          <label for="cfgOpenWeatherKey">OpenWeather API Key (Optional)</label>
+          <div class="input-toggle-group">
+            <input type="password" id="cfgOpenWeatherKey" class="form-control" placeholder="OpenWeather Key (Optional)" oninput="triggerAutoSave()" title="OpenWeather API Key" aria-label="OpenWeather API Key">
+            <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgOpenWeatherKey')" title="Show/Hide">👁️</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="cfgXiaomiMimoKey">Xiaomi Mimo API Key (Optional)</label>
+          <div class="input-toggle-group">
+            <input type="password" id="cfgXiaomiMimoKey" class="form-control" placeholder="sk-... (Optional)" oninput="triggerAutoSave()" title="Xiaomi Mimo API Key" aria-label="Xiaomi Mimo API Key">
+            <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgXiaomiMimoKey')" title="Show/Hide">👁️</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="cfgElevenLabsKey">ElevenLabs Voice API Key (Optional)</label>
+          <div class="input-toggle-group">
+            <input type="password" id="cfgElevenLabsKey" class="form-control" placeholder="sk_... (Optional)" oninput="triggerAutoSave()" title="ElevenLabs Voice API Key" aria-label="ElevenLabs Voice API Key">
+            <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgElevenLabsKey')" title="Show/Hide">👁️</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="cfgElevenLabsVoiceId">ElevenLabs Voice ID (Optional)</label>
+          <input type="text" id="cfgElevenLabsVoiceId" class="form-control" placeholder="EXAVITQu4vr4xnSDxMaL (Default Aoede)" oninput="triggerAutoSave()" title="ElevenLabs Voice ID" aria-label="ElevenLabs Voice ID">
+        </div>
+      </div>
+
+      <!-- Mobile Permissions & 24/7 Engine -->
+      <div class="settings-section-card">
+        <div class="section-title">
+          <i>⚙️</i>
+          <span>24/7 SYSTEM PERMISSIONS</span>
+        </div>
+
+        <div class="switch-row">
+          <div class="switch-label-group">
+            <span class="switch-title">24/7 Background Service</span>
+            <span class="switch-subtitle" id="serviceStatusSub">Active (Foreground Mic & Wake Word)</span>
+          </div>
+          <label for="serviceToggle" class="toggle-switch">
+            <input type="checkbox" id="serviceToggle" checked onchange="onServiceToggleChanged(this.checked)" title="24/7 Background Service" aria-label="24/7 Background Service">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="switch-row">
+          <div class="switch-label-group">
+            <span class="switch-title">Accessibility Service</span>
+            <span class="switch-subtitle" id="accessibilityStatusSub">Checking...</span>
+          </div>
+          <button class="badge-green" id="btnGrantAccessibility" onclick="requestAccessibilityPermission()">ENABLE</button>
+        </div>
+
+        <div class="switch-row">
+          <div class="switch-label-group">
+            <span class="switch-title">Notification Listener</span>
+            <span class="switch-subtitle" id="notifStatusSub">Checking...</span>
+          </div>
+          <button class="badge-green" id="btnGrantNotifAccess" onclick="requestNotificationAccess()">ENABLE</button>
+        </div>
+
+        <div class="switch-row">
+          <div class="switch-label-group">
+            <span class="switch-title">Battery Optimization Whitelist</span>
+            <span class="switch-subtitle" id="batteryStatusSub">Checking...</span>
+          </div>
+          <button class="badge-green" id="btnIgnoreBattery" onclick="requestBatteryOptimization()">WHITELIST</button>
+        </div>
+      </div>
+
+      <!-- Save Configuration Button -->
+      <button class="btn-primary" onclick="saveConfiguration()">
+        <span>💾 SAVE ALL SETTINGS</span>
+      </button>
+    </section>
+
+  </main>
+
+  <!-- Persistent Bottom Cyberpunk Navigation Bar -->
+  <nav class="bottom-nav-bar">
+    <div class="nav-item active" id="nav-home" onclick="switchTab('home')">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      <span>Home</span>
+    </div>
+
+    <div class="nav-item" id="nav-pc-connect" onclick="switchTab('pc-connect')">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="20" height="14" x="2" y="3" rx="2"/>
+        <line x1="8" x2="16" y1="21" y2="21"/>
+        <line x1="12" x2="17" y1="21" y2="21"/>
+      </svg>
+      <span>PC Link</span>
+    </div>
+
+    <!-- Center Elevated Glowing Mic Button -->
+    <div class="center-mic-wrapper">
+      <div class="mic-pulsing-ring" id="micPulsingRing"></div>
+      <div class="center-mic-btn" id="centerMicBtn" onclick="toggleMicrophone()">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" x2="12" y1="19" y2="22"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="nav-item" id="nav-modes" onclick="switchTab('modes')">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="4"/>
+        <path d="M12 2v2"/>
+        <path d="M12 20v2"/>
+        <path d="m4.93 4.93 1.41 1.41"/>
+        <path d="m17.66 17.66 1.41 1.41"/>
+        <path d="M2 12h2"/>
+        <path d="M20 12h2"/>
+        <path d="m6.34 17.66-1.41 1.41"/>
+        <path d="m19.07 4.93-1.41 1.41"/>
+      </svg>
+      <span>Modes</span>
+    </div>
+
+    <div class="nav-item" id="nav-settings" onclick="switchTab('settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+        <circle cx="12" cy="12" r="3"/>
+      </svg>
+      <span>Settings</span>
+    </div>
+  </nav>
+
+  <!-- Notification Toast -->
+  <div class="toast-notice" id="toastNotice">Settings Saved Successfully</div>
+
+  <script src="app.js"></script>
+</body>
+</html>
