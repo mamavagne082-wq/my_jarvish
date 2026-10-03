@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>JARVIS // AI Mobile Companion</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -156,16 +156,16 @@
         </div>
 
         <div class="form-group">
-          <label>Primary LLM Provider</label>
-          <select id="modeProviderSelect" class="form-control select-control" onchange="onProviderSelectChanged()">
+          <label for="modeProviderSelect">Primary LLM Provider</label>
+          <select id="modeProviderSelect" class="form-control select-control" onchange="onProviderSelectChanged()" title="Primary LLM Provider" aria-label="Primary LLM Provider">
             <option value="google">Google Gemini (Native Audio Realtime)</option>
             <option value="openai">OpenAI (GPT-4o Realtime)</option>
           </select>
         </div>
 
         <div class="form-group">
-          <label>Voice Assistant Model</label>
-          <select id="modeModelSelect" class="form-control select-control">
+          <label for="modeModelSelect">Voice Assistant Model</label>
+          <select id="modeModelSelect" class="form-control select-control" title="Voice Assistant Model" aria-label="Voice Assistant Model">
             <option value="gemini-3.8-live">Gemini 3.8 Live (Ultra-low Latency)</option>
             <option value="gemini-2.5-flash-native-audio-preview-12-2025">Gemini 2.5 Flash Native Audio</option>
             <option value="gpt-4o-realtime-preview">GPT-4o Realtime Preview</option>
@@ -181,18 +181,18 @@
         </div>
 
         <div class="form-group">
-          <label>Screen Vision & OCR</label>
-          <input type="text" class="form-control" value="Gemini 3.8 Flash Vision (Automated)" readonly>
+          <label for="screenVisionInput">Screen Vision & OCR</label>
+          <input type="text" id="screenVisionInput" class="form-control" value="Gemini 3.8 Flash Vision (Automated)" readonly title="Screen Vision & OCR" aria-label="Screen Vision & OCR">
         </div>
 
         <div class="form-group">
-          <label>Coding & Reasoning</label>
-          <input type="text" class="form-control" value="Gemini 3.8 Flash / Mimo v2.6" readonly>
+          <label for="codingReasoningInput">Coding & Reasoning</label>
+          <input type="text" id="codingReasoningInput" class="form-control" value="Gemini 3.8 Flash / Mimo v2.6" readonly title="Coding & Reasoning" aria-label="Coding & Reasoning">
         </div>
 
         <div class="form-group">
-          <label>Survey Auto-Tapper</label>
-          <input type="text" class="form-control" value="Closed-Loop Accessibility Engine" readonly>
+          <label for="surveyAutoTapperInput">Survey Auto-Tapper</label>
+          <input type="text" id="surveyAutoTapperInput" class="form-control" value="Closed-Loop Accessibility Engine" readonly title="Survey Auto-Tapper" aria-label="Survey Auto-Tapper">
         </div>
       </div>
     </section>
@@ -208,8 +208,8 @@
         </div>
 
         <div class="form-group">
-          <label>Holographic Theme</label>
-          <select id="auraThemeSelect" class="form-control select-control" onchange="changeOrbTheme(this.value)">
+          <label for="auraThemeSelect">Holographic Theme</label>
+          <select id="auraThemeSelect" class="form-control select-control" onchange="changeOrbTheme(this.value)" title="Holographic Theme" aria-label="Holographic Theme">
             <option value="neon">Neon Cyan (Default Jarvis HUD)</option>
             <option value="arc">Arc Reactor (Stark Blue & White)</option>
             <option value="purple">Obsidian Purple (Cosmic Nebula)</option>
@@ -223,8 +223,8 @@
             <span class="switch-title">Particle Aura Waves</span>
             <span class="switch-subtitle">Simulate real-time energetic field</span>
           </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="auraParticlesToggle" checked onchange="toggleParticles(this.checked)">
+          <label for="auraParticlesToggle" class="toggle-switch">
+            <input type="checkbox" id="auraParticlesToggle" checked onchange="toggleParticles(this.checked)" title="Particle Aura Waves" aria-label="Particle Aura Waves">
             <span class="slider"></span>
           </label>
         </div>
@@ -232,10 +232,10 @@
         <div class="switch-row">
           <div class="switch-label-group">
             <span class="switch-title">Audio Spectrum Dynamics</span>
-            <span class="switch-subtitle">Orb expands with voice frequency</span>
+            <span class="switch-subtitle" id="auraAudioDynamicsSub">Orb expands with voice frequency</span>
           </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="auraAudioDynamics" checked>
+          <label for="auraAudioDynamics" class="toggle-switch">
+            <input type="checkbox" id="auraAudioDynamics" checked title="Audio Spectrum Dynamics" aria-label="Audio Spectrum Dynamics">
             <span class="slider"></span>
           </label>
         </div>
@@ -296,9 +296,9 @@
           <button class="btn-primary" style="flex:1;" onclick="startQrScan()">
             <span>📷 QR কোড স্ক্যান করুন</span>
           </button>
-          <label class="btn-secondary" style="flex:1; margin-bottom:0; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+          <label for="qrFileInput" class="btn-secondary" style="flex:1; margin-bottom:0; display:flex; align-items:center; justify-content:center; cursor:pointer;">
             <span>📁 ছবি থেকে QR স্ক্যান</span>
-            <input type="file" id="qrFileInput" accept="image/*" style="display:none;" onchange="handleQrFile(this)">
+            <input type="file" id="qrFileInput" accept="image/*" style="display:none;" onchange="handleQrFile(this)" title="QR Image File" aria-label="QR Image File">
           </label>
         </div>
 
@@ -312,18 +312,18 @@
 
         <!-- Manual IP / Port / PIN Form -->
         <div class="form-group">
-          <label>পিসির আইপি এড্রেস (PC Host IP)</label>
-          <input type="text" id="pcHostIpInput" class="form-control" placeholder="192.168.31.163" value="192.168.31.163">
+          <label for="pcHostIpInput">পিসির আইপি এড্রেস (PC Host IP)</label>
+          <input type="text" id="pcHostIpInput" class="form-control" placeholder="192.168.31.163" value="192.168.31.163" title="PC Host IP" aria-label="PC Host IP">
         </div>
 
         <div class="form-group">
-          <label>পোর্ট (Port)</label>
-          <input type="number" id="pcPortInput" class="form-control" placeholder="8765" value="8765">
+          <label for="pcPortInput">পোর্ট (Port)</label>
+          <input type="number" id="pcPortInput" class="form-control" placeholder="8765" value="8765" title="Port" aria-label="Port">
         </div>
 
         <div class="form-group">
-          <label>সিকিউরিটি কোড (PIN / Secret Key)</label>
-          <input type="password" id="pcSecretKeyInput" class="form-control" placeholder="JARVIS-CORE-77" value="JARVIS-CORE-77">
+          <label for="pcSecretKeyInput">সিকিউরিটি কোড (PIN / Secret Key)</label>
+          <input type="password" id="pcSecretKeyInput" class="form-control" placeholder="JARVIS-CORE-77" value="JARVIS-CORE-77" title="Security PIN Secret Key" aria-label="Security PIN Secret Key">
         </div>
 
         <button class="btn-primary" id="btnPairWithPc" onclick="pairWithPcManual()">
@@ -397,13 +397,13 @@
         </div>
 
         <div class="form-group">
-          <label>User Name</label>
-          <input type="text" id="cfgUserName" class="form-control" placeholder="ALAMIN">
+          <label for="cfgUserName">User Name</label>
+          <input type="text" id="cfgUserName" class="form-control" placeholder="ALAMIN" title="User Name" aria-label="User Name">
         </div>
 
         <div class="form-group">
-          <label>Assistant Name</label>
-          <input type="text" id="cfgAssistantName" class="form-control" placeholder="Jarvis">
+          <label for="cfgAssistantName">Assistant Name</label>
+          <input type="text" id="cfgAssistantName" class="form-control" placeholder="Jarvis" title="Assistant Name" aria-label="Assistant Name">
         </div>
       </div>
 
@@ -412,69 +412,94 @@
         <div class="section-title">
           <i>🔑</i>
           <span>SECURE LOCAL API KEYS</span>
+          <span class="auto-save-tag">⚡ অটো-সেভ সক্রিয়</span>
         </div>
         <p style="font-size:11px; color:#94a3b8; margin-bottom:12px; line-height:1.5;">
-          🔒 <strong>নিরাপত্তা বার্তা:</strong> আপনার দেওয়া সকল API কী এই ডিভাইসে সুরক্ষিতভাবে লোকাল স্টোরেজে সেভ থাকে। কোনো কী কোথাও হার্ডকোড বা শেয়ার হয় না।
+          🔒 <strong>নিরাপত্তা বার্তা:</strong> আপনার দেওয়া সকল API কী এই ডিভাইসে সুরক্ষিতভাবে লোকাল স্টোরেজে স্বয়ংক্রিয়ভাবে সেভ থাকে। কোনো কী কোথাও হার্ডকোড বা শেয়ার হয় না। দেখতে 👁️ আইকনে চাপুন।
         </p>
 
         <div class="form-group">
-          <label>Google Gemini API Key</label>
-          <input type="password" id="cfgGoogleKey" class="form-control" placeholder="AIzaSy... (Enter your Google Gemini API Key)">
+          <label for="cfgGoogleKey">Google Gemini API Key</label>
+          <div class="input-toggle-group">
+            <input type="password" id="cfgGoogleKey" class="form-control" placeholder="AIzaSy... (Enter your Google Gemini API Key)" oninput="triggerAutoSave()" title="Google Gemini API Key" aria-label="Google Gemini API Key">
+            <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgGoogleKey')" title="Show/Hide">👁️</button>
+          </div>
         </div>
 
         <div class="form-group">
-          <label>OpenAI API Key</label>
-          <input type="password" id="cfgOpenAiKey" class="form-control" placeholder="sk-proj-... (Enter your OpenAI API Key)">
+          <label for="cfgOpenAiKey">OpenAI API Key</label>
+          <div class="input-toggle-group">
+            <input type="password" id="cfgOpenAiKey" class="form-control" placeholder="sk-proj-... (Enter your OpenAI API Key)" oninput="triggerAutoSave()" title="OpenAI API Key" aria-label="OpenAI API Key">
+            <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgOpenAiKey')" title="Show/Hide">👁️</button>
+          </div>
         </div>
 
         <div class="form-group">
-          <label>LiveKit Cloud Server URL</label>
-          <input type="text" id="cfgLiveKitUrl" class="form-control" placeholder="wss://...livekit.cloud">
+          <label for="cfgLiveKitUrl">LiveKit Cloud Server URL</label>
+          <input type="text" id="cfgLiveKitUrl" class="form-control" placeholder="wss://...livekit.cloud" oninput="triggerAutoSave()" title="LiveKit Cloud Server URL" aria-label="LiveKit Cloud Server URL">
         </div>
 
         <div class="form-group">
-          <label>LiveKit API Key</label>
-          <input type="text" id="cfgLiveKitKey" class="form-control" placeholder="API... (Enter your LiveKit Key)">
+          <label for="cfgLiveKitKey">LiveKit API Key</label>
+          <input type="text" id="cfgLiveKitKey" class="form-control" placeholder="API... (Enter your LiveKit Key)" oninput="triggerAutoSave()" title="LiveKit API Key" aria-label="LiveKit API Key">
         </div>
 
         <div class="form-group">
-          <label>LiveKit API Secret</label>
-          <input type="password" id="cfgLiveKitSecret" class="form-control" placeholder="Enter your LiveKit Secret">
+          <label for="cfgLiveKitSecret">LiveKit API Secret</label>
+          <div class="input-toggle-group">
+            <input type="password" id="cfgLiveKitSecret" class="form-control" placeholder="Enter your LiveKit Secret" oninput="triggerAutoSave()" title="LiveKit API Secret" aria-label="LiveKit API Secret">
+            <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgLiveKitSecret')" title="Show/Hide">👁️</button>
+          </div>
         </div>
 
         <div class="form-group">
-          <label>Mem0 Long-Term Memory Key (Optional)</label>
-          <input type="password" id="cfgMem0Key" class="form-control" placeholder="m0-... (Optional)">
+          <label for="cfgMem0Key">Mem0 Long-Term Memory Key (Optional)</label>
+          <div class="input-toggle-group">
+            <input type="password" id="cfgMem0Key" class="form-control" placeholder="m0-... (Optional)" oninput="triggerAutoSave()" title="Mem0 Long-Term Memory Key" aria-label="Mem0 Long-Term Memory Key">
+            <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgMem0Key')" title="Show/Hide">👁️</button>
+          </div>
         </div>
 
         <div class="form-group">
-          <label>Google Search Key (Optional)</label>
-          <input type="password" id="cfgGoogleSearchKey" class="form-control" placeholder="Search API Key (Optional)">
+          <label for="cfgGoogleSearchKey">Google Search Key (Optional)</label>
+          <div class="input-toggle-group">
+            <input type="password" id="cfgGoogleSearchKey" class="form-control" placeholder="Search API Key (Optional)" oninput="triggerAutoSave()" title="Google Search Key" aria-label="Google Search Key">
+            <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgGoogleSearchKey')" title="Show/Hide">👁️</button>
+          </div>
         </div>
 
         <div class="form-group">
-          <label>Search Engine ID (CX) (Optional)</label>
-          <input type="text" id="cfgSearchEngineId" class="form-control" placeholder="Search Engine ID CX (Optional)">
+          <label for="cfgSearchEngineId">Search Engine ID (CX) (Optional)</label>
+          <input type="text" id="cfgSearchEngineId" class="form-control" placeholder="Search Engine ID CX (Optional)" oninput="triggerAutoSave()" title="Search Engine ID CX" aria-label="Search Engine ID CX">
         </div>
 
         <div class="form-group">
-          <label>OpenWeather API Key (Optional)</label>
-          <input type="password" id="cfgOpenWeatherKey" class="form-control" placeholder="OpenWeather Key (Optional)">
+          <label for="cfgOpenWeatherKey">OpenWeather API Key (Optional)</label>
+          <div class="input-toggle-group">
+            <input type="password" id="cfgOpenWeatherKey" class="form-control" placeholder="OpenWeather Key (Optional)" oninput="triggerAutoSave()" title="OpenWeather API Key" aria-label="OpenWeather API Key">
+            <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgOpenWeatherKey')" title="Show/Hide">👁️</button>
+          </div>
         </div>
 
         <div class="form-group">
-          <label>Xiaomi Mimo API Key (Optional)</label>
-          <input type="password" id="cfgXiaomiMimoKey" class="form-control" placeholder="sk-... (Optional)">
+          <label for="cfgXiaomiMimoKey">Xiaomi Mimo API Key (Optional)</label>
+          <div class="input-toggle-group">
+            <input type="password" id="cfgXiaomiMimoKey" class="form-control" placeholder="sk-... (Optional)" oninput="triggerAutoSave()" title="Xiaomi Mimo API Key" aria-label="Xiaomi Mimo API Key">
+            <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgXiaomiMimoKey')" title="Show/Hide">👁️</button>
+          </div>
         </div>
 
         <div class="form-group">
-          <label>ElevenLabs Voice API Key (Optional)</label>
-          <input type="password" id="cfgElevenLabsKey" class="form-control" placeholder="sk_... (Optional)">
+          <label for="cfgElevenLabsKey">ElevenLabs Voice API Key (Optional)</label>
+          <div class="input-toggle-group">
+            <input type="password" id="cfgElevenLabsKey" class="form-control" placeholder="sk_... (Optional)" oninput="triggerAutoSave()" title="ElevenLabs Voice API Key" aria-label="ElevenLabs Voice API Key">
+            <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgElevenLabsKey')" title="Show/Hide">👁️</button>
+          </div>
         </div>
 
         <div class="form-group">
-          <label>ElevenLabs Voice ID (Optional)</label>
-          <input type="text" id="cfgElevenLabsVoiceId" class="form-control" placeholder="EXAVITQu4vr4xnSDxMaL (Default Aoede)">
+          <label for="cfgElevenLabsVoiceId">ElevenLabs Voice ID (Optional)</label>
+          <input type="text" id="cfgElevenLabsVoiceId" class="form-control" placeholder="EXAVITQu4vr4xnSDxMaL (Default Aoede)" oninput="triggerAutoSave()" title="ElevenLabs Voice ID" aria-label="ElevenLabs Voice ID">
         </div>
       </div>
 
@@ -490,8 +515,8 @@
             <span class="switch-title">24/7 Background Service</span>
             <span class="switch-subtitle" id="serviceStatusSub">Active (Foreground Mic & Wake Word)</span>
           </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="serviceToggle" checked onchange="onServiceToggleChanged(this.checked)">
+          <label for="serviceToggle" class="toggle-switch">
+            <input type="checkbox" id="serviceToggle" checked onchange="onServiceToggleChanged(this.checked)" title="24/7 Background Service" aria-label="24/7 Background Service">
             <span class="slider"></span>
           </label>
         </div>
@@ -502,6 +527,14 @@
             <span class="switch-subtitle" id="accessibilityStatusSub">Checking...</span>
           </div>
           <button class="badge-green" id="btnGrantAccessibility" onclick="requestAccessibilityPermission()">ENABLE</button>
+        </div>
+
+        <div class="switch-row">
+          <div class="switch-label-group">
+            <span class="switch-title">Notification Listener</span>
+            <span class="switch-subtitle" id="notifStatusSub">Checking...</span>
+          </div>
+          <button class="badge-green" id="btnGrantNotifAccess" onclick="requestNotificationAccess()">ENABLE</button>
         </div>
 
         <div class="switch-row">

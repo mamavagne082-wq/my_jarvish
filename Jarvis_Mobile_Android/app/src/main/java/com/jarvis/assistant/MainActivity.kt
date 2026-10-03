@@ -235,10 +235,11 @@ class MainActivity : AppCompatActivity() {
         val isAccEnabled = isAccessibilityEnabled()
         val isBatIgnored = isBatteryOptimizationIgnored()
         val isSessionActive = JarvisForegroundService.isSessionActive
+        val isNotifEnabled = isNotificationListenerEnabled()
 
         webView.post {
             webView.evaluateJavascript(
-                "if (window.updateServiceStatus) window.updateServiceStatus($isServiceRunning, $isAccEnabled, $isBatIgnored, $isSessionActive);",
+                "if (window.updateServiceStatus) window.updateServiceStatus($isServiceRunning, $isAccEnabled, $isBatIgnored, $isSessionActive, $isNotifEnabled);",
                 null
             )
         }
@@ -309,6 +310,15 @@ class MainActivity : AppCompatActivity() {
             return pm.isIgnoringBatteryOptimizations(packageName)
         }
         return true
+    }
+
+    fun isNotificationListenerEnabled(): Boolean {
+        return try {
+            val flat = Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
+            flat != null && flat.contains(packageName)
+        } catch (_: Exception) {
+            false
+        }
     }
 
     fun requestIgnoreBatteryOptimization() {
@@ -426,6 +436,7 @@ class MainActivity : AppCompatActivity() {
                 put("sessionActive", JarvisForegroundService.isSessionActive)
                 put("accessibilityEnabled", activity.isAccessibilityEnabled())
                 put("batteryIgnored", activity.isBatteryOptimizationIgnored())
+                put("notificationListenerEnabled", activity.isNotificationListenerEnabled())
             }
             return status.toString()
         }
@@ -454,6 +465,26 @@ class MainActivity : AppCompatActivity() {
             activity.runOnUiThread {
                 activity.requestIgnoreBatteryOptimization()
             }
+        }
+
+        @JavascriptInterface
+        fun openNotificationListenerSettings() {
+            activity.runOnUiThread {
+                try {
+                    val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    activity.startActivity(intent)
+                    Toast.makeText(activity, "Jarvis Assistant-কে Notification Access অন করুন", Toast.LENGTH_LONG).show()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error opening notification listener settings: ${e.message}")
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun isNotificationListenerEnabled(): Boolean {
+            return activity.isNotificationListenerEnabled()
         }
 
         @JavascriptInterface
@@ -657,6 +688,7 @@ class MainActivity : AppCompatActivity() {
                             MobileConfig.setPcPort(activity, safePort)
                             MobileConfig.setPcSecret(activity, safeSecret)
                             MobileConfig.setPcPaired(activity, true)
+                            JarvisForegroundService.instance?.sendPlatformIdentify(true)
                             withContext(Dispatchers.Main) {
                                 Toast.makeText(activity, "✅ পিসির সাথে সফলভাবে কানেক্ট ও পেয়ার হয়েছে!", Toast.LENGTH_LONG).show()
                                 activity.webView.evaluateJavascript("if (window.onPcPairStatusChanged) window.onPcPairStatusChanged(true, '$safeIp:$safePort', '${resp.optString("pc_name", "PC")}');", null)
@@ -683,6 +715,7 @@ class MainActivity : AppCompatActivity() {
             val ip = MobileConfig.getPcIp(activity)
             val port = MobileConfig.getPcPort(activity)
             MobileConfig.setPcPaired(activity, false)
+            JarvisForegroundService.instance?.sendPlatformIdentify(false)
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     val url = java.net.URL("http://$ip:$port/unpair")

@@ -1,5 +1,28 @@
 {
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
     "python-envs.defaultEnvManager": "ms-python.python:system",
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/Jarvis/Jarvis_code",
+        "${workspaceFolder}/Jarvis",
+        "${workspaceFolder}"
+    ],
+    "python.autoComplete.extraPaths": [
+        "${workspaceFolder}/Jarvis/Jarvis_code",
+        "${workspaceFolder}/Jarvis",
+        "${workspaceFolder}"
+    ],
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportMissingImports": "none",
+        "reportMissingModuleSource": "none",
+        "reportGeneralTypeIssues": "none",
+        "reportOptionalMemberAccess": "none",
+        "reportAttributeAccessIssue": "none",
+        "reportArgumentType": "none",
+        "reportCallIssue": "none"
+    },
+    "vscode-edge-devtools.webhint": false,
+    "html.validate.scripts": false,
+    "html.validate.styles": false,
     "css.lint.unknownAtRules": "ignore",
     "gradle.nestedProjects": true
 }

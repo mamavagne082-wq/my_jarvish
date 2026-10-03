@@ -22,6 +22,8 @@ import android.os.SystemClock
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import io.livekit.android.LiveKit
@@ -86,6 +88,55 @@ class JarvisForegroundService : Service() {
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to send data packet: ${e.message}")
             }
+        }
+    }
+
+    /**
+     * Publishes platform identity to Jarvis Agent (Mobile standalone vs PC Paired).
+     */
+    fun sendPlatformIdentify(isPairedOverride: Boolean? = null) {
+        val isPaired = isPairedOverride ?: MobileConfig.isPcPaired(this)
+        val identifyPayload = JSONObject().apply {
+            put("type", "PLATFORM_IDENTIFY")
+            put("platform", if (isPaired) "paired" else "mobile")
+            put("paired", isPaired)
+        }
+        sendDataPacket(identifyPayload)
+        Log.i(TAG, "Dispatched PLATFORM_IDENTIFY packet: platform=${if (isPaired) "paired" else "mobile"}, paired=$isPaired")
+    }
+
+    // ── Local Text-To-Speech for Proactive Verbal Announcements ──────────
+    private var textToSpeech: TextToSpeech? = null
+    private var ttsReady = false
+
+    private fun initLocalTTS() {
+        try {
+            textToSpeech = TextToSpeech(applicationContext) { status ->
+                if (status == TextToSpeech.SUCCESS) {
+                    ttsReady = true
+                    try {
+                        val bn = Locale("bn", "BD")
+                        if (textToSpeech?.isLanguageAvailable(bn) == TextToSpeech.LANG_AVAILABLE) {
+                            textToSpeech?.language = bn
+                        }
+                    } catch (_: Exception) {}
+                    Log.d(TAG, "Local TextToSpeech initialized successfully")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not initialize local TTS: ${e.message}")
+        }
+    }
+
+    fun speakTextLocally(text: String) {
+        if (!ttsReady || textToSpeech == null) return
+        try {
+            val params = Bundle().apply {
+                putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_VOICE_CALL)
+            }
+            textToSpeech?.speak(text, TextToSpeech.QUEUE_ADD, params, "jarvis_tts_${System.currentTimeMillis()}")
+        } catch (e: Exception) {
+            Log.w(TAG, "speakTextLocally error: ${e.message}")
         }
     }
 
@@ -203,6 +254,7 @@ class JarvisForegroundService : Service() {
         createNotificationChannel()
         acquireWakeLock()
         registerScreenStateReceiver()
+        initLocalTTS()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -280,6 +332,12 @@ class JarvisForegroundService : Service() {
         unregisterScreenStateReceiver()
         disconnectLiveKit()
         releaseWakeLock()
+        try {
+            textToSpeech?.stop()
+            textToSpeech?.shutdown()
+        } catch (_: Exception) {}
+        textToSpeech = null
+        ttsReady = false
 
         // ── Hide floating overlay ─────────────────────────────────────────
         try {
@@ -431,18 +489,8 @@ class JarvisForegroundService : Service() {
                                 room.localParticipant.setMicrophoneEnabled(true)
                                 applyLoudspeakerSettings()
 
-                                // Send platform identity to Jarvis Agent
-                                try {
-                                    val identifyPayload = JSONObject().apply {
-                                        put("type", "PLATFORM_IDENTIFY")
-                                        put("platform", "mobile")
-                                    }.toString().toByteArray(Charsets.UTF_8)
-                                    serviceScope.launch {
-                                        room.localParticipant.publishData(identifyPayload)
-                                    }
-                                } catch (e: Exception) {
-                                    Log.w(TAG, "Failed to send platform identify: ${e.message}")
-                                }
+                                // Send platform identity to Jarvis Agent (Mobile vs Paired)
+                                sendPlatformIdentify()
 
                                 sendBroadcast(Intent(ACTION_SESSION_STATE_CHANGED).apply {
                                     setPackage(packageName)

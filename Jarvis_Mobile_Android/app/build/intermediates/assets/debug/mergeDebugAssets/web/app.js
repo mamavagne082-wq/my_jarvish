@@ -76,6 +76,11 @@ function switchTab(tabId) {
   const navItem = document.getElementById(`nav-${tabId}`);
   if (navItem) navItem.classList.add('active');
 
+  // If opening settings, reload latest saved configuration
+  if (tabId === 'settings') {
+    loadConfiguration();
+  }
+
   // Notify native of user activity
   callNative('resetIdleTimer');
 }
@@ -455,78 +460,126 @@ function callNative(method, ...args) {
   return null;
 }
 
+// Safe DOM field setter & getter helpers
+function setFieldVal(id, val) {
+  try {
+    const el = document.getElementById(id);
+    if (el && val !== undefined && val !== null) {
+      el.value = val;
+    }
+  } catch (_) {}
+}
+
+function getFieldVal(id, fallback = '') {
+  try {
+    const el = document.getElementById(id);
+    return (el && el.value !== undefined) ? el.value.trim() : fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
 function loadConfiguration() {
   try {
     const raw = callNative('getConfig');
     if (!raw) return;
     const cfg = JSON.parse(raw);
 
-    if (cfg.user_name) document.getElementById('cfgUserName').value = cfg.user_name;
-    if (cfg.assistant_name) document.getElementById('cfgAssistantName').value = cfg.assistant_name;
-    if (cfg.llm_provider) document.getElementById('modeProviderSelect').value = cfg.llm_provider;
-    if (cfg.llm_model) document.getElementById('modeModelSelect').value = cfg.llm_model;
+    setFieldVal('cfgUserName', cfg.user_name || 'ALAMIN');
+    setFieldVal('cfgAssistantName', cfg.assistant_name || 'Jarvis');
+    if (cfg.llm_provider) setFieldVal('modeProviderSelect', cfg.llm_provider);
+    if (cfg.llm_model) setFieldVal('modeModelSelect', cfg.llm_model);
     if (cfg.orb_theme) {
-      document.getElementById('auraThemeSelect').value = cfg.orb_theme;
+      setFieldVal('auraThemeSelect', cfg.orb_theme);
       state.orbTheme = cfg.orb_theme;
     }
-    if (cfg.pc_host) document.getElementById('pcHostInput').value = cfg.pc_host;
+    if (cfg.pc_host) {
+      setFieldVal('pcHostIpInput', cfg.pc_host.split(':')[0]);
+      if (cfg.pc_host.includes(':')) {
+        setFieldVal('pcPortInput', cfg.pc_host.split(':')[1]);
+      }
+    }
 
     const keys = cfg.api_keys || {};
-    if (keys.google) document.getElementById('cfgGoogleKey').value = keys.google;
-    if (keys.openai) document.getElementById('cfgOpenAiKey').value = keys.openai;
-    if (keys.livekit_url) document.getElementById('cfgLiveKitUrl').value = keys.livekit_url;
-    if (keys.livekit_key) document.getElementById('cfgLiveKitKey').value = keys.livekit_key;
-    if (keys.livekit_secret) document.getElementById('cfgLiveKitSecret').value = keys.livekit_secret;
-    if (keys.mem0) document.getElementById('cfgMem0Key').value = keys.mem0;
-    if (keys.google_search) document.getElementById('cfgGoogleSearchKey').value = keys.google_search;
-    if (keys.search_engine_id) document.getElementById('cfgSearchEngineId').value = keys.search_engine_id;
-    if (keys.openweather) document.getElementById('cfgOpenWeatherKey').value = keys.openweather;
-    if (keys.xiaomi_mimo) document.getElementById('cfgXiaomiMimoKey').value = keys.xiaomi_mimo;
-    if (keys.elevenlabs) document.getElementById('cfgElevenLabsKey').value = keys.elevenlabs;
-    if (keys.elevenlabs_voice_id) document.getElementById('cfgElevenLabsVoiceId').value = keys.elevenlabs_voice_id;
+    setFieldVal('cfgGoogleKey', keys.google || keys.google_key || '');
+    setFieldVal('cfgOpenAiKey', keys.openai || keys.openai_key || '');
+    setFieldVal('cfgLiveKitUrl', keys.livekit_url || '');
+    setFieldVal('cfgLiveKitKey', keys.livekit_key || '');
+    setFieldVal('cfgLiveKitSecret', keys.livekit_secret || '');
+    setFieldVal('cfgMem0Key', keys.mem0 || keys.mem0_key || '');
+    setFieldVal('cfgGoogleSearchKey', keys.google_search || keys.google_search_key || '');
+    setFieldVal('cfgSearchEngineId', keys.search_engine_id || '');
+    setFieldVal('cfgOpenWeatherKey', keys.openweather || keys.openweather_key || '');
+    setFieldVal('cfgXiaomiMimoKey', keys.xiaomi_mimo || keys.xiaomi_mimo_key || '');
+    setFieldVal('cfgElevenLabsKey', keys.elevenlabs || keys.elevenlabs_key || '');
+    setFieldVal('cfgElevenLabsVoiceId', keys.elevenlabs_voice_id || '');
 
     // Load initial PC Pairing Status
     try {
       const pairStatusRaw = callNative('getPcPairingStatus');
       if (pairStatusRaw) {
         const pStatus = JSON.parse(pairStatusRaw);
-        if (pStatus.ip) document.getElementById('pcHostIpInput').value = pStatus.ip;
-        if (pStatus.port) document.getElementById('pcPortInput').value = pStatus.port;
-        if (pStatus.secret) document.getElementById('pcSecretKeyInput').value = pStatus.secret;
-        window.onPcPairStatusChanged(pStatus.paired, `${pStatus.ip}:${pStatus.port}`);
+        if (pStatus.ip) setFieldVal('pcHostIpInput', pStatus.ip);
+        if (pStatus.port) setFieldVal('pcPortInput', pStatus.port);
+        if (pStatus.secret) setFieldVal('pcSecretKeyInput', pStatus.secret);
+        if (typeof window.onPcPairStatusChanged === 'function') {
+          window.onPcPairStatusChanged(pStatus.paired, `${pStatus.ip}:${pStatus.port}`);
+        }
       }
     } catch (_) {}
+    console.log("Configuration and API keys loaded successfully!");
   } catch (e) {
     console.error('Failed to load initial config from native bridge:', e);
   }
 }
 
-function saveConfiguration() {
+// Debounced auto-save so user never loses their typed API keys
+let autoSaveTimer = null;
+function triggerAutoSave() {
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => {
+    saveConfiguration(true);
+  }, 1000);
+}
+
+function saveConfiguration(silent = false) {
+  const hostIp = getFieldVal('pcHostIpInput', '192.168.31.163');
+  const hostPort = getFieldVal('pcPortInput', '8765');
+  const fullPcHost = `${hostIp}:${hostPort}`;
+
   const config = {
-    user_name: document.getElementById('cfgUserName').value || 'ALAMIN',
-    assistant_name: document.getElementById('cfgAssistantName').value || 'Jarvis',
-    llm_provider: document.getElementById('modeProviderSelect').value,
-    llm_model: document.getElementById('modeModelSelect').value,
-    orb_theme: document.getElementById('auraThemeSelect').value,
-    pc_host: document.getElementById('pcHostInput').value,
+    user_name: getFieldVal('cfgUserName', 'ALAMIN'),
+    assistant_name: getFieldVal('cfgAssistantName', 'Jarvis'),
+    llm_provider: getFieldVal('modeProviderSelect', 'google'),
+    llm_model: getFieldVal('modeModelSelect', 'gemini-3.8-live'),
+    orb_theme: getFieldVal('auraThemeSelect', 'neon'),
+    pc_host: fullPcHost,
     api_keys: {
-      google: document.getElementById('cfgGoogleKey').value,
-      openai: document.getElementById('cfgOpenAiKey').value,
-      livekit_url: document.getElementById('cfgLiveKitUrl').value,
-      livekit_key: document.getElementById('cfgLiveKitKey').value,
-      livekit_secret: document.getElementById('cfgLiveKitSecret').value,
-      mem0: document.getElementById('cfgMem0Key').value,
-      google_search: document.getElementById('cfgGoogleSearchKey').value,
-      search_engine_id: document.getElementById('cfgSearchEngineId').value,
-      openweather: document.getElementById('cfgOpenWeatherKey').value,
-      xiaomi_mimo: document.getElementById('cfgXiaomiMimoKey').value,
-      elevenlabs: document.getElementById('cfgElevenLabsKey').value,
-      elevenlabs_voice_id: document.getElementById('cfgElevenLabsVoiceId').value,
+      google: getFieldVal('cfgGoogleKey'),
+      openai: getFieldVal('cfgOpenAiKey'),
+      livekit_url: getFieldVal('cfgLiveKitUrl'),
+      livekit_key: getFieldVal('cfgLiveKitKey'),
+      livekit_secret: getFieldVal('cfgLiveKitSecret'),
+      mem0: getFieldVal('cfgMem0Key'),
+      google_search: getFieldVal('cfgGoogleSearchKey'),
+      search_engine_id: getFieldVal('cfgSearchEngineId'),
+      openweather: getFieldVal('cfgOpenWeatherKey'),
+      xiaomi_mimo: getFieldVal('cfgXiaomiMimoKey'),
+      elevenlabs: getFieldVal('cfgElevenLabsKey'),
+      elevenlabs_voice_id: getFieldVal('cfgElevenLabsVoiceId'),
     }
   };
 
   const success = callNative('saveConfig', JSON.stringify(config));
-  showToast(success !== false ? 'CONFIGURATION SAVED & ACTIVATED' : 'SAVE ERROR');
+  if (!silent) {
+    showToast(success !== false ? '✅ সকল সেটিংস ও API কী ডিভাইসে সংরক্ষিত হয়েছে!' : '⚠️ সেটিংস সংরক্ষণে সমস্যা হয়েছে');
+  }
+}
+
+function toggleFieldVisibility(fieldId) {
+  const input = document.getElementById(fieldId);
+  if (!input) return;
+  input.type = input.type === 'password' ? 'text' : 'password';
 }
 
 function executeAction(action, payload) {
@@ -545,6 +598,10 @@ function requestAccessibilityPermission() {
 
 function requestBatteryOptimization() {
   callNative('requestBatteryOptimization');
+}
+
+function requestNotificationAccess() {
+  callNative('openNotificationListenerSettings');
 }
 
 // -------------------------------------------------------------------------
@@ -761,10 +818,13 @@ window.onMissingApiKeys = function() {
   showToast('⚠️ লাইভকিট API কী মিসিং! Settings ট্যাবে সেভ করুন।');
 };
 
-window.updateServiceStatus = function(serviceRunning, accessibilityEnabled, batteryIgnored, sessionActive) {
+window.updateServiceStatus = function(serviceRunning, accessibilityEnabled, batteryIgnored, sessionActive, notifEnabled) {
   state.serviceRunning = serviceRunning;
   state.accessibilityEnabled = accessibilityEnabled;
   state.batteryIgnored = batteryIgnored;
+  if (notifEnabled !== undefined) {
+    state.notifEnabled = notifEnabled;
+  }
 
   if (sessionActive !== undefined) {
     state.isSessionActive = !!sessionActive;
@@ -815,6 +875,21 @@ window.updateServiceStatus = function(serviceRunning, accessibilityEnabled, batt
     }
   }
 
+  const notifSub = document.getElementById('notifStatusSub');
+  const notifBtn = document.getElementById('btnGrantNotifAccess');
+  if (notifSub && notifBtn) {
+    const isNotif = notifEnabled !== undefined ? notifEnabled : state.notifEnabled;
+    if (isNotif) {
+      notifSub.innerText = 'Active (WhatsApp, Messenger, SMS পড়ে শোনাবে)';
+      notifBtn.innerText = 'ACTIVE';
+      notifBtn.className = 'badge-green';
+    } else {
+      notifSub.innerText = 'Disabled (মেসেজ ও নোটিফিকেশন শুনতে সক্রিয় করুন)';
+      notifBtn.innerText = 'ENABLE';
+      notifBtn.className = 'badge-yellow';
+    }
+  }
+
   const batSub = document.getElementById('batteryStatusSub');
   const batBtn = document.getElementById('btnIgnoreBattery');
   if (batSub && batBtn) {
@@ -836,7 +911,7 @@ setInterval(() => {
     const raw = callNative('getServiceStatus');
     if (raw) {
       const s = JSON.parse(raw);
-      window.updateServiceStatus(s.serviceRunning, s.accessibilityEnabled, s.batteryIgnored, s.sessionActive);
+      window.updateServiceStatus(s.serviceRunning, s.accessibilityEnabled, s.batteryIgnored, s.sessionActive, s.notificationListenerEnabled);
     }
   } catch (_) {}
 }, 2500);
