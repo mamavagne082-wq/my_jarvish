@@ -502,13 +502,15 @@ class JarvisForegroundService : Service() {
                                 if (event.track is RemoteAudioTrack) {
                                     val remoteAudio = event.track as RemoteAudioTrack
                                     val pId = (event.participant.identity?.toString() ?: "").lowercase()
-                                    // ZERO ECHO / NO SELF FEEDBACK:
-                                    // Only play audio from the Jarvis assistant! Mute any user or duplicate audio tracks
-                                    if (pId.contains("user") || (!pId.contains("jarvis") && !pId.contains("agent"))) {
-                                        Log.d(TAG, "Muting audio track from $pId to eliminate echo loop")
+                                    val localId = (room.localParticipant.identity?.toString() ?: "").lowercase()
+                                    Log.d(TAG, "TrackSubscribed from remote participant: $pId (local: $localId)")
+
+                                    // Mute only if it's our own local identity or user audio feedback; ALWAYS unmute the assistant!
+                                    if (pId.isNotBlank() && (pId == localId || (pId.contains("user") && !pId.contains("agent") && !pId.contains("jarvis")))) {
+                                        Log.d(TAG, "Muting duplicate audio track from $pId")
                                         try { remoteAudio.rtcTrack.setVolume(0.0) } catch (_: Exception) {}
                                     } else {
-                                        Log.d(TAG, "Unmuting Jarvis voice track at max volume from $pId")
+                                        Log.d(TAG, "Unmuting Jarvis assistant audio track at full volume from $pId")
                                         try { remoteAudio.rtcTrack.setVolume(1.0) } catch (_: Exception) {}
                                     }
                                     applyLoudspeakerSettings()
@@ -539,14 +541,17 @@ class JarvisForegroundService : Service() {
                     }
                 }
 
-                // Deterministic participant identity - no random suffix that leaves stale audio streams!
+                // Deterministic participant identity
                 val cleanUser = userName.trim().lowercase().replace(Regex("[^a-z0-9_]"), "")
                 val identity = "mobile_user_${cleanUser.ifEmpty { "alamin" }}"
+
+                // Unique room name per active session ensures LiveKit Cloud immediately dispatches an active agent instance
+                val sessionRoom = "voice_assistant_room_${System.currentTimeMillis() / 1000}"
 
                 val token = MobileConfig.generateLiveKitToken(
                     apiKey = livekitKey,
                     apiSecret = livekitSecret,
-                    roomName = MobileConfig.DEFAULT_ROOM_NAME,
+                    roomName = sessionRoom,
                     identity = identity,
                     participantName = userName
                 )

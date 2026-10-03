@@ -16,7 +16,9 @@ if exist "%ROOT_DIR%Jarvis\Jarvis_code" (
 )
 
 echo [1/3] Checking environment...
-if exist "%JARVIS_ROOT%Jarvis_code\venv\Scripts\python.exe" (
+if exist "%ROOT_DIR%.venv\Scripts\python.exe" (
+    set PYTHON_CMD="%ROOT_DIR%.venv\Scripts\python.exe"
+) else if exist "%JARVIS_ROOT%Jarvis_code\venv\Scripts\python.exe" (
     set PYTHON_CMD="%JARVIS_ROOT%Jarvis_code\venv\Scripts\python.exe"
 ) else if exist "%JARVIS_ROOT%venv\Scripts\python.exe" (
     set PYTHON_CMD="%JARVIS_ROOT%venv\Scripts\python.exe"
@@ -50,9 +52,9 @@ if exist "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" (
 )
 
 if defined BROWSER_CMD (
-    start "" %BROWSER_CMD% --app=http://localhost:3000?auto=true --autoplay-policy=no-user-gesture-required
+    start "" %BROWSER_CMD% --app=https://localhost:3000?auto=true --autoplay-policy=no-user-gesture-required --ignore-certificate-errors --allow-insecure-localhost
 ) else (
-    start http://localhost:3000?auto=true
+    start https://localhost:3000?auto=true
 )
 
 echo.

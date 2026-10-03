@@ -1,46 +1,42 @@
 [
     {
-        "merged": "C:\\Users\\Al Amin\\.gradle\\daemon\\8.7\\com.jarvis.assistant.app-debug-34:\\xml_file_paths.xml.flat",
-        "source": "C:\\Users\\Al Amin\\.gradle\\daemon\\8.7\\com.jarvis.assistant.app-main-36:\\xml\\file_paths.xml"
+        "merged": "com.jarvis.assistant.app-debug-34:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.jarvis.assistant.app-main-36:/mipmap-anydpi-v26/ic_launcher.xml"
     },
     {
-        "merged": "C:\\Users\\Al Amin\\.gradle\\daemon\\8.7\\com.jarvis.assistant.app-debug-34:\\layout_activity_main.xml.flat",
-        "source": "C:\\Users\\Al Amin\\.gradle\\daemon\\8.7\\com.jarvis.assistant.app-main-36:\\layout\\activity_main.xml"
+        "merged": "com.jarvis.assistant.app-debug-34:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.jarvis.assistant.app-main-36:/mipmap-anydpi-v26/ic_launcher_round.xml"
     },
     {
-        "merged": "C:\\Users\\Al Amin\\.gradle\\daemon\\8.7\\com.jarvis.assistant.app-debug-34:\\drawable_ic_launcher_foreground.xml.flat",
-        "source": "C:\\Users\\Al Amin\\.gradle\\daemon\\8.7\\com.jarvis.assistant.app-main-36:\\drawable\\ic_launcher_foreground.xml"
+        "merged": "com.jarvis.assistant.app-debug-34:/xml_data_extraction_rules.xml.flat",
+        "source": "com.jarvis.assistant.app-main-36:/xml/data_extraction_rules.xml"
     },
     {
-        "merged": "C:\\Users\\Al Amin\\.gradle\\daemon\\8.7\\com.jarvis.assistant.app-debug-34:\\drawable_ic_launcher_background.xml.flat",
-        "source": "C:\\Users\\Al Amin\\.gradle\\daemon\\8.7\\com.jarvis.assistant.app-main-36:\\drawable\\ic_launcher_background.xml"
+        "merged": "com.jarvis.assistant.app-debug-34:/drawable_ic_launcher.xml.flat",
+        "source": "com.jarvis.assistant.app-main-36:/drawable/ic_launcher.xml"
     },
     {
-        "merged": "C:\\Users\\Al Amin\\.gradle\\daemon\\8.7\\com.jarvis.assistant.app-debug-34:\\xml_data_extraction_rules.xml.flat",
-        "source": "C:\\Users\\Al Amin\\.gradle\\daemon\\8.7\\com.jarvis.assistant.app-main-36:\\xml\\data_extraction_rules.xml"
+        "merged": "com.jarvis.assistant.app-debug-34:/xml_file_paths.xml.flat",
+        "source": "com.jarvis.assistant.app-main-36:/xml/file_paths.xml"
     },
     {
-        "merged": "C:\\Users\\Al Amin\\.gradle\\daemon\\8.7\\com.jarvis.assistant.app-debug-34:\\mipmap-anydpi-v26_ic_launcher_round.xml.flat",
-        "source": "C:\\Users\\Al Amin\\.gradle\\daemon\\8.7\\com.jarvis.assistant.app-main-36:\\mipmap-anydpi-v26\\ic_launcher_round.xml"
+        "merged": "com.jarvis.assistant.app-debug-34:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.jarvis.assistant.app-main-36:/drawable/ic_launcher_foreground.xml"
     },
     {
-        "merged": "C:\\Users\\Al Amin\\.gradle\\daemon\\8.7\\com.jarvis.assistant.app-debug-34:\\xml_backup_rules.xml.flat",
-        "source": "C:\\Users\\Al Amin\\.gradle\\daemon\\8.7\\com.jarvis.assistant.app-main-36:\\xml\\backup_rules.xml"
-    },
-    {
-        "merged": "C:\\Users\\Al Amin\\.gradle\\daemon\\8.7\\com.jarvis.assistant.app-debug-34:\\drawable_ic_launcher.xml.flat",
-        "source": "C:\\Users\\Al Amin\\.gradle\\daemon\\8.7\\com.jarvis.assistant.app-main-36:\\drawable\\ic_launcher.xml"
-    },
-    {
-        "merged": "C:\\Users\\Al Amin\\.gradle\\daemon\\8.7\\com.jarvis.assistant.app-debug-34:\\xml_accessibility_service_config.xml.flat",
-        "source": "C:\\Users\\Al Amin\\.gradle\\daemon\\8.7\\com.jarvis.assistant.app-main-36:\\xml\\accessibility_service_config.xml"
+        "merged": "com.jarvis.assistant.app-debug-34:/layout_activity_main.xml.flat",
+        "source": "com.jarvis.assistant.app-main-36:/layout/activity_main.xml"
     },
     {
         "merged": "com.jarvis.assistant.app-debug-34:/xml_accessibility_service_config.xml.flat",
         "source": "com.jarvis.assistant.app-main-36:/xml/accessibility_service_config.xml"
     },
     {
-        "merged": "C:\\Users\\Al Amin\\.gradle\\daemon\\8.7\\com.jarvis.assistant.app-debug-34:\\mipmap-anydpi-v26_ic_launcher.xml.flat",
-        "source": "C:\\Users\\Al Amin\\.gradle\\daemon\\8.7\\com.jarvis.assistant.app-main-36:\\mipmap-anydpi-v26\\ic_launcher.xml"
+        "merged": "com.jarvis.assistant.app-debug-34:/drawable_ic_launcher_background.xml.flat",
+        "source": "com.jarvis.assistant.app-main-36:/drawable/ic_launcher_background.xml"
+    },
+    {
+        "merged": "com.jarvis.assistant.app-debug-34:/xml_backup_rules.xml.flat",
+        "source": "com.jarvis.assistant.app-main-36:/xml/backup_rules.xml"
     }
 ]
