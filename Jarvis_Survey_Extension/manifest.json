@@ -25,6 +25,8 @@
       "matches": [
         "<all_urls>"
       ],
+      "all_frames": true,
+      "match_about_blank": true,
       "js": [
         "content/content_script.js"
       ],
@@ -39,7 +41,8 @@
     "storage",
     "tabs",
     "scripting",
-    "notifications"
+    "notifications",
+    "webNavigation"
   ],
   "host_permissions": [
     "<all_urls>"

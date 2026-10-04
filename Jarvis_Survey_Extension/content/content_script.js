@@ -4,35 +4,33 @@
  */
 
 (function () {
-  if (window.__JARVIS_SURVEY_LOADED__) return;
+  // If re-injected, clean up any previous HUD to avoid duplicates
+  try {
+    const prevHud = document.getElementById("jarvis-hud-container");
+    if (prevHud) prevHud.remove();
+  } catch (e) {}
+
   window.__JARVIS_SURVEY_LOADED__ = true;
 
   let lastAnalysisResult = null;
   let hudVisible = false;
+  let hudElement = null;
   let isAutoPilotActive = false;
   let autoPilotRunningCycle = false;
+  const isTopFrame = (window === window.top);
 
-  // Initialize in-page Jarvis HUD
-  createFloatingHUD();
-
-  // Check if Auto-Pilot was already active across page navigations
-  chrome.runtime.sendMessage({ action: "GET_AUTOPILOT_STATE" }, (res) => {
-    if (res && res.active) {
-      isAutoPilotActive = true;
-      updateAutoPilotUI(true);
-      // Wait a realistic initial settling time (3-5s as specified by user) for dynamic questions to render
-      setTimeout(() => {
-        if (isAutoPilotActive) {
-          triggerAutoPilotCycle();
-        }
-      }, 3500);
-    }
-  });
-
-  // Listen for messages from background or popup
+  // 1. REGISTER MESSAGE LISTENER IMMEDIATELY (Zero delay, resilient against any errors)
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === "PING") {
-      sendResponse({ pong: true, success: true });
+      let qCount = 0;
+      try { qCount = extractSurveyQuestions().length; } catch (e) {}
+      sendResponse({
+        pong: true,
+        success: true,
+        isTop: isTopFrame,
+        url: window.location.href,
+        questionsCount: qCount
+      });
       return true;
     }
 
@@ -81,8 +79,12 @@
     }
 
     if (message.action === "TOGGLE_HUD") {
-      toggleHUD(message.show);
-      sendResponse({ success: true, visible: hudVisible });
+      if (isTopFrame) {
+        toggleHUD(message.show);
+        sendResponse({ success: true, visible: hudVisible });
+      } else {
+        sendResponse({ success: true, isFrame: true });
+      }
       return true;
     }
 
@@ -134,6 +136,40 @@
       return true;
     }
   });
+
+  // 2. Safe HUD initialization (ONLY in top frame, wait for document.body safely)
+  function safeInitHUD() {
+    if (!isTopFrame) return; // Do NOT create duplicate HUD inside small iframes
+    if (document.body) {
+      createFloatingHUD();
+    } else {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", () => createFloatingHUD(), { once: true });
+      }
+      const hudTimer = setInterval(() => {
+        if (document.body) {
+          clearInterval(hudTimer);
+          createFloatingHUD();
+        }
+      }, 100);
+    }
+  }
+  safeInitHUD();
+
+  // Check if Auto-Pilot was already active across page navigations
+  try {
+    chrome.runtime.sendMessage({ action: "GET_AUTOPILOT_STATE" }, (res) => {
+      if (res && res.active) {
+        isAutoPilotActive = true;
+        updateAutoPilotUI(true);
+        setTimeout(() => {
+          if (isAutoPilotActive) {
+            triggerAutoPilotCycle();
+          }
+        }, 3500);
+      }
+    });
+  } catch (e) {}
 
   /**
    * =========================================================================
@@ -1811,11 +1847,11 @@
 
   // Global Hotkey: Alt + S for Instant Manual Page Selection
   window.addEventListener("keydown", (e) => {
-    if (e.altKey && (e.key === "s" || e.key === "S")) {
+    if (e.altKey && (e.key === "s" || e.key === "S" || e.code === "KeyS")) {
       e.preventDefault();
       runOneClickAutoFillAndNext(false); // Manual mode: fills answers without auto-proceeding
     }
-  });
+  }, true);
 
   // SPA / AJAX dynamic survey page observer for continuous hands-free Auto-Pilot
   let lastCheckedUrl = window.location.href;
@@ -1896,7 +1932,13 @@
    * =========================================================================
    */
   function createFloatingHUD() {
-    if (document.getElementById("jarvis-hud-container")) return;
+    if (!isTopFrame) return;
+    try {
+      const existing = document.getElementById("jarvis-hud-container");
+      if (existing) existing.remove();
+    } catch (e) {}
+
+    if (!document.body) return;
 
     hudElement = document.createElement("div");
     hudElement.id = "jarvis-hud-container";
@@ -2058,11 +2100,16 @@
 
   function toggleHUD(show) {
     const panel = document.getElementById("jarvis-hud-panel");
+    if (!panel) return;
     hudVisible = show !== undefined ? show : !hudVisible;
     if (hudVisible) {
       panel.classList.remove("jarvis-panel-hidden");
+      panel.style.display = "flex";
+      panel.style.visibility = "visible";
+      panel.style.opacity = "1";
     } else {
       panel.classList.add("jarvis-panel-hidden");
+      panel.style.display = "none";
     }
   }
 

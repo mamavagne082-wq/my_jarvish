@@ -328,8 +328,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       if (activeTab?.id) {
         try {
-          await ensureContentScriptInjected(activeTab.id);
-          await chrome.tabs.sendMessage(activeTab.id, {
+          await sendTabAction(activeTab.id, {
             action: "AUTOPILOT_STATE_CHANGED",
             active: isAutoPilotActive
           });
@@ -356,8 +355,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       updateStatus("loading", "ম্যানুয়াল মোড: জেমিনি ৩.৮ দিয়ে পেজ এনালাইসিস ও উত্তর নির্বাচন হচ্ছে...");
 
       try {
-        await ensureContentScriptInjected(activeTab.id);
-        const response = await chrome.tabs.sendMessage(activeTab.id, {
+        const response = await sendTabAction(activeTab.id, {
           action: "ONE_CLICK_AUTOFILL_NEXT"
         });
 
@@ -371,7 +369,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             updateStatus("success", `✅ ম্যানুয়াল মোড: ${response.filledCount}টি উত্তর সিলেক্ট সম্পন্ন! আপনি দেখে নিয়ে Next চাপুন।`);
           }
         } else {
-          updateStatus("error", response?.message || "Auto-fill failed.");
+          updateStatus("error", response?.message || response?.error || "Auto-fill failed.");
         }
       } catch (err) {
         updateStatus("error", err.message || "Operation failed.");
@@ -387,8 +385,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     btnClickNext.addEventListener("click", async () => {
       if (!activeTab?.id) return;
       try {
-        await ensureContentScriptInjected(activeTab.id);
-        const res = await chrome.tabs.sendMessage(activeTab.id, { action: "CLICK_NEXT_BUTTON" });
+        const res = await sendTabAction(activeTab.id, { action: "CLICK_NEXT_BUTTON" });
         if (res && res.success) {
           updateStatus("success", "Proceeding to next page...");
         } else {
@@ -407,8 +404,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       btnAnalyze.disabled = true;
       updateStatus("loading", "Scanning questions with Gemini 3.8 Flash...");
       try {
-        await ensureContentScriptInjected(activeTab.id);
-        const response = await chrome.tabs.sendMessage(activeTab.id, { action: "SCAN_AND_ANALYZE" });
+        const response = await sendTabAction(activeTab.id, { action: "SCAN_AND_ANALYZE", show_hud: true });
         if (response && response.success) {
           renderResults(response.data);
           updateStatus("success", "Scan complete. Answers highlighted on page.");
@@ -428,8 +424,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     btnClear.addEventListener("click", async () => {
       if (!activeTab?.id) return;
       try {
-        await ensureContentScriptInjected(activeTab.id);
-        await chrome.tabs.sendMessage(activeTab.id, { action: "CLEAR_HIGHLIGHTS" });
+        await sendTabAction(activeTab.id, { action: "CLEAR_HIGHLIGHTS" });
         if (resultsList) resultsList.innerHTML = `<div class="empty-state">Highlights cleared.</div>`;
         if (resultsCount) resultsCount.innerText = "0";
         if (trapAlertCard) trapAlertCard.classList.add("hidden");
@@ -445,8 +440,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     btnToggleHud.addEventListener("click", async () => {
       if (!activeTab?.id) return;
       try {
-        await ensureContentScriptInjected(activeTab.id);
-        await chrome.tabs.sendMessage(activeTab.id, { action: "TOGGLE_HUD" });
+        const hudRes = await sendTabAction(activeTab.id, { action: "TOGGLE_HUD" });
+        updateStatus("idle", hudRes?.visible ? "Page HUD opened." : "Page HUD toggled.");
       } catch (e) {
         updateStatus("error", e.message || "Failed to toggle HUD.");
       }
@@ -707,7 +702,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function ensureContentScriptInjected(tabId) {
-    if (!tabId) return;
+    if (!tabId) return false;
     if (activeTab && activeTab.url && (
       activeTab.url.startsWith("chrome://") ||
       activeTab.url.startsWith("chrome-extension://") ||
@@ -718,21 +713,77 @@ document.addEventListener("DOMContentLoaded", async () => {
     )) {
       throw new Error("ব্রাউজারের ইন্টারনাল পেজে (chrome://) কাজ করে না। অনুগ্রহ করে কোনো সাধারণ ওয়েব পেজ বা সার্ভে পেজে যান।");
     }
+
+    // 1. Initial quick ping check
     try {
       const pingRes = await chrome.tabs.sendMessage(tabId, { action: "PING" });
-      if (pingRes && pingRes.pong) return;
+      if (pingRes && pingRes.pong) return true;
     } catch (e) {
+      // Content script not answering yet
+    }
+
+    // 2. Programmatically inject content script and CSS into ALL frames of the tab
+    try {
       await chrome.scripting.executeScript({
-        target: { tabId: tabId },
+        target: { tabId: tabId, allFrames: true },
         files: ["content/content_script.js"]
       });
       await chrome.scripting.insertCSS({
-        target: { tabId: tabId },
+        target: { tabId: tabId, allFrames: true },
         files: ["content/overlay.css"]
       });
-      // Short delay to ensure content script listeners are ready
-      await new Promise((r) => setTimeout(r, 120));
+    } catch (injectErr) {
+      console.warn("[Jarvis Popup] executeScript error:", injectErr);
     }
+
+    // 3. Verification polling: ping until content script acknowledges readiness (up to 2 seconds)
+    for (let i = 0; i < 15; i++) {
+      await new Promise((r) => setTimeout(r, 120));
+      try {
+        const pingRes = await chrome.tabs.sendMessage(tabId, { action: "PING" });
+        if (pingRes && pingRes.pong) return true;
+      } catch (err) {}
+    }
+
+    return true;
+  }
+
+  /**
+   * Dispatches survey actions across main frame and survey iframes
+   */
+  async function sendTabAction(tabId, message) {
+    await ensureContentScriptInjected(tabId);
+
+    // Try top frame first
+    let mainResult = null;
+    try {
+      mainResult = await chrome.tabs.sendMessage(tabId, message);
+      if (mainResult && (mainResult.success || (mainResult.filledCount && mainResult.filledCount > 0))) {
+        return mainResult;
+      }
+    } catch (e) {
+      // Top frame didn't respond
+    }
+
+    // If survey is inside an iframe (like Survey Sherpa / Cint / Qualtrics), query all frames
+    try {
+      if (chrome.webNavigation && chrome.webNavigation.getAllFrames) {
+        const frames = await chrome.webNavigation.getAllFrames({ tabId });
+        for (const frame of frames) {
+          if (frame.frameId === 0) continue;
+          try {
+            const frameRes = await chrome.tabs.sendMessage(tabId, message, { frameId: frame.frameId });
+            if (frameRes && (frameRes.success || (frameRes.filledCount && frameRes.filledCount > 0))) {
+              return frameRes;
+            }
+          } catch (err) {}
+        }
+      }
+    } catch (e) {}
+
+    // Return mainResult if we got one, or perform a direct fallback
+    if (mainResult) return mainResult;
+    return await chrome.tabs.sendMessage(tabId, message);
   }
 
   // Helper: Show/hide OpenRouter settings fields based on checkbox state

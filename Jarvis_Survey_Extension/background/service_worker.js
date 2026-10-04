@@ -455,22 +455,31 @@ async function ensureContentScript(tabId) {
     }
     const pingRes = await chrome.tabs.sendMessage(tabId, { action: "PING" });
     if (pingRes && pingRes.pong) return true;
-    return true;
   } catch (e) {
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId: tabId },
-        files: ["content/content_script.js"]
-      });
-      await chrome.scripting.insertCSS({
-        target: { tabId: tabId },
-        files: ["content/overlay.css"]
-      });
-      return true;
-    } catch (err) {
-      console.warn("Could not inject content script:", err);
-      return false;
+    // Ping failed, inject below
+  }
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: tabId, allFrames: true },
+      files: ["content/content_script.js"]
+    });
+    await chrome.scripting.insertCSS({
+      target: { tabId: tabId, allFrames: true },
+      files: ["content/overlay.css"]
+    });
+
+    for (let i = 0; i < 15; i++) {
+      await new Promise(r => setTimeout(r, 120));
+      try {
+        const pingRes = await chrome.tabs.sendMessage(tabId, { action: "PING" });
+        if (pingRes && pingRes.pong) return true;
+      } catch (err) {}
     }
+    return true;
+  } catch (err) {
+    console.warn("Could not inject content script:", err);
+    return false;
   }
 }
 
@@ -959,6 +968,15 @@ async function callGeminiAPI(apiKey, model, promptText, base64Image) {
           if (response.status === 503 && attempt === 0) {
             await new Promise(r => setTimeout(r, 1500));
             continue;
+          }
+
+          if (response.status === 400) {
+            const isInvalidKey = errorText.includes("API_KEY_INVALID") || errorText.includes("keyInvalid");
+            if (isInvalidKey) {
+              const err = new Error("Gemini API Key Error (400): API Key সঠিক নয় বা অবৈধ");
+              err.isKeyError = true;
+              throw err;
+            }
           }
 
           if (response.status === 403) {
