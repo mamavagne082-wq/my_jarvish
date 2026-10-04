@@ -87,8 +87,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
+  // Helper to dynamically get the active tab (handles tab switching or reload)
+  async function getCurrentTab() {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab && tab.id) return tab;
+    const [lastTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    return lastTab || null;
+  }
+
   // 2. Load Active Tab Info
-  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const activeTab = await getCurrentTab();
   if (activeTab) {
     activeTabTitle.innerText = activeTab.title || activeTab.url || "Active Tab";
     activeTabTitle.title = activeTab.url || "";
@@ -102,14 +110,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (inputApiKey2) inputApiKey2.value = storage.geminiApiKey2 || "AQ.Ab8RN6J1FBmr5Rfi34mDhIDv1nmmVqt9WLcpUZrGS30lX761ng";
   if (inputApiKey3) inputApiKey3.value = storage.geminiApiKey3 || "";
 
-  // Gemini model (default to gemini-3.8-flash)
-  const savedModel = (storage.geminiModel && !storage.geminiModel.includes("1.5-pro"))
-    ? storage.geminiModel
-    : "gemini-3.8-flash";
+  // Gemini model: auto-upgrade any 2.5 / 1.5 / outdated model to working gemini-3.8-flash
+  let savedModel = storage.geminiModel;
+  if (!savedModel || savedModel.includes("2.5") || savedModel.includes("1.5") || savedModel.includes("latest") || savedModel.includes("preview")) {
+    savedModel = "gemini-3.8-flash";
+    await chrome.storage.local.set({ geminiModel: "gemini-3.8-flash" });
+  }
   if (selectModel) selectModel.value = savedModel;
   if (modelNameBadge) {
-    const badgeText = savedModel.replace("gemini-", "").toUpperCase();
-    modelNameBadge.innerText = badgeText;
+    modelNameBadge.innerText = "3.8-FLASH";
   }
 
   // Priority
@@ -326,9 +335,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       await chrome.storage.local.set({ autoPilotActive: isAutoPilotActive });
       updateAutopilotButtonUI(isAutoPilotActive);
 
-      if (activeTab?.id) {
+      const targetTab = await getCurrentTab();
+      if (targetTab?.id) {
         try {
-          await sendTabAction(activeTab.id, {
+          await sendTabAction(targetTab.id, {
             action: "AUTOPILOT_STATE_CHANGED",
             active: isAutoPilotActive
           });
@@ -348,14 +358,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 7. Action: Manual Mode 1-Click Page Auto-Fill
   if (btnOneclickFill) {
     btnOneclickFill.addEventListener("click", async () => {
-      if (!activeTab?.id) return;
+      const targetTab = await getCurrentTab();
+      if (!targetTab?.id) {
+        updateStatus("error", "কোনো সক্রিয় ব্রাউজার ট্যাব পাওয়া যায়নি।");
+        return;
+      }
 
       btnOneclickFill.disabled = true;
       btnOneclickFill.innerHTML = `<span>⏳</span> উত্তর সিলেক্ট হচ্ছে...`;
       updateStatus("loading", "ম্যানুয়াল মোড: জেমিনি ৩.৮ দিয়ে পেজ এনালাইসিস ও উত্তর নির্বাচন হচ্ছে...");
 
       try {
-        const response = await sendTabAction(activeTab.id, {
+        const response = await sendTabAction(targetTab.id, {
           action: "ONE_CLICK_AUTOFILL_NEXT"
         });
 
@@ -366,7 +380,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           if (response.isScreenshot) {
             updateStatus("success", `📸 স্ক্রিনশট এনালাইসিস সম্পন্ন! নিচে সঠিক উত্তরগুলো দেখানো হলো।`);
           } else {
-            updateStatus("success", `✅ ম্যানুয়াল মোড: ${response.filledCount}টি উত্তর সিলেক্ট সম্পন্ন! আপনি দেখে নিয়ে Next চাপুন।`);
+            updateStatus("success", `✅ ম্যানুয়াল মোড: ${response.filledCount || 0}টি উত্তর সিলেক্ট সম্পন্ন! আপনি দেখে নিয়ে Next চাপুন।`);
           }
         } else {
           updateStatus("error", response?.message || response?.error || "Auto-fill failed.");
@@ -383,9 +397,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 8. Action: Next Page Button
   if (btnClickNext) {
     btnClickNext.addEventListener("click", async () => {
-      if (!activeTab?.id) return;
+      const targetTab = await getCurrentTab();
+      if (!targetTab?.id) return;
       try {
-        const res = await sendTabAction(activeTab.id, { action: "CLICK_NEXT_BUTTON" });
+        const res = await sendTabAction(targetTab.id, { action: "CLICK_NEXT_BUTTON" });
         if (res && res.success) {
           updateStatus("success", "Proceeding to next page...");
         } else {
@@ -400,11 +415,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 9. Action: Scan Only
   if (btnAnalyze) {
     btnAnalyze.addEventListener("click", async () => {
-      if (!activeTab?.id) return;
+      const targetTab = await getCurrentTab();
+      if (!targetTab?.id) return;
       btnAnalyze.disabled = true;
       updateStatus("loading", "Scanning questions with Gemini 3.8 Flash...");
       try {
-        const response = await sendTabAction(activeTab.id, { action: "SCAN_AND_ANALYZE", show_hud: true });
+        const response = await sendTabAction(targetTab.id, { action: "SCAN_AND_ANALYZE", show_hud: true });
         if (response && response.success) {
           renderResults(response.data);
           updateStatus("success", "Scan complete. Answers highlighted on page.");
@@ -422,9 +438,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 10. Clear Highlights
   if (btnClear) {
     btnClear.addEventListener("click", async () => {
-      if (!activeTab?.id) return;
+      const targetTab = await getCurrentTab();
+      if (!targetTab?.id) return;
       try {
-        await sendTabAction(activeTab.id, { action: "CLEAR_HIGHLIGHTS" });
+        await sendTabAction(targetTab.id, { action: "CLEAR_HIGHLIGHTS" });
         if (resultsList) resultsList.innerHTML = `<div class="empty-state">Highlights cleared.</div>`;
         if (resultsCount) resultsCount.innerText = "0";
         if (trapAlertCard) trapAlertCard.classList.add("hidden");
@@ -438,9 +455,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 11. Toggle HUD
   if (btnToggleHud) {
     btnToggleHud.addEventListener("click", async () => {
-      if (!activeTab?.id) return;
+      const targetTab = await getCurrentTab();
+      if (!targetTab?.id) return;
       try {
-        const hudRes = await sendTabAction(activeTab.id, { action: "TOGGLE_HUD" });
+        const hudRes = await sendTabAction(targetTab.id, { action: "TOGGLE_HUD" });
         updateStatus("idle", hudRes?.visible ? "Page HUD opened." : "Page HUD toggled.");
       } catch (e) {
         updateStatus("error", e.message || "Failed to toggle HUD.");
@@ -692,26 +710,37 @@ document.addEventListener("DOMContentLoaded", async () => {
         bridgeStatusText.innerText = "🟢 Connected (Local Desktop Jarvis)";
         bridgeStatusText.className = "status-connected";
       } else {
-        bridgeStatusText.innerText = "⚪ Standalone Cloud Mode";
-        bridgeStatusText.className = "status-disconnected";
+        bridgeStatusText.innerText = "🌐 Standalone Cloud Mode (Internet Direct)";
+        bridgeStatusText.className = "status-connected";
       }
     } catch (e) {
-      bridgeStatusText.innerText = "⚪ Standalone Cloud Mode";
-      bridgeStatusText.className = "status-disconnected";
+      bridgeStatusText.innerText = "🌐 Standalone Cloud Mode (Internet Direct)";
+      bridgeStatusText.className = "status-connected";
     }
   }
 
   async function ensureContentScriptInjected(tabId) {
     if (!tabId) return false;
-    if (activeTab && activeTab.url && (
-      activeTab.url.startsWith("chrome://") ||
-      activeTab.url.startsWith("chrome-extension://") ||
-      activeTab.url.startsWith("edge://") ||
-      activeTab.url.startsWith("about:") ||
-      activeTab.url.startsWith("devtools://") ||
-      activeTab.url.startsWith("view-source:")
-    )) {
-      throw new Error("ব্রাউজারের ইন্টারনাল পেজে (chrome://) কাজ করে না। অনুগ্রহ করে কোনো সাধারণ ওয়েব পেজ বা সার্ভে পেজে যান।");
+
+    let tab = null;
+    try {
+      tab = await chrome.tabs.get(tabId);
+    } catch (e) {
+      return false;
+    }
+
+    if (!tab || !tab.url) return false;
+    const url = tab.url;
+
+    if (
+      url.startsWith("chrome://") ||
+      url.startsWith("chrome-extension://") ||
+      url.startsWith("edge://") ||
+      url.startsWith("about:") ||
+      url.startsWith("devtools://") ||
+      url.startsWith("view-source:")
+    ) {
+      throw new Error("ব্রাউজারের ইন্টারনাল পেজে (chrome://) এক্সটেনশন কাজ করে না। অনুগ্রহ করে কোনো সাধারণ ওয়েব পেজ বা সার্ভে পেজে যান।");
     }
 
     // 1. Initial quick ping check
@@ -722,19 +751,33 @@ document.addEventListener("DOMContentLoaded", async () => {
       // Content script not answering yet
     }
 
-    // 2. Programmatically inject content script and CSS into ALL frames of the tab
+    // 2. Programmatically inject content script into MAIN FRAME (target: { tabId: tabId })
+    // In Manifest V3, injecting into main frame is rock-solid and never fails on accessible pages
+    let injected = false;
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        files: ["content/content_script.js"]
+      });
+      await chrome.scripting.insertCSS({
+        target: { tabId: tabId },
+        files: ["content/overlay.css"]
+      });
+      injected = true;
+    } catch (injectErr) {
+      console.warn("[Jarvis Popup] Main frame executeScript:", injectErr);
+      if (url.startsWith("file://")) {
+        throw new Error("লোকাল ফাইল (file://) এ কাজ করতে Chrome Extensions পেজে গিয়ে এই এক্সটেনশনের 'Allow access to file URLs' অন করুন, অথবা পেজটি রিফ্রেশ (F5) করুন।");
+      }
+    }
+
+    // Also attempt allFrames injection for nested surveys (ignore if restricted subframes error out)
     try {
       await chrome.scripting.executeScript({
         target: { tabId: tabId, allFrames: true },
         files: ["content/content_script.js"]
       });
-      await chrome.scripting.insertCSS({
-        target: { tabId: tabId, allFrames: true },
-        files: ["content/overlay.css"]
-      });
-    } catch (injectErr) {
-      console.warn("[Jarvis Popup] executeScript error:", injectErr);
-    }
+    } catch (e) {}
 
     // 3. Verification polling: ping until content script acknowledges readiness (up to 2 seconds)
     for (let i = 0; i < 15; i++) {
@@ -745,25 +788,41 @@ document.addEventListener("DOMContentLoaded", async () => {
       } catch (err) {}
     }
 
-    return true;
+    return injected;
   }
 
   /**
-   * Dispatches survey actions across main frame and survey iframes
+   * Dispatches survey actions across main frame and survey iframes with bulletproof error handling
    */
   async function sendTabAction(tabId, message) {
-    await ensureContentScriptInjected(tabId);
+    const ready = await ensureContentScriptInjected(tabId);
+    if (!ready) {
+      throw new Error("এক্সটেনশন পেজের সাথে সংযোগ করতে পারছে না। অনুগ্রহ করে সার্ভে পেজটি একবার রিফ্রেশ (F5 বা Reload) করুন।");
+    }
 
     // Try top frame first
     let mainResult = null;
+    let mainErr = null;
     try {
-      mainResult = await chrome.tabs.sendMessage(tabId, message);
+      mainResult = await chrome.tabs.sendMessage(tabId, message, { frameId: 0 });
       if (mainResult && (mainResult.success || (mainResult.filledCount && mainResult.filledCount > 0))) {
         return mainResult;
       }
     } catch (e) {
-      // Top frame didn't respond
+      mainErr = e;
+      console.warn("[Jarvis Popup] Frame 0 message failed:", e.message);
     }
+
+    // Also try without frameId (browser default broadcast)
+    try {
+      const res = await chrome.tabs.sendMessage(tabId, message);
+      if (res && (res.success || (res.filledCount && res.filledCount > 0))) {
+        return res;
+      }
+      if (res && res.error) {
+        return res;
+      }
+    } catch (e) {}
 
     // If survey is inside an iframe (like Survey Sherpa / Cint / Qualtrics), query all frames
     try {
@@ -781,9 +840,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     } catch (e) {}
 
-    // Return mainResult if we got one, or perform a direct fallback
+    // Return mainResult if we got one
     if (mainResult) return mainResult;
-    return await chrome.tabs.sendMessage(tabId, message);
+    if (mainErr) {
+      throw new Error("সার্ভে পেজের সাথে সংযোগ স্থাপন সম্ভব হয়নি। অনুগ্রহ করে পেজটি একবার রিফ্রেশ (F5) করে আবার চেষ্টা করুন।");
+    }
+    throw new Error("পেজে কোনো প্রতিক্রিয়া পাওয়া যায়নি। অনুগ্রহ করে পেজটি রিফ্রেশ (F5) করুন।");
   }
 
   // Helper: Show/hide OpenRouter settings fields based on checkbox state

@@ -51,13 +51,18 @@
 
     if (message.action === "APPLY_AUTO_FILL") {
       autoFillAnswers(message.payload || lastAnalysisResult)
-        .then((res) => sendResponse(res));
+        .then((res) => sendResponse(res || { success: true }))
+        .catch((err) => sendResponse({ success: false, error: err.message || String(err) }));
       return true;
     }
 
     if (message.action === "ONE_CLICK_AUTOFILL_NEXT") {
       runOneClickAutoFillAndNext()
-        .then((res) => sendResponse(res));
+        .then((res) => sendResponse(res || { success: true }))
+        .catch((err) => {
+          console.error("[Jarvis] Auto-fill error:", err);
+          sendResponse({ success: false, error: err.message || String(err) });
+        });
       return true;
     }
 
@@ -750,57 +755,63 @@
    * 1-Click Auto-Fill current page with human simulation & Screenshot fallback
    */
   async function runOneClickAutoFillAndNext(autoProceed = false) {
-    updateHUDStatus("analyzing", "⚡ ম্যানুয়াল মোড: সম্পূর্ণ পেজ Gemini Flash দিয়ে বিশ্লেষণ হচ্ছে...");
+    try {
+      updateHUDStatus("analyzing", "⚡ ম্যানুয়াল মোড: সম্পূর্ণ পেজ Gemini Flash দিয়ে বিশ্লেষণ হচ্ছে...");
 
-    let analysisData = null;
-    let filledCount = 0;
-    let isScreenshot = false;
+      let analysisData = null;
+      let filledCount = 0;
+      let isScreenshot = false;
 
-    // Step 1: Attempt DOM Extraction
-    const questions = extractSurveyQuestions();
-    if (questions.length > 0) {
-      const scanRes = await performFullScan();
-      if (scanRes && scanRes.success && scanRes.data && scanRes.data.answers?.length > 0) {
-        analysisData = scanRes.data;
-        updateHUDStatus("analyzing", "⚡ মানুষের মতো উত্তর সিলেক্ট ও মেসেজ বক্সে লেখা হচ্ছে...");
-        const fillRes = await autoFillAnswers(analysisData);
-        filledCount = fillRes.filledCount;
+      // Step 1: Attempt DOM Extraction
+      const questions = extractSurveyQuestions();
+      if (questions.length > 0) {
+        const scanRes = await performFullScan();
+        if (scanRes && scanRes.success && scanRes.data && scanRes.data.answers?.length > 0) {
+          analysisData = scanRes.data;
+          updateHUDStatus("analyzing", "⚡ মানুষের মতো উত্তর সিলেক্ট ও মেসেজ বক্সে লেখা হচ্ছে...");
+          const fillRes = await autoFillAnswers(analysisData);
+          filledCount = fillRes.filledCount;
+        }
       }
-    }
 
-    // Step 2: Fallback to Screenshot if DOM found 0 questions or failed or 0 answers filled
-    if (!analysisData || filledCount === 0 || !analysisData.answers || analysisData.answers.length === 0) {
-      updateHUDStatus("analyzing", "📸 পেজ সরাসরি এনালাইসিস বা সিলেক্ট করা যায়নি! সম্পূর্ণ পেজের স্ক্রিনশট নিয়ে সঠিক উত্তর নির্ণয় করা হচ্ছে...");
-      const ssRes = await performScreenshotAnalysis();
-      if (ssRes && ssRes.success && ssRes.data) {
-        analysisData = ssRes.data;
-        filledCount = ssRes.filledCount || 0;
-        isScreenshot = true;
-      } else {
-        return { success: false, message: ssRes?.error || "Analysis failed." };
+      // Step 2: Fallback to Screenshot if DOM found 0 questions or failed or 0 answers filled
+      if (!analysisData || filledCount === 0 || !analysisData.answers || analysisData.answers.length === 0) {
+        updateHUDStatus("analyzing", "📸 পেজ সরাসরি এনালাইসিস বা সিলেক্ট করা যায়নি! সম্পূর্ণ পেজের স্ক্রিনশট নিয়ে সঠিক উত্তর নির্ণয় করা হচ্ছে...");
+        const ssRes = await performScreenshotAnalysis();
+        if (ssRes && ssRes.success && ssRes.data) {
+          analysisData = ssRes.data;
+          filledCount = ssRes.filledCount || 0;
+          isScreenshot = true;
+        } else if (!analysisData || !analysisData.answers || analysisData.answers.length === 0) {
+          return { success: false, message: ssRes?.error || "Analysis failed." };
+        }
       }
-    }
 
-    // Save to storage
-    if (analysisData) {
-      lastAnalysisResult = analysisData;
-      chrome.storage.local.set({ lastAnalysisResult: analysisData });
-    }
-
-    if (autoProceed) {
-      await sleep(1500 + Math.random() * 500);
-      const nextBtn = findNextButton();
-      if (nextBtn) {
-        clickElementLikeHuman(nextBtn);
-        return { success: true, filledCount, proceeded: true, data: analysisData, isScreenshot };
+      // Save to storage
+      if (analysisData) {
+        lastAnalysisResult = analysisData;
+        chrome.storage.local.set({ lastAnalysisResult: analysisData });
       }
+
+      if (autoProceed) {
+        await sleep(1500 + Math.random() * 500);
+        const nextBtn = findNextButton();
+        if (nextBtn) {
+          clickElementLikeHuman(nextBtn);
+          return { success: true, filledCount, proceeded: true, data: analysisData, isScreenshot };
+        }
+      }
+
+      updateHUDStatus("done", isScreenshot
+        ? `✅ স্ক্রিনশট এনালাইসিস সম্পন্ন! সঠিক উত্তর এক্সটেনশনের নিচে দেখানো হলো, দেখে নিয়ে Next চাপুন।`
+        : `✅ ম্যানুয়াল মোড: ${filledCount}টি উত্তর মানুষের মতো পূরণ সম্পন্ন! আপনি দেখে নিয়ে Next চাপুন।`);
+
+      return { success: true, filledCount, data: analysisData, isScreenshot };
+    } catch (err) {
+      console.error("[Jarvis] runOneClickAutoFillAndNext error:", err);
+      updateHUDStatus("error", err.message || "Auto-fill failed.");
+      return { success: false, message: err.message || String(err) };
     }
-
-    updateHUDStatus("done", isScreenshot
-      ? `✅ স্ক্রিনশট এনালাইসিস সম্পন্ন! সঠিক উত্তর এক্সটেনশনের নিচে দেখানো হলো, দেখে নিয়ে Next চাপুন।`
-      : `✅ ম্যানুয়াল মোড: ${filledCount}টি উত্তর মানুষের মতো পূরণ সম্পন্ন! আপনি দেখে নিয়ে Next চাপুন।`);
-
-    return { success: true, filledCount, data: analysisData, isScreenshot };
   }
 
   function toggleAutoPilotMode(state) {

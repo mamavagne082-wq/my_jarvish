@@ -9,14 +9,7 @@ const GEMINI_MODEL_CHAIN = [
   "gemini-3.8-flash",
   "gemini-3.7-flash",
   "gemini-3.6-flash",
-  "gemini-3.5-flash",
-  "gemini-2.5-flash",
-  "gemini-flash-latest",
-  "gemini-2.5-flash-lite",
-  "gemini-2.5-pro",
-  "gemini-pro-latest",
-  "gemini-3.1-pro-preview",
-  "gemini-3-flash-preview"
+  "gemini-3.5-flash"
 ];
 
 /**
@@ -25,6 +18,10 @@ const GEMINI_MODEL_CHAIN = [
 function resolveGeminiModelName(modelName) {
   if (!modelName) return "gemini-3.8-flash";
   const m = modelName.toLowerCase().trim();
+  // Any legacy or 404-prone models map straight to high-speed working Gemini 3.8 Flash
+  if (m.includes("2.5") || m.includes("1.5") || m.includes("latest") || m.includes("preview")) {
+    return "gemini-3.8-flash";
+  }
   const map = {
     "gemini-3.8-flash": "gemini-3.8-flash",
     "gemini-3.8": "gemini-3.8-flash",
@@ -33,18 +30,9 @@ function resolveGeminiModelName(modelName) {
     "gemini-3.6-flash": "gemini-3.6-flash",
     "gemini-3.6": "gemini-3.6-flash",
     "gemini-3.5-flash": "gemini-3.5-flash",
-    "gemini-3.5": "gemini-3.5-flash",
-    "gemini-2.5-flash": "gemini-2.5-flash",
-    "gemini-flash-latest": "gemini-flash-latest",
-    "gemini-2.5-pro": "gemini-2.5-pro",
-    "gemini-pro-latest": "gemini-pro-latest",
-    "gemini-2.5-flash-latest": "gemini-2.5-flash",
-    "gemini-1.5-flash-latest": "gemini-flash-latest",
-    "gemini-1.5-flash": "gemini-3.8-flash",
-    "gemini-1.5-pro-latest": "gemini-pro-latest",
-    "gemini-1.5-pro": "gemini-2.5-pro"
+    "gemini-3.5": "gemini-3.5-flash"
   };
-  return map[m] || m;
+  return map[m] || "gemini-3.8-flash";
 }
 
 const DEFAULT_SETTINGS = {
@@ -103,7 +91,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   }
 
   // Upgrade legacy or 404-prone models to Gemini 3.8 Flash
-  if (!toSet.geminiModel || toSet.geminiModel.includes("1.5-pro") || toSet.geminiModel === "gemini-2.5-flash-latest") {
+  if (!toSet.geminiModel || toSet.geminiModel.includes("2.5") || toSet.geminiModel.includes("1.5") || toSet.geminiModel.includes("latest")) {
     toSet.geminiModel = "gemini-3.8-flash";
   }
 
@@ -155,9 +143,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === "CAPTURE_SCREENSHOT") {
-    chrome.tabs.captureVisibleTab(null, { format: "jpeg", quality: 80 }, (dataUrl) => {
+    const targetWinId = sender.tab ? sender.tab.windowId : null;
+    chrome.tabs.captureVisibleTab(targetWinId, { format: "jpeg", quality: 80 }, (dataUrl) => {
       if (chrome.runtime.lastError) {
-        sendResponse({ success: false, error: chrome.runtime.lastError.message });
+        chrome.tabs.captureVisibleTab(null, { format: "jpeg", quality: 80 }, (fallbackUrl) => {
+          if (chrome.runtime.lastError) {
+            sendResponse({ success: false, error: chrome.runtime.lastError.message });
+          } else {
+            sendResponse({ success: true, screenshot: fallbackUrl });
+          }
+        });
       } else {
         sendResponse({ success: true, screenshot: dataUrl });
       }
@@ -459,28 +454,36 @@ async function ensureContentScript(tabId) {
     // Ping failed, inject below
   }
 
+  // 1. Inject main frame first (guaranteed to succeed on all accessible pages)
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: tabId },
+      files: ["content/content_script.js"]
+    });
+    await chrome.scripting.insertCSS({
+      target: { tabId: tabId },
+      files: ["content/overlay.css"]
+    });
+  } catch (err) {
+    console.warn("Main frame injection note:", err);
+  }
+
+  // 2. Also try nested survey frames safely
   try {
     await chrome.scripting.executeScript({
       target: { tabId: tabId, allFrames: true },
       files: ["content/content_script.js"]
     });
-    await chrome.scripting.insertCSS({
-      target: { tabId: tabId, allFrames: true },
-      files: ["content/overlay.css"]
-    });
+  } catch (e) {}
 
-    for (let i = 0; i < 15; i++) {
-      await new Promise(r => setTimeout(r, 120));
-      try {
-        const pingRes = await chrome.tabs.sendMessage(tabId, { action: "PING" });
-        if (pingRes && pingRes.pong) return true;
-      } catch (err) {}
-    }
-    return true;
-  } catch (err) {
-    console.warn("Could not inject content script:", err);
-    return false;
+  for (let i = 0; i < 15; i++) {
+    await new Promise(r => setTimeout(r, 120));
+    try {
+      const pingRes = await chrome.tabs.sendMessage(tabId, { action: "PING" });
+      if (pingRes && pingRes.pong) return true;
+    } catch (err) {}
   }
+  return true;
 }
 
 /**
