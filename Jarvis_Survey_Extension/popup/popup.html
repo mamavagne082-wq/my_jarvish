@@ -269,89 +269,127 @@
     <!-- Tab 3: Settings -->
     <section class="tab-content" id="tab-settings">
       <!-- Gemini API Section -->
-      <div class="settings-section-title">🔑 Gemini AI (Google)</div>
+      <div class="settings-section-title">🔑 Gemini AI (Google) - Multi-Key Support</div>
+      
       <div class="settings-group">
-        <label for="input-api-key">Gemini API Key</label>
+        <label for="input-api-key">Gemini API Key 1 <span class="badge-primary">Primary</span></label>
         <div class="api-key-row">
-          <input type="password" id="input-api-key" placeholder="AIzaSy... (Google AI Studio থেকে নিন)">
-          <button id="btn-toggle-key" class="btn-small">👁️</button>
+          <input type="password" id="input-api-key" placeholder="AQ... বা AIzaSy... (মেইন কী)">
+          <button id="btn-toggle-key" class="btn-small" type="button">👁️</button>
         </div>
-        <small class="helper-text">👉 <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com</a> থেকে বিনামূল্যে API Key নিন</small>
+        <small class="helper-text">👉 ১ম কী: প্রধান রিকোয়েস্ট এই কী দিয়ে হবে</small>
       </div>
 
       <div class="settings-group">
-        <label for="select-model">Gemini মডেল</label>
+        <label for="input-api-key-2">Gemini API Key 2 <span class="badge-backup">Backup 1</span></label>
+        <div class="api-key-row">
+          <input type="password" id="input-api-key-2" placeholder="২য় Gemini কী (১ম কী শেষ হলে অটো নিবে)">
+          <button id="btn-toggle-key-2" class="btn-small" type="button">👁️</button>
+        </div>
+        <small class="helper-text">👉 ২য় কী: ১ম কী-র লিমিট শেষ হলে অটোমেটিক এখান থেকে উত্তর নিবে</small>
+      </div>
+
+      <div class="settings-group">
+        <label for="input-api-key-3">Gemini API Key 3 <span class="badge-backup">Backup 2</span></label>
+        <div class="api-key-row">
+          <input type="password" id="input-api-key-3" placeholder="৩য় Gemini কী (২য় কী শেষ হলে অটো নিবে)">
+          <button id="btn-toggle-key-3" class="btn-small" type="button">👁️</button>
+        </div>
+        <small class="helper-text">👉 ৩য় কী: ২য় কী-র লিমিট শেষ হলে ৩য় কী দিয়ে সার্ভে চালু রাখবে</small>
+      </div>
+
+      <div class="settings-group">
+        <label for="select-model">Gemini লেটেস্ট মডেল (সবগুলো লাইভ ও দ্রুততম)</label>
         <select id="select-model">
-          <optgroup label="🚀 Gemini 3.8 / 3.7 / 3.6 Flash (দ্রুততম)">
-            <option value="gemini-3.8-flash" selected>⚡ Gemini 3.8 Flash (Ultra Fast Live)</option>
+          <optgroup label="🚀 Gemini 3.8 / 3.7 / 3.6 Flash (সর্বশেষ লাইভ মডেল)">
+            <option value="gemini-3.8-flash" selected>⚡ Gemini 3.8 Flash (Ultra Fast Live - ডিফল্ট)</option>
             <option value="gemini-3.7-flash">⚡ Gemini 3.7 Flash (High Speed Preview)</option>
-            <option value="gemini-3.6-flash">⚡ Gemini 3.6 Flash (Gemini 2.0 Flash)</option>
-            <option value="gemini-3.5-flash">⚡ Gemini 3.5 Flash (Gemini 1.5 Flash)</option>
+            <option value="gemini-3.6-flash">⚡ Gemini 3.6 Flash (Fast Response)</option>
+            <option value="gemini-3.5-flash">⚡ Gemini 3.5 Flash (Super Fast)</option>
           </optgroup>
           <optgroup label="🌟 Gemini 2.5 Series (Official Google API)">
-            <option value="gemini-2.5-flash-latest">✅ Gemini 2.5 Flash Latest (অফিসিয়াল)</option>
-            <option value="gemini-2.5-flash-preview-05-20">Gemini 2.5 Flash Preview</option>
-            <option value="gemini-2.5-pro-preview-06-05">✨ Gemini 2.5 Pro Preview (Best Quality)</option>
-            <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-          </optgroup>
-          <optgroup label="Gemini 2.0 & 1.5 (Stable Fallbacks)">
-            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-            <option value="gemini-1.5-flash-latest">Gemini 1.5 Flash</option>
-            <option value="gemini-1.5-pro-latest">Gemini 1.5 Pro</option>
+            <option value="gemini-2.5-flash">✅ Gemini 2.5 Flash (অফিসিয়াল স্টেবল)</option>
+            <option value="gemini-flash-latest">✅ Gemini Flash Latest</option>
+            <option value="gemini-2.5-flash-lite">⚡ Gemini 2.5 Flash Lite (Lightweight)</option>
+            <option value="gemini-2.5-pro">✨ Gemini 2.5 Pro (Deep Reasoning)</option>
+            <option value="gemini-pro-latest">✨ Gemini Pro Latest</option>
+            <option value="gemini-3.1-pro-preview">🔬 Gemini 3.1 Pro Preview</option>
           </optgroup>
         </select>
-        <small class="helper-text">★ একটি মডেলে সমস্যা হলে অটোম্যাটিক fallback দিয়ে পরের মডেলে উত্তর আনবে</small>
+        <small class="helper-text">★ লেটেস্ট মডেলগুলো দিয়ে দ্রুততম গতিতে সার্ভে পেজ এনালাইসিস সম্পন্ন হবে</small>
+      </div>
+
+      <!-- Provider Priority Section -->
+      <div class="settings-section-title" style="margin-top:12px;">🔀 AI প্রোভাইডার ও ফেইলওভার স্ট্র্যাটেজি</div>
+      <div class="settings-group">
+        <label for="select-provider-priority">অগ্রাধিকার ক্রম (Failover Sequence)</label>
+        <select id="select-provider-priority">
+          <option value="gemini_first" selected>⚡ Gemini প্রথম (Gemini শেষ হলে OpenRouter ধরবে)</option>
+          <option value="openrouter_first">🌐 OpenRouter প্রথম (OpenRouter শেষ হলে Gemini ধরবে)</option>
+          <option value="gemini_only">🔒 শুধুমাত্র Gemini (Key 1 → Key 2 → Key 3)</option>
+          <option value="openrouter_only">🔒 শুধুমাত্র OpenRouter (Key 1 → Key 2 → Key 3)</option>
+        </select>
+        <small class="helper-text">★ একটির লিমিট শেষ হলে আরেকটিতে স্বয়ংক্রিয়ভাবে সুইচ করবে, সার্ভে কখনো আটকাবে না</small>
       </div>
 
       <!-- OpenRouter API Section -->
-      <div class="settings-section-title" style="margin-top:12px;">🌐 OpenRouter (Alternative AI)</div>
+      <div class="settings-section-title" style="margin-top:12px;">🌐 OpenRouter - Multi-Key Support</div>
       <div class="settings-group">
         <label class="checkbox-label">
-          <input type="checkbox" id="check-use-openrouter">
-          <span>OpenRouter ব্যবহার করুন (Gemini বাদে অন্য মডেল)</span>
+          <input type="checkbox" id="check-use-openrouter" checked>
+          <span>OpenRouter সক্রিয় রাখুন (Gemini ব্যাকআপ / অল্টারনেটিভ)</span>
         </label>
-        <small class="helper-text">চেক করলে নিচের OpenRouter API key দিয়ে কাজ করবে</small>
+        <small class="helper-text">সক্রিয় রাখলে Gemini এর লিমিট শেষ হলেই সরাসরি OpenRouter দিয়ে কাজ সম্পন্ন করবে</small>
       </div>
 
       <div class="settings-group" id="openrouter-settings">
-        <label for="input-or-api-key">OpenRouter API Key</label>
+        <label for="input-or-api-key">OpenRouter API Key 1 <span class="badge-primary">Primary</span></label>
         <div class="api-key-row">
-          <input type="password" id="input-or-api-key" placeholder="sk-or-v1-... (openrouter.ai থেকে নিন)">
-          <button id="btn-toggle-or-key" class="btn-small">👁️</button>
+          <input type="password" id="input-or-api-key" placeholder="sk-or-v1-... (১ম OpenRouter কী)">
+          <button id="btn-toggle-or-key" class="btn-small" type="button">👁️</button>
         </div>
-        <small class="helper-text">👉 <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a> থেকে API Key নিন</small>
+      </div>
+
+      <div class="settings-group" id="openrouter-settings-2">
+        <label for="input-or-api-key-2">OpenRouter API Key 2 <span class="badge-backup">Backup 1</span></label>
+        <div class="api-key-row">
+          <input type="password" id="input-or-api-key-2" placeholder="sk-or-v1-... (২য় OpenRouter কী)">
+          <button id="btn-toggle-or-key-2" class="btn-small" type="button">👁️</button>
+        </div>
+      </div>
+
+      <div class="settings-group" id="openrouter-settings-3">
+        <label for="input-or-api-key-3">OpenRouter API Key 3 <span class="badge-backup">Backup 2</span></label>
+        <div class="api-key-row">
+          <input type="password" id="input-or-api-key-3" placeholder="sk-or-v1-... (৩য় OpenRouter কী)">
+          <button id="btn-toggle-or-key-3" class="btn-small" type="button">👁️</button>
+        </div>
+        <small class="helper-text">👉 <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a> থেকে বিনামূল্যে কী সংগ্রহ করুন</small>
       </div>
 
       <div class="settings-group" id="openrouter-model-settings">
         <label for="select-or-model">OpenRouter মডেল</label>
         <select id="select-or-model">
           <optgroup label="💚 Google Gemini (via OpenRouter)">
-            <option value="google/gemini-2.5-pro-preview">✨ Google: Gemini 2.5 Pro Preview</option>
             <option value="google/gemini-2.5-flash" selected>⚡ Google: Gemini 2.5 Flash</option>
-            <option value="google/gemini-2.5-flash-preview-05-20">Google: Gemini 2.5 Flash Preview</option>
+            <option value="google/gemini-2.5-pro-preview">✨ Google: Gemini 2.5 Pro Preview</option>
             <option value="google/gemini-2.0-flash-001">Google: Gemini 2.0 Flash</option>
-            <option value="google/gemini-flash-1-5">Google: Gemini 1.5 Flash</option>
-          </optgroup>
-          <optgroup label="🧠 OpenAI">
-            <option value="openai/gpt-4o-mini">OpenAI: GPT-4o Mini (Fast)</option>
-            <option value="openai/gpt-4o">OpenAI: GPT-4o</option>
-            <option value="openai/gpt-4.1">OpenAI: GPT-4.1</option>
-            <option value="openai/gpt-4.1-mini">OpenAI: GPT-4.1 Mini</option>
-          </optgroup>
-          <optgroup label="🤖 Anthropic Claude">
-            <option value="anthropic/claude-3-haiku">Claude 3 Haiku (Fast)</option>
-            <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
-            <option value="anthropic/claude-3.7-sonnet">Claude 3.7 Sonnet</option>
-            <option value="anthropic/claude-opus-4">Claude Opus 4</option>
-          </optgroup>
-          <optgroup label="🎙️ Meta Llama">
-            <option value="meta-llama/llama-3.1-8b-instruct:free">Llama 3.1 8B (বিনামূল্যে)</option>
-            <option value="meta-llama/llama-3.1-70b-instruct">Llama 3.1 70B</option>
-            <option value="meta-llama/llama-3.3-70b-instruct">Llama 3.3 70B</option>
           </optgroup>
           <optgroup label="⚡ DeepSeek">
             <option value="deepseek/deepseek-chat">DeepSeek V3 (Fast)</option>
             <option value="deepseek/deepseek-r1">DeepSeek R1</option>
+          </optgroup>
+          <optgroup label="🧠 OpenAI">
+            <option value="openai/gpt-4o-mini">OpenAI: GPT-4o Mini (Fast)</option>
+            <option value="openai/gpt-4o">OpenAI: GPT-4o</option>
+          </optgroup>
+          <optgroup label="🤖 Anthropic Claude">
+            <option value="anthropic/claude-3-5-sonnet">Claude 3.5 Sonnet</option>
+            <option value="anthropic/claude-3-haiku">Claude 3 Haiku</option>
+          </optgroup>
+          <optgroup label="🎙️ Meta Llama">
+            <option value="meta-llama/llama-3.3-70b-instruct">Llama 3.3 70B</option>
+            <option value="meta-llama/llama-3.1-8b-instruct:free">Llama 3.1 8B (Free)</option>
           </optgroup>
         </select>
       </div>

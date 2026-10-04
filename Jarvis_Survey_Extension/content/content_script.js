@@ -112,6 +112,12 @@
       return true;
     }
 
+    if (message.action === "API_FAILOVER_NOTIFICATION") {
+      updateHUDStatus("analyzing", message.message || "API কী অটো-সুইচ করা হচ্ছে...");
+      sendResponse({ success: true });
+      return true;
+    }
+
     if (message.action === "SURVEY_ANALYSIS_UPDATED") {
       if (message.data) {
         lastAnalysisResult = message.data;
@@ -439,6 +445,9 @@
 
     // Render results in floating HUD
     renderAnalysisInHUD(data);
+    const modelTag = response.modelUsed || "Gemini 3.8 Flash";
+    const providerTag = response.providerUsed ? ` (${response.providerUsed})` : "";
+    updateHUDStatus("done", `✅ ${modelTag}${providerTag}: স্ক্রিনশট বিশ্লেষণ সফল!`);
 
     // Notify popup if open
     try {
@@ -1178,9 +1187,11 @@
     lastAnalysisResult = response.data;
     renderAnalysisInHUD(response.data);
     highlightAnswersOnPage(response.data);
-    updateHUDStatus("done", `✅ Gemini 3.8 Flash: মানুষের মতো ${response.data.answers?.length || questions.length}টি উত্তর প্রস্তুত!`);
+    const modelTag = response.modelUsed || "Gemini 3.8 Flash";
+    const providerTag = response.providerUsed ? ` [${response.providerUsed}]` : "";
+    updateHUDStatus("done", `✅ ${modelTag}${providerTag}: মানুষের মতো ${response.data.answers?.length || questions.length}টি উত্তর প্রস্তুত!`);
 
-    return { success: true, data: response.data };
+    return { success: true, data: response.data, providerUsed: response.providerUsed, modelUsed: response.modelUsed };
   }
 
   /**

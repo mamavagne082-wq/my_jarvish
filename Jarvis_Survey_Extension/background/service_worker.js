@@ -4,52 +4,62 @@
  * Auto-Pilot: Full page scan → AI answers → click Next → repeat
  */
 
-// === ALL REAL GEMINI MODELS (Latest First) ===
+// === ALL REAL, VERIFIED GEMINI MODELS (Latest & Fastest First) ===
 const GEMINI_MODEL_CHAIN = [
-  "gemini-2.5-flash-latest",
-  "gemini-2.5-flash-preview-05-20",
-  "gemini-2.5-flash-preview-04-17",
+  "gemini-3.8-flash",
+  "gemini-3.7-flash",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
   "gemini-2.5-flash",
-  "gemini-2.0-flash",
-  "gemini-2.0-flash-exp",
-  "gemini-1.5-flash-latest",
-  "gemini-1.5-flash",
-  "gemini-2.5-pro-preview-06-05",
-  "gemini-2.5-pro-preview-05-06",
-  "gemini-2.5-pro-exp-03-25",
+  "gemini-flash-latest",
+  "gemini-2.5-flash-lite",
   "gemini-2.5-pro",
-  "gemini-1.5-pro-latest",
-  "gemini-1.5-pro"
+  "gemini-pro-latest",
+  "gemini-3.1-pro-preview",
+  "gemini-3-flash-preview"
 ];
 
 /**
- * Resolves user-friendly model names (e.g. Gemini 3.8 Flash, 3.7 Flash) to real Google API endpoints
+ * Resolves user-friendly model names directly to valid Google API endpoints
  */
 function resolveGeminiModelName(modelName) {
-  if (!modelName) return "gemini-2.5-flash-latest";
+  if (!modelName) return "gemini-3.8-flash";
+  const m = modelName.toLowerCase().trim();
   const map = {
-    "gemini-3.8-flash": "gemini-2.5-flash-latest",
-    "gemini-3.8": "gemini-2.5-flash-latest",
-    "gemini-3.7-flash": "gemini-2.5-flash-preview-05-20",
-    "gemini-3.7": "gemini-2.5-flash-preview-05-20",
-    "gemini-3.6-flash": "gemini-2.0-flash",
-    "gemini-3.6": "gemini-2.0-flash",
-    "gemini-3.5-flash": "gemini-1.5-flash-latest",
-    "gemini-3.5": "gemini-1.5-flash-latest",
-    "gemini-flash-latest": "gemini-2.5-flash-latest",
-    "gemini-pro-latest": "gemini-2.5-pro"
+    "gemini-3.8-flash": "gemini-3.8-flash",
+    "gemini-3.8": "gemini-3.8-flash",
+    "gemini-3.7-flash": "gemini-3.7-flash",
+    "gemini-3.7": "gemini-3.7-flash",
+    "gemini-3.6-flash": "gemini-3.6-flash",
+    "gemini-3.6": "gemini-3.6-flash",
+    "gemini-3.5-flash": "gemini-3.5-flash",
+    "gemini-3.5": "gemini-3.5-flash",
+    "gemini-2.5-flash": "gemini-2.5-flash",
+    "gemini-flash-latest": "gemini-flash-latest",
+    "gemini-2.5-pro": "gemini-2.5-pro",
+    "gemini-pro-latest": "gemini-pro-latest",
+    "gemini-2.5-flash-latest": "gemini-2.5-flash",
+    "gemini-1.5-flash-latest": "gemini-flash-latest",
+    "gemini-1.5-flash": "gemini-3.8-flash",
+    "gemini-1.5-pro-latest": "gemini-pro-latest",
+    "gemini-1.5-pro": "gemini-2.5-pro"
   };
-  return map[modelName.toLowerCase().trim()] || modelName;
+  return map[m] || m;
 }
 
 const DEFAULT_SETTINGS = {
-  geminiApiKey: "",
+  geminiApiKey: "AQ.Ab8RN6LtcM7pevIID9jpLXKQ_030T06c0A2UhJDnYOBQPb7O5w",
+  geminiApiKey2: "AQ.Ab8RN6J1FBmr5Rfi34mDhIDv1nmmVqt9WLcpUZrGS30lX761ng",
+  geminiApiKey3: "",
   geminiModel: "gemini-3.8-flash",
-  openRouterApiKey: "",
+  openRouterApiKey: "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",
+  openRouterApiKey2: "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",
+  openRouterApiKey3: "",
   openRouterModel: "google/gemini-2.5-flash",
-  useOpenRouter: false,
+  providerPriority: "gemini_first",
+  useOpenRouter: true,
   autoPilotActive: false,
-  autoFillDelay: 300,
+  autoFillDelay: 350,
   pageTransitionDelay: 2000,
   humanSimulationEnabled: true,
   localBridgeEnabled: true,
@@ -92,9 +102,17 @@ chrome.runtime.onInstalled.addListener(async () => {
     }
   }
 
-  if (!toSet.geminiModel) {
+  // Upgrade legacy or 404-prone models to Gemini 3.8 Flash
+  if (!toSet.geminiModel || toSet.geminiModel.includes("1.5-pro") || toSet.geminiModel === "gemini-2.5-flash-latest") {
     toSet.geminiModel = "gemini-3.8-flash";
   }
+
+  // Ensure multi-key defaults exist
+  if (!toSet.geminiApiKey) toSet.geminiApiKey = DEFAULT_SETTINGS.geminiApiKey;
+  if (!toSet.geminiApiKey2) toSet.geminiApiKey2 = DEFAULT_SETTINGS.geminiApiKey2;
+  if (!toSet.openRouterApiKey) toSet.openRouterApiKey = DEFAULT_SETTINGS.openRouterApiKey;
+  if (!toSet.openRouterApiKey2) toSet.openRouterApiKey2 = DEFAULT_SETTINGS.openRouterApiKey2;
+  if (!toSet.providerPriority) toSet.providerPriority = "gemini_first";
 
   if (!toSet.personalInfo) {
     toSet.personalInfo = { ...DEFAULT_PERSONAL_INFO };
@@ -113,7 +131,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   }
 
   await chrome.storage.local.set(toSet);
-  console.log("[Jarvis v2.0] Service worker ready. Gemini 3.8 Flash + OpenRouter loaded.");
+  console.log("[Jarvis v2.0] Service worker ready. Gemini 3.8 Flash + Multi-Key Failover Chain loaded.");
 });
 
 // Listener for messages from Popup and Content Scripts
@@ -482,33 +500,78 @@ async function checkLocalJarvisBridge() {
 async function handleSurveyAnalysis(payload, tabId) {
   const storage = await chrome.storage.local.get([
     "geminiApiKey",
+    "geminiApiKey2",
+    "geminiApiKey3",
     "geminiModel",
     "openRouterApiKey",
+    "openRouterApiKey2",
+    "openRouterApiKey3",
     "openRouterModel",
+    "providerPriority",
     "useOpenRouter",
     "surveyPersona",
     "personalInfo"
   ]);
 
-  const useOpenRouter = !!storage.useOpenRouter;
-  const openRouterKey = (storage.openRouterApiKey || "").trim();
-  const geminiKey = (storage.geminiApiKey || "").trim();
+  // Extract all Gemini keys
+  const geminiKeys = [
+    { key: (storage.geminiApiKey || "").trim(), label: "Gemini Key 1" },
+    { key: (storage.geminiApiKey2 || "").trim(), label: "Gemini Key 2" },
+    { key: (storage.geminiApiKey3 || "").trim(), label: "Gemini Key 3" }
+  ].filter(k => k.key.length > 0);
 
-  if (!geminiKey && !openRouterKey) {
-    throw new Error("❌ কোনো API Key পাওয়া যায়নি! Settings থেকে Gemini API Key অথবা OpenRouter API Key দিন।");
+  // Extract all OpenRouter keys
+  const openRouterKeys = [
+    { key: (storage.openRouterApiKey || "").trim(), label: "OpenRouter Key 1" },
+    { key: (storage.openRouterApiKey2 || "").trim(), label: "OpenRouter Key 2" },
+    { key: (storage.openRouterApiKey3 || "").trim(), label: "OpenRouter Key 3" }
+  ].filter(k => k.key.length > 0);
+
+  if (geminiKeys.length === 0 && openRouterKeys.length === 0) {
+    throw new Error("❌ কোনো API Key পাওয়া যায়নি! Settings থেকে Gemini অথবা OpenRouter API Key দিন।");
+  }
+
+  const priority = storage.providerPriority || "gemini_first";
+  const selectedGeminiModel = resolveGeminiModelName(storage.geminiModel || "gemini-3.8-flash");
+  const selectedOrModel = storage.openRouterModel || "google/gemini-2.5-flash";
+
+  let attemptPipeline = [];
+
+  const geminiAttempts = geminiKeys.map(k => ({
+    provider: "gemini",
+    key: k.key,
+    label: k.label,
+    model: selectedGeminiModel
+  }));
+
+  const openRouterAttempts = openRouterKeys.map(k => ({
+    provider: "openrouter",
+    key: k.key,
+    label: k.label,
+    model: selectedOrModel
+  }));
+
+  if (priority === "openrouter_first") {
+    attemptPipeline = [...openRouterAttempts, ...geminiAttempts];
+  } else if (priority === "openrouter_only") {
+    attemptPipeline = [...openRouterAttempts];
+  } else if (priority === "gemini_only") {
+    attemptPipeline = [...geminiAttempts];
+  } else {
+    // Default: Gemini first -> OpenRouter
+    attemptPipeline = [...geminiAttempts, ...openRouterAttempts];
   }
 
   const persona = storage.surveyPersona || {};
   const personalInfo = storage.personalInfo || null;
 
-  // Determine if this is a visual screenshot analysis or DOM text analysis
+  // Determine if visual screenshot or DOM text analysis
   const isScreenshot = !!(payload && (payload.screenshot || payload.isScreenshot));
   let base64Image = null;
   let fullDataUrl = null;
 
   if (isScreenshot && payload.screenshot) {
     fullDataUrl = payload.screenshot;
-    // Strip header prefix for direct Gemini inlineData
     base64Image = payload.screenshot.replace(/^data:image\/[a-zA-Z+]+;base64,/, "");
   }
 
@@ -517,60 +580,68 @@ async function handleSurveyAnalysis(payload, tabId) {
     : buildHumanLikeSurveyPrompt(payload, persona, personalInfo);
 
   let result = null;
+  let lastError = null;
 
-  // Strategy 1: User explicitly checked OpenRouter
-  if (useOpenRouter && openRouterKey) {
-    const orModel = storage.openRouterModel || "google/gemini-2.5-flash";
+  for (let i = 0; i < attemptPipeline.length; i++) {
+    const attempt = attemptPipeline[i];
     try {
-      result = await callOpenRouterAPI(openRouterKey, orModel, prompt, fullDataUrl);
-    } catch (orErr) {
-      console.warn("[Jarvis] OpenRouter failed, attempting fallback to Gemini direct API...", orErr);
-      if (geminiKey) {
-        const model = resolveGeminiModelName(storage.geminiModel);
-        result = await callGeminiAPI(geminiKey, model, prompt, base64Image);
+      console.log(`[Jarvis AI] Attempting analysis with [${attempt.label}] model: ${attempt.model}...`);
+
+      if (attempt.provider === "gemini") {
+        result = await callGeminiAPI(attempt.key, attempt.model, prompt, base64Image);
       } else {
-        throw orErr;
+        result = await callOpenRouterAPI(attempt.key, attempt.model, prompt, fullDataUrl);
+      }
+
+      if (result && result.data) {
+        result.providerUsed = attempt.label;
+        result.modelUsed = result.modelUsed || attempt.model;
+        break; // Success!
+      }
+    } catch (err) {
+      lastError = err;
+      console.warn(`[Jarvis AI] ⚠️ ${attempt.label} (${attempt.model}) failed: ${err.message}`);
+
+      // Auto-failover to next candidate key
+      if (i < attemptPipeline.length - 1) {
+        const nextAttempt = attemptPipeline[i + 1];
+        const failoverMsg = `⚠️ ${attempt.label} লিমিট/ত্রুটি (${err.message.slice(0, 50)}...)। স্বয়ংক্রিয়ভাবে ${nextAttempt.label} এ সুইচ করা হচ্ছে...`;
+        console.warn(`[Jarvis AI Failover] ${failoverMsg}`);
+
+        // Broadcast to tab/HUD
+        try {
+          if (tabId) {
+            chrome.tabs.sendMessage(tabId, {
+              action: "API_FAILOVER_NOTIFICATION",
+              failedLabel: attempt.label,
+              nextLabel: nextAttempt.label,
+              message: failoverMsg
+            }).catch(() => {});
+          }
+        } catch (e) {}
       }
     }
-  } else if (geminiKey) {
-    // Strategy 2: Gemini direct API is primary
-    const model = resolveGeminiModelName(storage.geminiModel);
-    try {
-      result = await callGeminiAPI(geminiKey, model, prompt, base64Image);
-    } catch (geminiErr) {
-      console.warn("[Jarvis] Gemini direct API failed:", geminiErr);
-      // Seamless auto-fallback to OpenRouter if configured!
-      if (openRouterKey) {
-        console.warn("[Jarvis] Auto-falling back to OpenRouter API...");
-        const orModel = storage.openRouterModel || "google/gemini-2.5-flash";
-        result = await callOpenRouterAPI(openRouterKey, orModel, prompt, fullDataUrl);
-      } else {
-        throw geminiErr;
-      }
-    }
-  } else if (openRouterKey) {
-    // Only OpenRouter key is available
-    const orModel = storage.openRouterModel || "google/gemini-2.5-flash";
-    result = await callOpenRouterAPI(openRouterKey, orModel, prompt, fullDataUrl);
   }
 
-  if (result && result.data) {
-    result.data.is_screenshot_analysis = isScreenshot;
-    result.data.analyzed_at = Date.now();
-    result.data.page_title = payload.title || "";
-    result.data.page_url = payload.url || "";
-
-    // Save into chrome.storage.local so popup & HUD immediately reflect latest answers
-    await chrome.storage.local.set({ lastAnalysisResult: result.data });
-
-    // Broadcast update to all tabs/popup
-    try {
-      chrome.runtime.sendMessage({
-        action: "SURVEY_ANALYSIS_UPDATED",
-        data: result.data
-      }).catch(() => {});
-    } catch (e) {}
+  if (!result || !result.data) {
+    throw lastError || new Error("❌ সব Gemini ও OpenRouter API Key এর প্রচেষ্টা ব্যর্থ হয়েছে। Settings থেকে সঠিক Key দিন।");
   }
+
+  result.data.is_screenshot_analysis = isScreenshot;
+  result.data.analyzed_at = Date.now();
+  result.data.page_title = payload.title || "";
+  result.data.page_url = payload.url || "";
+  result.data.model_used = result.modelUsed;
+  result.data.provider_used = result.providerUsed;
+
+  await chrome.storage.local.set({ lastAnalysisResult: result.data });
+
+  try {
+    chrome.runtime.sendMessage({
+      action: "SURVEY_ANALYSIS_UPDATED",
+      data: result.data
+    }).catch(() => {});
+  } catch (e) {}
 
   return result;
 }
@@ -832,21 +903,24 @@ async function callGeminiAPI(apiKey, model, promptText, base64Image) {
           if (response.status === 403) {
             const isDenied = errorText.includes("denied access") || errorText.includes("PERMISSION_DENIED");
             const msg = isDenied
-              ? "❌ Google Gemini 403: আপনার Google Cloud প্রজেক্টে অ্যাক্সেস বন্ধ হয়েছে (Your project has been denied access)। দয়া করে aistudio.google.com থেকে নতুন API Key তৈরি করুন, অথবা Settings থেকে OpenRouter API Key ব্যবহার করুন।"
-              : `❌ Gemini API Key Error (403): API Key সঠিক নয় বা পারমিশন নেই। Settings এ সঠিক Key দিন।`;
-            throw new Error(msg);
+              ? "Google Gemini 403: প্রজেক্টে অ্যাক্সেস বন্ধ বা অনুমতি নেই"
+              : "Gemini API Key Error (403): সঠিক নয় বা পারমিশন নেই";
+            const err = new Error(msg);
+            err.isKeyError = true;
+            throw err;
+          }
+
+          if (response.status === 429) {
+            console.warn(`[Jarvis] Quota/Rate limit exceeded for key on ${targetModel} (429).`);
+            const qErr = new Error(`Quota/Rate limit (429) on ${targetModel}`);
+            qErr.isQuota = true;
+            throw qErr; // Immediately switch to next key!
           }
 
           if (response.status === 404) {
             console.warn(`[Jarvis] Model ${targetModel} not found (404), trying next model in chain...`);
             lastError = new Error(`Model ${targetModel} not found (404)`);
             break; // next candidate model
-          }
-
-          if (response.status === 429) {
-            console.warn(`[Jarvis] Quota exceeded for ${targetModel}, trying next model in chain...`);
-            lastError = new Error(`Quota exceeded for ${targetModel} (429)`);
-            break;
           }
 
           lastError = new Error(`Gemini API Error (${targetModel}): ${response.status} - ${errorText.slice(0, 180)}`);
@@ -884,11 +958,11 @@ async function callGeminiAPI(apiKey, model, promptText, base64Image) {
         return { success: true, modelUsed: targetModel, data: parsed };
 
       } catch (err) {
+        if (err.isQuota || err.isKeyError) throw err;
         if (err.name === "AbortError") {
           lastError = new Error(`Timeout (25s) on ${targetModel}`);
           break;
         }
-        if (err.message && err.message.includes("403")) throw err;
         lastError = err;
         if (attempt === 0) await new Promise(r => setTimeout(r, 600));
       }
@@ -958,11 +1032,19 @@ async function callOpenRouterAPI(apiKey, model, promptText, base64Image = null) 
           console.warn(`[Jarvis OpenRouter] ${orModel} attempt ${attempt + 1} failed (${response.status}):`, errorText);
 
           if (response.status === 401 || response.status === 403) {
-            throw new Error(`❌ OpenRouter API Key ভুল বা ইনভ্যালিড! (${response.status}) Settings থেকে সঠিক Key দিন।`);
+            const err = new Error(`OpenRouter Key Error (${response.status})`);
+            err.isKeyError = true;
+            throw err;
           }
 
-          if (response.status === 404 || response.status === 429) {
-            lastError = new Error(`OpenRouter (${orModel}) status ${response.status}`);
+          if (response.status === 429 || response.status === 402) {
+            const err = new Error(`OpenRouter Quota/Limit Reached (${response.status})`);
+            err.isQuota = true;
+            throw err;
+          }
+
+          if (response.status === 404) {
+            lastError = new Error(`OpenRouter model ${orModel} not found (404)`);
             break; // try next candidate model
           }
 
@@ -1006,11 +1088,11 @@ async function callOpenRouterAPI(apiKey, model, promptText, base64Image = null) 
           data: parsed
         };
       } catch (err) {
+        if (err.isQuota || err.isKeyError) throw err;
         if (err.name === "AbortError") {
           lastError = new Error(`OpenRouter timeout (28s) on ${orModel}`);
           break;
         }
-        if (err.message && (err.message.includes("401") || err.message.includes("403"))) throw err;
         lastError = err;
         if (attempt === 0) await new Promise((r) => setTimeout(r, 600));
       }

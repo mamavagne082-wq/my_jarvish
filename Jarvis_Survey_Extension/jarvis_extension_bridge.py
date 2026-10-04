@@ -55,6 +55,34 @@ class JarvisBridgeHandler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"has_command": False}).encode("utf-8"))
             return
 
+        if self.path in ("/get_config", "/api/config"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self._send_cors_headers()
+            self.end_headers()
+            try:
+                import os
+                config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "user_config.json")
+                if os.path.exists(config_path):
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        cfg = json.load(f)
+                    api_keys = cfg.get("api_keys", {})
+                    resp = {
+                        "success": True,
+                        "geminiApiKey": api_keys.get("google", ""),
+                        "geminiApiKey2": api_keys.get("google_backup_1", ""),
+                        "geminiApiKey3": api_keys.get("google_backup_2", ""),
+                        "openRouterApiKey": api_keys.get("openrouter", ""),
+                        "openRouterApiKey2": api_keys.get("openrouter_backup_1", ""),
+                        "openRouterApiKey3": api_keys.get("openrouter_backup_2", "")
+                    }
+                else:
+                    resp = {"success": False, "error": "user_config.json not found"}
+            except Exception as ce:
+                resp = {"success": False, "error": str(ce)}
+            self.wfile.write(json.dumps(resp).encode("utf-8"))
+            return
+
         self.send_response(404)
         self.end_headers()
 

@@ -35,8 +35,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Settings elements
   const inputApiKey = document.getElementById("input-api-key");
+  const inputApiKey2 = document.getElementById("input-api-key-2");
+  const inputApiKey3 = document.getElementById("input-api-key-3");
   const btnToggleKey = document.getElementById("btn-toggle-key");
+  const btnToggleKey2 = document.getElementById("btn-toggle-key-2");
+  const btnToggleKey3 = document.getElementById("btn-toggle-key-3");
   const selectModel = document.getElementById("select-model");
+  const selectProviderPriority = document.getElementById("select-provider-priority");
   const inputFillDelay = document.getElementById("input-fill-delay");
   const checkUseVision = document.getElementById("check-use-vision");
   const checkLocalBridge = document.getElementById("check-local-bridge");
@@ -46,7 +51,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // OpenRouter settings elements
   const inputOrApiKey = document.getElementById("input-or-api-key");
+  const inputOrApiKey2 = document.getElementById("input-or-api-key-2");
+  const inputOrApiKey3 = document.getElementById("input-or-api-key-3");
   const btnToggleOrKey = document.getElementById("btn-toggle-or-key");
+  const btnToggleOrKey2 = document.getElementById("btn-toggle-or-key-2");
+  const btnToggleOrKey3 = document.getElementById("btn-toggle-or-key-3");
   const selectOrModel = document.getElementById("select-or-model");
   const checkUseOpenRouter = document.getElementById("check-use-openrouter");
   const openRouterSettings = document.getElementById("openrouter-settings");
@@ -88,34 +97,44 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 3. Load Storage Settings & Auto-Pilot State
   const storage = await chrome.storage.local.get(null);
 
-  if (storage.geminiApiKey) {
-    inputApiKey.value = storage.geminiApiKey;
-  }
+  // Load Gemini Keys (up to 3)
+  if (inputApiKey) inputApiKey.value = storage.geminiApiKey || "AQ.Ab8RN6LtcM7pevIID9jpLXKQ_030T06c0A2UhJDnYOBQPb7O5w";
+  if (inputApiKey2) inputApiKey2.value = storage.geminiApiKey2 || "AQ.Ab8RN6J1FBmr5Rfi34mDhIDv1nmmVqt9WLcpUZrGS30lX761ng";
+  if (inputApiKey3) inputApiKey3.value = storage.geminiApiKey3 || "";
 
-  const savedModel = storage.geminiModel || "gemini-3.8-flash";
-  selectModel.value = savedModel;
+  // Gemini model (default to gemini-3.8-flash)
+  const savedModel = (storage.geminiModel && !storage.geminiModel.includes("1.5-pro"))
+    ? storage.geminiModel
+    : "gemini-3.8-flash";
+  if (selectModel) selectModel.value = savedModel;
   if (modelNameBadge) {
-    const badgeText = savedModel.replace("gemini-", "").replace("-latest", "").toUpperCase();
+    const badgeText = savedModel.replace("gemini-", "").toUpperCase();
     modelNameBadge.innerText = badgeText;
   }
 
-  if (storage.autoFillDelay) {
+  // Priority
+  if (selectProviderPriority && storage.providerPriority) {
+    selectProviderPriority.value = storage.providerPriority;
+  }
+
+  if (storage.autoFillDelay && inputFillDelay) {
     inputFillDelay.value = storage.autoFillDelay;
   }
   if (checkLocalBridge && storage.localBridgeEnabled !== undefined) {
     checkLocalBridge.checked = storage.localBridgeEnabled;
   }
 
-  // Load OpenRouter settings
-  if (inputOrApiKey && storage.openRouterApiKey) {
-    inputOrApiKey.value = storage.openRouterApiKey;
-  }
+  // Load OpenRouter settings (up to 3 keys)
+  if (inputOrApiKey) inputOrApiKey.value = storage.openRouterApiKey || "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";
+  if (inputOrApiKey2) inputOrApiKey2.value = storage.openRouterApiKey2 || "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";
+  if (inputOrApiKey3) inputOrApiKey3.value = storage.openRouterApiKey3 || "";
+
   if (selectOrModel && storage.openRouterModel) {
     selectOrModel.value = storage.openRouterModel;
   }
   if (checkUseOpenRouter) {
-    checkUseOpenRouter.checked = !!storage.useOpenRouter;
-    toggleOpenRouterSectionVisibility(!!storage.useOpenRouter);
+    checkUseOpenRouter.checked = storage.useOpenRouter !== undefined ? !!storage.useOpenRouter : true;
+    toggleOpenRouterSectionVisibility(checkUseOpenRouter.checked);
   }
 
   // Auto-Pilot state
@@ -185,31 +204,27 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Check Local Bridge
   checkJarvisBridgeStatus();
 
-  // 4. Toggle API Key Visibility
-  if (btnToggleKey && inputApiKey) {
-    btnToggleKey.addEventListener("click", () => {
-      if (inputApiKey.type === "password") {
-        inputApiKey.type = "text";
-        btnToggleKey.innerText = "🔒";
+  // 4. Toggle API Key Visibility helper
+  function setupPasswordToggle(btn, input) {
+    if (!btn || !input) return;
+    btn.addEventListener("click", () => {
+      if (input.type === "password") {
+        input.type = "text";
+        btn.innerText = "🔒";
       } else {
-        inputApiKey.type = "password";
-        btnToggleKey.innerText = "👁️";
+        input.type = "password";
+        btn.innerText = "👁️";
       }
     });
   }
 
-  // Toggle OpenRouter API Key visibility
-  if (btnToggleOrKey && inputOrApiKey) {
-    btnToggleOrKey.addEventListener("click", () => {
-      if (inputOrApiKey.type === "password") {
-        inputOrApiKey.type = "text";
-        btnToggleOrKey.innerText = "🔒";
-      } else {
-        inputOrApiKey.type = "password";
-        btnToggleOrKey.innerText = "👁️";
-      }
-    });
-  }
+  setupPasswordToggle(btnToggleKey, inputApiKey);
+  setupPasswordToggle(btnToggleKey2, inputApiKey2);
+  setupPasswordToggle(btnToggleKey3, inputApiKey3);
+
+  setupPasswordToggle(btnToggleOrKey, inputOrApiKey);
+  setupPasswordToggle(btnToggleOrKey2, inputOrApiKey2);
+  setupPasswordToggle(btnToggleOrKey3, inputOrApiKey3);
 
   // Toggle OpenRouter section visibility when checkbox changes
   if (checkUseOpenRouter) {
@@ -223,14 +238,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     btnSaveSettings.addEventListener("click", async () => {
       const updated = {
         geminiApiKey: inputApiKey ? inputApiKey.value.trim() : "",
-        geminiModel: selectModel ? selectModel.value : "gemini-2.5-flash-latest",
+        geminiApiKey2: inputApiKey2 ? inputApiKey2.value.trim() : "",
+        geminiApiKey3: inputApiKey3 ? inputApiKey3.value.trim() : "",
+        geminiModel: selectModel ? selectModel.value : "gemini-3.8-flash",
+        providerPriority: selectProviderPriority ? selectProviderPriority.value : "gemini_first",
         autoFillDelay: inputFillDelay ? parseInt(inputFillDelay.value, 10) || 350 : 350,
         useVisionScreenshot: false,
         localBridgeEnabled: checkLocalBridge ? checkLocalBridge.checked : true,
         // OpenRouter settings
         openRouterApiKey: inputOrApiKey ? inputOrApiKey.value.trim() : "",
+        openRouterApiKey2: inputOrApiKey2 ? inputOrApiKey2.value.trim() : "",
+        openRouterApiKey3: inputOrApiKey3 ? inputOrApiKey3.value.trim() : "",
         openRouterModel: selectOrModel ? selectOrModel.value : "google/gemini-2.5-flash",
-        useOpenRouter: checkUseOpenRouter ? checkUseOpenRouter.checked : false
+        useOpenRouter: checkUseOpenRouter ? checkUseOpenRouter.checked : true
       };
 
       await chrome.storage.local.set(updated);
@@ -240,17 +260,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
 
       if (settingsSaveMsg) {
-        const apiMode = updated.useOpenRouter && updated.openRouterApiKey
-          ? `✅ সেভ হয়েছে! OpenRouter (${updated.openRouterModel}) সক্রিয়।`
-          : updated.geminiApiKey
-          ? `✅ সেভ হয়েছে! Gemini (${updated.geminiModel}) সক্রিয়।`
-          : "⚠️ API Key দেওয়া নেই! এক্সটেনশন কাজ করবে না।";
-        settingsSaveMsg.innerText = apiMode;
-        settingsSaveMsg.className = updated.geminiApiKey || (updated.useOpenRouter && updated.openRouterApiKey)
+        const geminiCount = [updated.geminiApiKey, updated.geminiApiKey2, updated.geminiApiKey3].filter(Boolean).length;
+        const orCount = [updated.openRouterApiKey, updated.openRouterApiKey2, updated.openRouterApiKey3].filter(Boolean).length;
+
+        let statusText = `✅ সেটিংস সেভ হয়েছে! Gemini Key: ${geminiCount}টি | OpenRouter Key: ${orCount}টি فعال`;
+        if (geminiCount === 0 && orCount === 0) {
+          statusText = "⚠️ কোনো API Key দেওয়া নেই! এক্সটেনশন কাজ করবে না।";
+        }
+        settingsSaveMsg.innerText = statusText;
+        settingsSaveMsg.className = (geminiCount > 0 || orCount > 0)
           ? "personal-info-msg success" : "personal-info-msg error";
         setTimeout(() => {
           if (settingsSaveMsg) settingsSaveMsg.innerText = "";
-        }, 3000);
+        }, 3500);
       }
 
       if (btnSaveSettings) {
@@ -605,6 +627,26 @@ document.addEventListener("DOMContentLoaded", async () => {
           }
         }
       }
+
+      // Also sync API keys from Jarvis Desktop if available
+      try {
+        const cfgResp = await fetch(`${baseUrl}/get_config`);
+        if (cfgResp.ok) {
+          const cfg = await cfgResp.json();
+          if (cfg.success) {
+            const updates = {};
+            if (cfg.geminiApiKey && inputApiKey) { inputApiKey.value = cfg.geminiApiKey; updates.geminiApiKey = cfg.geminiApiKey; }
+            if (cfg.geminiApiKey2 && inputApiKey2) { inputApiKey2.value = cfg.geminiApiKey2; updates.geminiApiKey2 = cfg.geminiApiKey2; }
+            if (cfg.geminiApiKey3 && inputApiKey3) { inputApiKey3.value = cfg.geminiApiKey3; updates.geminiApiKey3 = cfg.geminiApiKey3; }
+            if (cfg.openRouterApiKey && inputOrApiKey) { inputOrApiKey.value = cfg.openRouterApiKey; updates.openRouterApiKey = cfg.openRouterApiKey; }
+            if (cfg.openRouterApiKey2 && inputOrApiKey2) { inputOrApiKey2.value = cfg.openRouterApiKey2; updates.openRouterApiKey2 = cfg.openRouterApiKey2; }
+            if (cfg.openRouterApiKey3 && inputOrApiKey3) { inputOrApiKey3.value = cfg.openRouterApiKey3; updates.openRouterApiKey3 = cfg.openRouterApiKey3; }
+            if (Object.keys(updates).length > 0) {
+              await chrome.storage.local.set(updates);
+            }
+          }
+        }
+      } catch (ce) {}
     } catch (e) {
       if (showMessage && personalInfoStatus) {
         personalInfoStatus.innerText = "⚪ Jarvis Desktop server offline; using local saved info.";

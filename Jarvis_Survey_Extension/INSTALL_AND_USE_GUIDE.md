@@ -36,6 +36,26 @@
 
 ---
 
+## 🔑 মাল্টি-কী ফেইলওভার সিস্টেম (Multi-API-Key Auto-Failover)
+
+এক্সটেনশনে এখন **একসাথে একাধিক API Key** যোগ করার সম্পূর্ণ সুবিধা যুক্ত করা হয়েছে:
+1. **Gemini AI (Google):** ৩টি API Key যোগ করার অপশন (Key 1 Primary, Key 2 Backup, Key 3 Backup)।
+2. **OpenRouter:** ৩টি API Key যোগ করার অপশন (Key 1 Primary, Key 2 Backup, Key 3 Backup)।
+3. **অটোম্যাটিক লিমিট সুইচিং:**
+   * Gemini Key 1 এর রেট লিমিট বা কোটা (429) শেষ হলে সার্ভে না থামিয়ে তাৎক্ষণিকভাবে **Gemini Key 2** তে সুইচ করবে।
+   * Gemini Key 2 শেষ হলে **Gemini Key 3** তে সুইচ করবে।
+   * Gemini এর সব Key শেষ হলে স্বয়ংক্রিয়ভাবে **OpenRouter Key 1 -> Key 2 -> Key 3** এ সুইচ করে সার্ভে নিরবচ্ছিন্নভাবে সম্পন্ন করবে।
+4. **লেটেস্ট লাইভ মডেলসমূহ:**
+   * ⚡ **Gemini 3.8 Flash (Ultra Fast Live - ডিফল্ট ও দ্রুততম)**
+   * ⚡ **Gemini 3.7 Flash (High Speed Preview)**
+   * ⚡ **Gemini 3.6 Flash (Fast Response)**
+   * ⚡ **Gemini 3.5 Flash**
+   * ✅ **Gemini 2.5 Flash / Flash Latest**
+   * ✨ **Gemini 2.5 Pro (Deep Reasoning)**
+   *(পুরোনো `gemini-1.5-pro` 404 সমস্যা স্থায়ীভাবে সমাধান করা হয়েছে এবং স্বয়ংক্রিয়ভাবে লেটেস্ট মডেলে আপগ্রেড করা হয়েছে।)*
+
+---
+
 ## ⌨️ কীবোর্ড শর্টকাট সামারি
 
 * **`Alt + S`**: যেকোনো সার্ভে পেজে সাথে সাথে সঠিক উত্তরগুলো অটো-সিলেক্ট করার হটকি (ম্যানুয়াল মোড)।
@@ -46,5 +66,7 @@
 
 1. ক্রোম বা এজ ব্রাউজারের অ্যাড্রেস বারে যান: `chrome://extensions` বা `edge://extensions`।
 2. **Jarvis AI Survey Copilot** কার্ডের নিচে থাকা **Reload (🔄 রিফ্রেশ)** আইকনে ক্লিক করুন।
-3. নিচের টেস্ট পেজে গিয়ে এখনই পরীক্ষা করুন:
+3. এক্সটেনশন আইকনে ক্লিক করে **Settings** ট্যাবে যান — আপনার কী ও মডেলসমূহ স্বয়ংক্রিয়ভাবে লোড হয়ে যাবে।
+4. টেস্ট পেজে গিয়ে এখনই পরীক্ষা করুন:
    👉 [`test_survey_page.html`](file:///c:/Users/Al%20Amin/Downloads/Compressed/Jarvis/Jarvis_Survey_Extension/test_survey_page.html)
+
