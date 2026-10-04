@@ -7,9 +7,9 @@
 // === ALL REAL, VERIFIED GEMINI MODELS (Latest & Fastest First) ===
 const GEMINI_MODEL_CHAIN = [
   "gemini-3.8-flash",
-  "gemini-3.7-flash",
-  "gemini-3.6-flash",
-  "gemini-3.5-flash"
+  "gemini-flash-latest",
+  "gemini-2.5-flash-lite",
+  "gemini-pro-latest"
 ];
 
 /**
@@ -18,21 +18,11 @@ const GEMINI_MODEL_CHAIN = [
 function resolveGeminiModelName(modelName) {
   if (!modelName) return "gemini-3.8-flash";
   const m = modelName.toLowerCase().trim();
-  // Any legacy or 404-prone models map straight to high-speed working Gemini 3.8 Flash
-  if (m.includes("2.5") || m.includes("1.5") || m.includes("latest") || m.includes("preview")) {
-    return "gemini-3.8-flash";
-  }
-  const map = {
-    "gemini-3.8-flash": "gemini-3.8-flash",
-    "gemini-3.8": "gemini-3.8-flash",
-    "gemini-3.7-flash": "gemini-3.7-flash",
-    "gemini-3.7": "gemini-3.7-flash",
-    "gemini-3.6-flash": "gemini-3.6-flash",
-    "gemini-3.6": "gemini-3.6-flash",
-    "gemini-3.5-flash": "gemini-3.5-flash",
-    "gemini-3.5": "gemini-3.5-flash"
-  };
-  return map[m] || "gemini-3.8-flash";
+  if (m.includes("3.8") || m.includes("flash")) return "gemini-3.8-flash";
+  if (m.includes("lite")) return "gemini-2.5-flash-lite";
+  if (m.includes("pro")) return "gemini-pro-latest";
+  if (m.includes("latest")) return "gemini-flash-latest";
+  return "gemini-3.8-flash";
 }
 
 const DEFAULT_SETTINGS = {
