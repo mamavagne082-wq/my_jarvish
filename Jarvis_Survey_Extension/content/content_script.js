@@ -499,8 +499,9 @@
           } else {
             await sleep(80);
           }
-          break;
-        }
+          if (ans.recommended_action !== "select_checkbox") {
+            break;
+          }
       }
 
       // 2. If text input
@@ -646,7 +647,11 @@
             clickElementLikeHuman(nextBtnFallback);
           } else {
             updateHUDStatus("error", "⚠️ পেজের প্রশ্ন চিহ্নিত করা যায়নি। ২ সেকেন্ড পর পুনরায় চেষ্টা হবে...");
-            await sleep(2500);
+            setTimeout(() => {
+              if (isAutoPilotActive && !autoPilotRunningCycle) {
+                triggerAutoPilotCycle();
+              }
+            }, 3000);
           }
           autoPilotRunningCycle = false;
           return;
@@ -659,9 +664,8 @@
       }
 
       // 8. Post-Answering Pause before Next / Submit
-      // User requirement:
-      // নরমাল পেজের ক্ষেত্রে ৫ সেকেন্ডের মতো সময় নিবে
-      // লাস্ট পেজের ক্ষেত্রে ৭-১০ সেকেন্ড সময় নিয়ে থামবে, তারপর সাবমিট করবে যাতে সার্ভে থেকে বের না করে দেয়
+      // Normal page: ~5s
+      // Last page: 8-10s before submit to avoid disqualification / screen-out
       const isFinalPage = isLastSurveyPage(analysisData) || isLastPageInitial;
 
       if (isFinalPage) {
@@ -685,6 +689,15 @@
         updateHUDStatus("done", isFinalPage ? "🛑 লাস্ট পেজ: সাবমিট বাটনে ক্লিক করা হচ্ছে..." : "🤖 Next বাটনে ক্লিক করা হচ্ছে...");
         await sleep(400 + Math.random() * 300);
         clickElementLikeHuman(nextBtn);
+
+        // Schedule next cycle for dynamic SPAs where no full page reload occurs
+        if (!isFinalPage) {
+          setTimeout(() => {
+            if (isAutoPilotActive && !autoPilotRunningCycle) {
+              triggerAutoPilotCycle();
+            }
+          }, 3600);
+        }
       } else {
         updateHUDStatus("done", "🤖 পেজের উত্তর সম্পন্ন। পরবর্তী ধাপের জন্য অপেক্ষা করা হচ্ছে...");
       }
@@ -943,13 +956,23 @@
         return;
       }
 
-      const inputs = Array.from(container.querySelectorAll("input, select, textarea, [role='radio'], [role='checkbox']"));
-      const validInputs = inputs.filter((inp) => {
+      const rawElements = Array.from(container.querySelectorAll(
+        "input, select, textarea, [role='radio'], [role='checkbox'], [role='option'], .choice, .option, .answer, .survey-option, .btn-choice, [data-choice], [data-value]"
+      ));
+      let validInputs = rawElements.filter((inp) => {
         const t = (inp.getAttribute("type") || inp.tagName.toLowerCase()).toLowerCase();
-        return !["hidden", "submit", "button"].includes(t);
+        return !["hidden", "submit"].includes(t);
       });
 
-      if (validInputs.length === 0) return;
+      // If no standard inputs found, search for clickable options/buttons
+      if (validInputs.length === 0) {
+        const customChoices = Array.from(container.querySelectorAll("button, [role='button'], label.option-row, li, .card")).filter(isElementVisible);
+        if (customChoices.length > 0) {
+          validInputs = customChoices;
+        } else {
+          return;
+        }
+      }
 
       const options = [];
       let qType = "single_choice";
@@ -958,7 +981,7 @@
         trackedElements.add(input);
         const tag = input.tagName.toLowerCase();
         const type = (input.getAttribute("type") || tag).toLowerCase();
-        const label = getElementVisualLabel(input);
+        const label = getElementVisualLabel(input) || input.innerText || "";
 
         if (type === "radio" || input.getAttribute("role") === "radio") {
           qType = "single_choice";
@@ -1197,74 +1220,153 @@
   /**
    * =========================================================================
    * 4. ADVANCED OPTION & ELEMENT FINDER
-   * Multi-strategy matching: IDs, exact label, contains, numeric tokens, DOM reverse search
+  /**
+   * =========================================================================
+   * 4. UNIVERSAL HIGH-PRECISION OPTION & ELEMENT FINDER
+   * Handles native inputs, custom div/card options, buttons, chips, table cells,
+   * with strict whole-word boundary matching (prevents "Male" matching "Female", "No" matching "None", etc.)
    * =========================================================================
    */
   function findInputByLabelOrValue(text, answerContext = null) {
     if (!text) return null;
-    const cleanTarget = cleanText(text).toLowerCase();
+    const cleanTarget = cleanText(text).toLowerCase()
+      .replace(/^[•\-\*\d\.\)\s]+/, "") // Remove bullet points or numbers
+      .trim();
     if (!cleanTarget) return null;
 
-    const allInputs = Array.from(document.querySelectorAll(
-      'input[type="radio"], input[type="checkbox"], [role="radio"], [role="checkbox"], .custom-radio, .custom-checkbox, select, textarea, input[type="text"]'
-    ));
+    // Helper: Checks whole-word / token boundary match, with strict exclusion of opposite or substring traps
+    function isWordMatch(textToCheck, target) {
+      if (!textToCheck || !target) return false;
+      const t = textToCheck.toLowerCase().trim();
+      const tgt = target.toLowerCase().trim();
+      if (t === tgt) return true;
 
-    // Pass 1: Exact label text match
-    for (const input of allInputs) {
-      if (!isElementVisible(input)) continue;
-      const optText = getElementVisualLabel(input).toLowerCase();
-      if (optText === cleanTarget) {
-        return input;
+      // Anti-trap 1: "Male" must NEVER match "Female"
+      if (tgt === "male" && /\bfemale\b/i.test(t)) return false;
+      // Anti-trap 2: "No" must NEVER match "None", "Not", "North", etc.
+      if (tgt === "no" && !/\bno\b/i.test(t)) return false;
+      // Anti-trap 3: "Yes" must NEVER match "Yesterday", "Eyes"
+      if (tgt === "yes" && !/\byes\b/i.test(t)) return false;
+
+      // Word boundary regex check
+      const escaped = tgt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp("(^|[^a-zA-Z0-9])" + escaped + "([^a-zA-Z0-9]|$)", "i");
+      if (re.test(t)) return true;
+
+      // Inverse check: If candidate label is a key word inside the target
+      // (e.g. candidate is "Audi", target is "Audi, Nissan (Select Only 2)")
+      if (t.length >= 3) {
+        const escapedT = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const reT = new RegExp("(^|[^a-zA-Z0-9])" + escapedT + "([^a-zA-Z0-9]|$)", "i");
+        if (reT.test(tgt)) return true;
       }
+
+      return false;
     }
 
-    // Pass 2: Contains match (bidirectional)
-    for (const input of allInputs) {
-      if (!isElementVisible(input)) continue;
-      const optText = getElementVisualLabel(input).toLowerCase();
-      if (optText && (optText.includes(cleanTarget) || cleanTarget.includes(optText))) {
-        return input;
-      }
-    }
-
-    // Pass 3: Value attribute match
-    for (const input of allInputs) {
-      if (!isElementVisible(input)) continue;
-      if (input.value && cleanText(input.value).toLowerCase() === cleanTarget) {
-        return input;
-      }
-    }
-
-    // Pass 4: Numeric token match (e.g. "4 people" <-> "4" or "Over 5,000" <-> "5000")
-    const targetNumbers = cleanTarget.match(/\d+/g);
-    if (targetNumbers && targetNumbers.length > 0) {
-      const targetNumStr = targetNumbers.join("");
-      for (const input of allInputs) {
-        if (!isElementVisible(input)) continue;
-        const optText = getElementVisualLabel(input).toLowerCase() + " " + (input.value || "");
-        const optNumbers = optText.match(/\d+/g);
-        if (optNumbers && optNumbers.join("") === targetNumStr) {
-          return input;
+    // Scoped container candidates: If question text or index provided, search within its container first!
+    let scopedElements = [];
+    if (answerContext && (answerContext.question_text || answerContext.question_index !== undefined)) {
+      const qText = (answerContext.question_text || "").toLowerCase().slice(0, 40);
+      const allContainers = document.querySelectorAll(
+        ".question-block, .survey-question, .question, .QuestionOuter, fieldset, [role='radiogroup'], .form-group, .survey-card, .survey-row, tr"
+      );
+      for (const c of allContainers) {
+        if (qText && c.innerText.toLowerCase().includes(qText)) {
+          scopedElements = Array.from(c.querySelectorAll(
+            'input, [role="radio"], [role="checkbox"], [role="option"], [role="button"], button, label, .choice, .option, .answer, .survey-option, .btn-choice, .custom-control, .form-check, select, textarea, li, td'
+          ));
+          break;
         }
       }
     }
 
-    // Pass 5: Broad DOM text node search
-    const textNodes = document.querySelectorAll("label, span, p, div, li, td");
-    for (const node of textNodes) {
-      if (!isElementVisible(node) || node.children.length > 3) continue;
-      const txt = cleanText(node.innerText).toLowerCase();
-      if (txt === cleanTarget || (txt.length < 60 && (txt.includes(cleanTarget) || cleanTarget.includes(txt)))) {
-        const relatedInput = node.querySelector('input[type="radio"], input[type="checkbox"]') ||
-          node.parentElement?.querySelector('input[type="radio"], input[type="checkbox"]') ||
-          (node.htmlFor ? document.getElementById(node.htmlFor) : null);
-        if (relatedInput && isElementVisible(relatedInput)) {
-          return relatedInput;
+    // Global pool of interactive survey elements
+    const globalElements = Array.from(document.querySelectorAll(
+      'input, [role="radio"], [role="checkbox"], [role="option"], [role="button"], button, label, .choice, .option, .answer, .survey-option, .btn-choice, .custom-control, .form-check, select, textarea, li, td'
+    ));
+
+    const searchPools = scopedElements.length > 0 ? [scopedElements, globalElements] : [globalElements];
+
+    for (const pool of searchPools) {
+      // Pass 1: Exact label / innerText match
+      for (const el of pool) {
+        if (!isElementVisible(el)) continue;
+        const optText = (getElementVisualLabel(el) || el.innerText || "").toLowerCase().trim();
+        if (optText === cleanTarget) {
+          return resolveInteractiveTarget(el);
+        }
+      }
+
+      // Pass 2: Strict whole-word token boundary match
+      for (const el of pool) {
+        if (!isElementVisible(el)) continue;
+        const optText = (getElementVisualLabel(el) || el.innerText || "").toLowerCase().trim();
+        if (isWordMatch(optText, cleanTarget)) {
+          return resolveInteractiveTarget(el);
+        }
+      }
+
+      // Pass 3: Exact Value attribute match
+      for (const el of pool) {
+        if (!isElementVisible(el)) continue;
+        if (el.value && cleanText(el.value).toLowerCase() === cleanTarget) {
+          return resolveInteractiveTarget(el);
+        }
+      }
+
+      // Pass 4: Numeric token match (e.g. "50", "1976", "125000", "2", "4", "750-800")
+      const targetNumbers = cleanTarget.match(/\d+/g);
+      if (targetNumbers && targetNumbers.length > 0) {
+        const targetNumStr = targetNumbers.join("");
+        for (const el of pool) {
+          if (!isElementVisible(el)) continue;
+          const optText = ((getElementVisualLabel(el) || el.innerText || "") + " " + (el.value || "")).toLowerCase();
+          const optNumbers = optText.match(/\d+/g);
+          if (optNumbers && optNumbers.join("") === targetNumStr) {
+            return resolveInteractiveTarget(el);
+          }
+        }
+      }
+
+      // Pass 5: Token set overlap (>60% common words)
+      const targetWords = cleanTarget.split(/\s+/).filter(w => w.length > 2 && !["and", "the", "for", "with", "only"].includes(w));
+      if (targetWords.length > 0) {
+        for (const el of pool) {
+          if (!isElementVisible(el)) continue;
+          const optText = (getElementVisualLabel(el) || el.innerText || "").toLowerCase();
+          const matches = targetWords.filter(w => isWordMatch(optText, w));
+          if (matches.length >= Math.ceil(targetWords.length * 0.6)) {
+            return resolveInteractiveTarget(el);
+          }
         }
       }
     }
 
     return null;
+  }
+
+  /**
+   * Given an option element (label, div, or container), finds the actual clickable element
+   */
+  function resolveInteractiveTarget(el) {
+    if (!el) return null;
+    // If it's already an input, select, textarea, button or role=radio/checkbox, return directly
+    const tag = el.tagName.toLowerCase();
+    if (["input", "select", "textarea", "button"].includes(tag)) return el;
+    if (el.getAttribute("role") === "radio" || el.getAttribute("role") === "checkbox" || el.getAttribute("role") === "button") return el;
+
+    // Check if it has a child input
+    const childInput = el.querySelector('input[type="radio"], input[type="checkbox"], input');
+    if (childInput) return childInput;
+
+    // Check if it is a label with htmlFor
+    if (el.htmlFor) {
+      const target = document.getElementById(el.htmlFor);
+      if (target) return target;
+    }
+
+    return el;
   }
 
   function highlightAnswersOnPage(data) {
@@ -1291,10 +1393,13 @@
     const parentContainer = element.closest("label") || element.parentElement || element;
     parentContainer.classList.add("jarvis-highlighted-container");
 
-    const badge = document.createElement("span");
-    badge.className = "jarvis-pick-badge";
-    badge.innerHTML = `<span class="jarvis-pulse-dot"></span> JARVIS CHOICE #${index}`;
-    parentContainer.appendChild(badge);
+    const existingBadge = parentContainer.querySelector(".jarvis-pick-badge");
+    if (!existingBadge) {
+      const badge = document.createElement("span");
+      badge.className = "jarvis-pick-badge";
+      badge.innerHTML = `<span class="jarvis-pulse-dot"></span> JARVIS CHOICE #${index}`;
+      parentContainer.appendChild(badge);
+    }
 
     if (index === 1 && !isAutoPilotActive) {
       parentContainer.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -1321,7 +1426,7 @@
 
     const { autoFillDelay } = await chrome.storage.local.get(["autoFillDelay"]);
     const isAuto = isAutoPilotActive;
-    // User requirement: অটোমেটিকের ক্ষেত্রে আস্তে আস্তে কমপক্ষে তিন সেকেন্ড গ্যাপ দিয়ে দিয়ে উত্তর সিলেক্ট করতে হবে
+    // Human simulation: At least 3 seconds gap between questions in Auto-Pilot mode as requested
     const baseDelay = customGapMs !== null ? customGapMs : (isAuto ? 3000 : (autoFillDelay !== undefined ? autoFillDelay : 100));
 
     let filledCount = 0;
@@ -1332,6 +1437,7 @@
       let filledThisAnswer = false;
       const targetIds = ans.target_element_ids || [];
       const labels = ans.selected_labels || [];
+      const isMultiple = ans.recommended_action === "select_checkbox";
 
       // 1. Try target_element_ids
       for (const targetId of targetIds) {
@@ -1341,26 +1447,25 @@
           await simulateHumanAction(el, ans);
           filledCount++;
           filledThisAnswer = true;
-          break;
+          if (!isMultiple) break;
         }
       }
 
-      // 2. If not filled, search by selected_labels
-      if (!filledThisAnswer && labels.length > 0) {
+      // 2. If not filled (or multiple choice), search by selected_labels
+      if ((!filledThisAnswer || isMultiple) && labels.length > 0) {
         for (const label of labels) {
           const el = findInputByLabelOrValue(label, ans);
           if (el) {
             await simulateHumanAction(el, ans);
             filledCount++;
             filledThisAnswer = true;
-            break;
+            if (!isMultiple) break;
           }
         }
       }
 
       // 3. If action is type_text and not filled yet
       if (!filledThisAnswer && (ans.recommended_action === "type_text" || ans.text_input_value)) {
-        // Find text input corresponding to question
         const qObj = questions[ans.question_index];
         const textOpt = qObj?.options?.find(o => o.type === "text_input") ||
           questions.flatMap(q => q.options).find(o => o.type === "text_input" && isElementVisible(o.element));
@@ -1382,9 +1487,9 @@
         }
       }
 
-      // Human-paced inter-question delay
+      // Human-paced inter-question delay (at least 3 seconds in auto mode)
       if (filledThisAnswer && isAuto && ansIdx < data.answers.length - 1) {
-        const pauseMs = baseDelay + Math.random() * 600; // at least 3 seconds
+        const pauseMs = baseDelay + Math.random() * 600;
         updateHUDStatus("analyzing", `🤖 উত্তর পূরণ হয়েছে (${ansIdx + 1}/${data.answers.length}) - পরবর্তী প্রশ্নের জন্য ৩ সেকেন্ড বিরতি...`);
         await sleep(pauseMs);
       } else {
@@ -1426,11 +1531,10 @@
       if (q.type === "single_choice" || q.type === "matrix_row") {
         const hasSelection = q.options.some((opt) => {
           const el = opt.element || document.getElementById(opt.id);
-          return el && (el.checked || el.getAttribute("aria-checked") === "true");
+          return el && (el.checked || el.getAttribute("aria-checked") === "true" || el.classList.contains("selected") || el.classList.contains("active"));
         });
 
         if (!hasSelection && q.options.length > 0) {
-          // Find if Gemini provided an answer for this question
           const ans = data?.answers?.find((a) => a.question_index === qIdx || cleanText(a.question_text) === cleanText(q.text));
           let chosenOpt = null;
           if (ans && ans.selected_labels && ans.selected_labels.length > 0) {
@@ -1471,28 +1575,52 @@
     const qText = (question.text || "").toLowerCase();
     const opts = question.options;
 
+    // Age (50 years old / Born 1976)
+    if (/age|how old|birth year|born/i.test(qText)) {
+      const match = opts.find(o => /\b50\b|45\s*-\s*54|1976/i.test(o.label));
+      if (match) return match;
+    }
+
+    // Gender (Male / Heterosexual)
+    if (/gender|sex|sexual orientation/i.test(qText)) {
+      const match = opts.find(o => /\bmale\b/i.test(o.label) && !/\bfemale\b/i.test(o.label));
+      if (match) return match;
+    }
+
+    // Race / Ethnicity (White / Not Hispanic)
+    if (/race|ethnicity|hispanic|heritage/i.test(qText)) {
+      const match = opts.find(o => /\bwhite\b|not hispanic|no hispanic/i.test(o.label));
+      if (match) return match;
+    }
+
+    // Education (Master's or Professional Degree / Bachelor)
+    if (/education|degree|school|highest level/i.test(qText)) {
+      const match = opts.find(o => /master|post-graduate|professional degree|graduate|bachelor/i.test(o.label));
+      if (match) return match;
+    }
+
     // Household size (4 people)
     if (/household|how many people|family members/i.test(qText)) {
-      const match = opts.find(o => /4|four/i.test(o.label));
+      const match = opts.find(o => /\b4\b|four/i.test(o.label));
       if (match) return match;
     }
 
-    // Monthly Income (> $5,000)
-    if (/income|monthly|salary|earn/i.test(qText)) {
-      const match = opts.find(o => /over 5,000|> 5,000|5,000\+|125,000|100,000|highest/i.test(o.label)) ||
-                    opts.find(o => /5,000|4,000|3,000/i.test(o.label));
+    // Monthly / Annual Income ($125,000 - $149,999)
+    if (/income|monthly|salary|earn|revenue/i.test(qText)) {
+      const match = opts.find(o => /125,000|125000|100,000|over 5,000|> 5,000|5,000\+/i.test(o.label)) ||
+                    opts.find(o => /50,000|75,000/i.test(o.label));
       if (match) return match;
     }
 
-    // Housing Type (Detached house / Own house / Single family)
+    // Housing Type (Own house / single family house / Detached)
     if (/housing|home|living|residence/i.test(qText)) {
-      const match = opts.find(o => /detached|single family|own|house|apartment/i.test(o.label));
+      const match = opts.find(o => /own|single family|detached|condo|house/i.test(o.label));
       if (match) return match;
     }
 
-    // Vehicle (Yes / Owns vehicle)
+    // Vehicle (Audi / Nissan / Yes)
     if (/vehicle|car|automobile|drive/i.test(qText)) {
-      const match = opts.find(o => /^yes\b|own|primary/i.test(o.label));
+      const match = opts.find(o => /\baudi\b|\bnissan\b|^yes\b|own/i.test(o.label));
       if (match) return match;
     }
 
@@ -1502,15 +1630,21 @@
       if (match) return match;
     }
 
-    // Kids (Yes / 2 kids)
+    // Kids (2 kids)
     if (/children|kids|child/i.test(qText)) {
-      const match = opts.find(o => /^yes\b|2\b|two/i.test(o.label));
+      const match = opts.find(o => /\b2\b|two|^yes\b/i.test(o.label));
       if (match) return match;
     }
 
-    // Employment (Full-time / Computer Software)
+    // Employment (Full-time / IT / Computer Software)
     if (/employment|job|work|occupation|industry/i.test(qText)) {
-      const match = opts.find(o => /full-time|full time|computer|software|technology|it\b/i.test(o.label));
+      const match = opts.find(o => /full-time|full time|computer software|information technology|manager|director/i.test(o.label));
+      if (match) return match;
+    }
+
+    // Screener / Disqualification trap
+    if (/market research|advertising|public relations|journalism/i.test(qText)) {
+      const match = opts.find(o => /none of the above|not applicable/i.test(o.label));
       if (match) return match;
     }
 
@@ -1525,58 +1659,63 @@
   /**
    * Universal Human Interaction Engine
    * Dispatches React prototype setters, native inputs, and full mouse events
+   * Works on <input>, <select>, <textarea>, <button>, <label>, and custom <div>/<span> choice cards!
    */
   async function simulateHumanAction(element, answer = {}) {
     if (!element) return;
-    element.scrollIntoView({ behavior: "smooth", block: "center" });
+    try {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+    } catch (e) {}
 
     const tag = element.tagName.toLowerCase();
     const type = (element.getAttribute("type") || element.type || tag).toLowerCase();
-    const isRadio = type === "radio" || element.getAttribute("role") === "radio";
-    const isCheckbox = type === "checkbox" || element.getAttribute("role") === "checkbox";
 
-    // A. Radio & Checkbox
-    if (isRadio || isCheckbox) {
-      if (element.tagName.toLowerCase() === "input") {
-        try {
-          const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "checked")?.set;
-          if (setter) {
-            setter.call(element, true);
-          } else {
-            element.checked = true;
-          }
-        } catch (e) {
-          element.checked = true;
-        }
-      } else if (element.hasAttribute("aria-checked")) {
-        element.setAttribute("aria-checked", "true");
-      }
-
-      const opts = { bubbles: true, cancelable: true, view: window };
-      element.dispatchEvent(new MouseEvent("pointerdown", opts));
-      element.dispatchEvent(new MouseEvent("mousedown", opts));
+    // 1. TEXT INPUT / TEXTAREA / CONTENTEDITABLE
+    if (element.isContentEditable) {
       element.focus();
-      element.dispatchEvent(new MouseEvent("pointerup", opts));
-      element.dispatchEvent(new MouseEvent("mouseup", opts));
-      element.dispatchEvent(new MouseEvent("click", opts));
-      element.dispatchEvent(new Event("input", { bubbles: true }));
+      const textToType = answer.text_input_value || "Overall good experience and dependable service.";
+      element.innerText = textToType;
+      element.dispatchEvent(new InputEvent("input", { bubbles: true, data: textToType }));
       element.dispatchEvent(new Event("change", { bubbles: true }));
-
-      // Also trigger click on the wrapping label or container if present
-      const label = (element.id ? document.querySelector(`label[for="${CSS.escape(element.id)}"]`) : null) ||
-        element.closest("label") ||
-        element.closest(".form-check, .custom-control, .option, .choice, [role='radio']");
-      if (label && label !== element) {
-        try {
-          label.click();
-        } catch (e) {}
-      }
-
+      element.blur();
       await sleep(30);
       return;
     }
 
-    // B. Dropdown Select
+    if (tag === "textarea" || ["text", "email", "number", "tel", "search", "url"].includes(type) || (tag === "input" && !["radio", "checkbox", "button", "submit", "reset"].includes(type))) {
+      element.focus();
+      const textToType = (answer.text_input_value && answer.text_input_value !== "null")
+        ? answer.text_input_value.trim()
+        : "The service has been dependable and easy to use.";
+
+      try {
+        const proto = tag === "textarea" ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+        const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+        if (setter) {
+          setter.call(element, textToType);
+        } else {
+          element.value = textToType;
+        }
+      } catch (e) {
+        element.value = textToType;
+      }
+
+      if (element._valueTracker) {
+        element._valueTracker.setValue("");
+      }
+
+      element.dispatchEvent(new Event("focus", { bubbles: true }));
+      element.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, inputType: "insertText", data: textToType }));
+      element.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: textToType }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+      element.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter", code: "Enter" }));
+      element.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: "Enter", code: "Enter" }));
+      element.dispatchEvent(new Event("blur", { bubbles: true }));
+      await sleep(40);
+      return;
+    }
+
+    // 2. DROPDOWN SELECT
     if (tag === "select") {
       element.focus();
       const labels = answer.selected_labels || [];
@@ -1599,6 +1738,9 @@
       if (matchedIndex >= 0) {
         element.selectedIndex = matchedIndex;
         element.value = element.options[matchedIndex].value;
+        if (element._valueTracker) {
+          element._valueTracker.setValue("");
+        }
         element.dispatchEvent(new Event("input", { bubbles: true }));
         element.dispatchEvent(new Event("change", { bubbles: true }));
       }
@@ -1606,46 +1748,61 @@
       return;
     }
 
-    // C. Text Input / Textarea / ContentEditable
-    if (element.isContentEditable) {
-      element.focus();
-      const textToType = answer.text_input_value || "Overall good experience and reliability.";
-      element.innerText = textToType;
-      element.dispatchEvent(new InputEvent("input", { bubbles: true, data: textToType }));
-      element.dispatchEvent(new Event("change", { bubbles: true }));
-      element.blur();
-      await sleep(30);
-      return;
-    }
+    // 3. RADIO, CHECKBOX, BUTTON, DIV, CARD, LI, SPAN OPTIONS
+    const associatedInput = (tag === "input" ? element : null) ||
+      element.querySelector('input[type="radio"], input[type="checkbox"]') ||
+      (element.htmlFor ? document.getElementById(element.htmlFor) : null) ||
+      element.closest("label")?.querySelector("input") ||
+      element.parentElement?.querySelector('input[type="radio"], input[type="checkbox"]');
 
-    if (tag === "textarea" || ["text", "email", "number", "tel", "search", "url"].includes(type) || !element.type) {
-      element.focus();
-      const textToType = (answer.text_input_value && answer.text_input_value !== "null")
-        ? answer.text_input_value.trim()
-        : "The service has been dependable and easy to use.";
-
+    if (associatedInput) {
       try {
-        const proto = tag === "textarea" ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
-        const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
-        if (setter) {
-          setter.call(element, textToType);
+        const protoSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "checked")?.set;
+        if (protoSetter) {
+          protoSetter.call(associatedInput, true);
         } else {
-          element.value = textToType;
+          associatedInput.checked = true;
         }
       } catch (e) {
-        element.value = textToType;
+        associatedInput.checked = true;
       }
 
-      element.dispatchEvent(new Event("focus", { bubbles: true }));
-      element.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, inputType: "insertText", data: textToType }));
-      element.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: textToType }));
-      element.dispatchEvent(new Event("change", { bubbles: true }));
-      element.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter", code: "Enter" }));
-      element.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: "Enter", code: "Enter" }));
-      element.dispatchEvent(new Event("blur", { bubbles: true }));
-      await sleep(40);
-      return;
+      if (associatedInput._valueTracker) {
+        associatedInput._valueTracker.setValue(!associatedInput.checked);
+      }
+
+      associatedInput.dispatchEvent(new Event("input", { bubbles: true }));
+      associatedInput.dispatchEvent(new Event("change", { bubbles: true }));
     }
+
+    if (element.hasAttribute("aria-checked")) {
+      element.setAttribute("aria-checked", "true");
+    }
+
+    // Dispatch complete realistic mouse and pointer event sequence
+    const opts = { bubbles: true, cancelable: true, view: window };
+    element.dispatchEvent(new MouseEvent("pointerover", opts));
+    element.dispatchEvent(new MouseEvent("mouseover", opts));
+    element.dispatchEvent(new MouseEvent("pointerdown", opts));
+    element.dispatchEvent(new MouseEvent("mousedown", opts));
+    try { element.focus(); } catch (e) {}
+    element.dispatchEvent(new MouseEvent("pointerup", opts));
+    element.dispatchEvent(new MouseEvent("mouseup", opts));
+    element.dispatchEvent(new MouseEvent("click", opts));
+
+    // Also trigger native click
+    try {
+      element.click();
+    } catch (e) {}
+
+    // Add active styling
+    element.classList.add("selected", "active", "checked");
+    if (associatedInput && associatedInput !== element) {
+      associatedInput.classList.add("selected", "active", "checked");
+      associatedInput.checked = true;
+    }
+
+    await sleep(30);
   }
 
   function sleep(ms) {
@@ -1711,6 +1868,27 @@
   } catch (e) {
     console.debug("Survey observer init:", e);
   }
+
+  // Persistent Autopilot Watchdog Timer (runs every 2.5s to ensure hands-free progress across dynamic SPAs)
+  setInterval(() => {
+    if (!isAutoPilotActive || autoPilotRunningCycle) return;
+    const questions = extractSurveyQuestions();
+    if (questions.length > 0) {
+      const hasUnanswered = questions.some((q) => {
+        if (q.type === "single_choice" || q.type === "matrix_row") {
+          return !q.options.some((o) => {
+            const el = o.element;
+            return el && (el.checked || el.getAttribute("aria-checked") === "true" || el.classList.contains("selected") || el.classList.contains("active"));
+          });
+        }
+        return false;
+      });
+      if (hasUnanswered) {
+        console.log("[Jarvis Watchdog] Unanswered survey questions detected. Triggering auto cycle...");
+        triggerAutoPilotCycle();
+      }
+    }
+  }, 2500);
 
   /**
    * =========================================================================
@@ -2029,4 +2207,7 @@
       if (banner && banner.parentNode) banner.remove();
     }, 14000);
   }
+}
 })();
+
+

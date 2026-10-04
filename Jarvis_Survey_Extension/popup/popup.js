@@ -125,8 +125,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // Load OpenRouter settings (up to 3 keys)
-  if (inputOrApiKey) inputOrApiKey.value = storage.openRouterApiKey || "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";
-  if (inputOrApiKey2) inputOrApiKey2.value = storage.openRouterApiKey2 || "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";
+  if (inputOrApiKey) inputOrApiKey.value = storage.openRouterApiKey || "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";
+  if (inputOrApiKey2) inputOrApiKey2.value = storage.openRouterApiKey2 || "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";
   if (inputOrApiKey3) inputOrApiKey3.value = storage.openRouterApiKey3 || "";
 
   if (selectOrModel && storage.openRouterModel) {
@@ -283,6 +283,41 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
   }
+
+  // Auto-save settings on input/change/blur so pasted keys are never lost
+  const autoSaveInputs = [
+    inputApiKey, inputApiKey2, inputApiKey3, selectModel, selectProviderPriority,
+    inputFillDelay, inputOrApiKey, inputOrApiKey2, inputOrApiKey3, selectOrModel
+  ];
+  let autoSaveTimer = null;
+  function triggerAutoSave() {
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(async () => {
+      const updated = {
+        geminiApiKey: inputApiKey ? inputApiKey.value.trim() : "",
+        geminiApiKey2: inputApiKey2 ? inputApiKey2.value.trim() : "",
+        geminiApiKey3: inputApiKey3 ? inputApiKey3.value.trim() : "",
+        geminiModel: selectModel ? selectModel.value : "gemini-3.8-flash",
+        providerPriority: selectProviderPriority ? selectProviderPriority.value : "gemini_first",
+        autoFillDelay: inputFillDelay ? parseInt(inputFillDelay.value, 10) || 350 : 350,
+        localBridgeEnabled: checkLocalBridge ? checkLocalBridge.checked : true,
+        openRouterApiKey: inputOrApiKey ? inputOrApiKey.value.trim() : "",
+        openRouterApiKey2: inputOrApiKey2 ? inputOrApiKey2.value.trim() : "",
+        openRouterApiKey3: inputOrApiKey3 ? inputOrApiKey3.value.trim() : "",
+        openRouterModel: selectOrModel ? selectOrModel.value : "google/gemini-2.5-flash",
+        useOpenRouter: checkUseOpenRouter ? checkUseOpenRouter.checked : true
+      };
+      await chrome.storage.local.set(updated);
+      console.log("[Jarvis Popup] Settings auto-saved.");
+    }, 300);
+  }
+  autoSaveInputs.forEach(el => {
+    if (el) {
+      el.addEventListener("input", triggerAutoSave);
+      el.addEventListener("change", triggerAutoSave);
+      el.addEventListener("blur", triggerAutoSave);
+    }
+  });
 
   // 6. Action: Toggle Autonomous Auto-Pilot
   if (btnToggleAutopilot) {
