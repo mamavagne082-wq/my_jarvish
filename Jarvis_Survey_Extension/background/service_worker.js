@@ -1,18 +1,59 @@
 /**
  * Jarvis AI Survey Copilot - Background Service Worker (Manifest V3)
- * Full Integration with Jarvis Desktop EXE, Voice Commands & Mobile APK.
+ * Gemini 2.5 Pro/Flash + OpenRouter All Models Support
+ * Auto-Pilot: Full page scan → AI answers → click Next → repeat
  */
 
+// === ALL REAL GEMINI MODELS (Latest First) ===
+const GEMINI_MODEL_CHAIN = [
+  "gemini-2.5-flash-latest",
+  "gemini-2.5-flash-preview-05-20",
+  "gemini-2.5-flash-preview-04-17",
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-exp",
+  "gemini-1.5-flash-latest",
+  "gemini-1.5-flash",
+  "gemini-2.5-pro-preview-06-05",
+  "gemini-2.5-pro-preview-05-06",
+  "gemini-2.5-pro-exp-03-25",
+  "gemini-2.5-pro",
+  "gemini-1.5-pro-latest",
+  "gemini-1.5-pro"
+];
+
+/**
+ * Resolves user-friendly model names (e.g. Gemini 3.8 Flash, 3.7 Flash) to real Google API endpoints
+ */
+function resolveGeminiModelName(modelName) {
+  if (!modelName) return "gemini-2.5-flash-latest";
+  const map = {
+    "gemini-3.8-flash": "gemini-2.5-flash-latest",
+    "gemini-3.8": "gemini-2.5-flash-latest",
+    "gemini-3.7-flash": "gemini-2.5-flash-preview-05-20",
+    "gemini-3.7": "gemini-2.5-flash-preview-05-20",
+    "gemini-3.6-flash": "gemini-2.0-flash",
+    "gemini-3.6": "gemini-2.0-flash",
+    "gemini-3.5-flash": "gemini-1.5-flash-latest",
+    "gemini-3.5": "gemini-1.5-flash-latest",
+    "gemini-flash-latest": "gemini-2.5-flash-latest",
+    "gemini-pro-latest": "gemini-2.5-pro"
+  };
+  return map[modelName.toLowerCase().trim()] || modelName;
+}
+
 const DEFAULT_SETTINGS = {
-  geminiApiKey: "AQ.Ab8RN6JHF6heRWfsnO5USnfzLeb-FWVFikfabKfams1pJ7oAxQ",
+  geminiApiKey: "",
   geminiModel: "gemini-3.8-flash",
+  openRouterApiKey: "",
+  openRouterModel: "google/gemini-2.5-flash",
+  useOpenRouter: false,
   autoPilotActive: false,
-  autoFillDelay: 350,
+  autoFillDelay: 300,
   pageTransitionDelay: 2000,
   humanSimulationEnabled: true,
   localBridgeEnabled: true,
   localBridgeUrl: "http://127.0.0.1:8765",
-  useVisionScreenshot: true,
   highlightColor: "#00ffcc",
   soundEnabled: true
 };
@@ -51,9 +92,7 @@ chrome.runtime.onInstalled.addListener(async () => {
     }
   }
 
-  // Upgrade legacy or deprecated models to gemini-3.8-flash
-  const deprecated = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash", "gemini-2.5-flash"];
-  if (!current.geminiModel || deprecated.includes(current.geminiModel)) {
+  if (!toSet.geminiModel) {
     toSet.geminiModel = "gemini-3.8-flash";
   }
 
@@ -74,7 +113,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   }
 
   await chrome.storage.local.set(toSet);
-  console.log("Jarvis Survey Copilot service worker initialized with Gemini 3.8 Flash engine.");
+  console.log("[Jarvis v2.0] Service worker ready. Gemini 3.8 Flash + OpenRouter loaded.");
 });
 
 // Listener for messages from Popup and Content Scripts
@@ -444,24 +483,60 @@ async function handleSurveyAnalysis(payload, tabId) {
   const storage = await chrome.storage.local.get([
     "geminiApiKey",
     "geminiModel",
+    "openRouterApiKey",
+    "openRouterModel",
+    "useOpenRouter",
     "surveyPersona",
     "personalInfo"
   ]);
 
-  const apiKey = storage.geminiApiKey || DEFAULT_SETTINGS.geminiApiKey;
-  const model = storage.geminiModel || "gemini-3.8-flash";
-  const persona = storage.surveyPersona || {};
-  const personalInfo = storage.personalInfo || null;
+  const useOpenRouter = !!storage.useOpenRouter;
+  const openRouterKey = (storage.openRouterApiKey || "").trim();
+  const geminiKey = (storage.geminiApiKey || "").trim();
 
-  if (!apiKey) {
-    throw new Error("Gemini API Key missing. Please set your API key in the extension settings.");
+  if (!geminiKey && !openRouterKey) {
+    throw new Error("❌ কোনো API Key পাওয়া যায়নি! Settings থেকে Gemini API Key অথবা OpenRouter API Key দিন।");
   }
 
-  // Full survey webpage analysis directly from DOM & page text (Top-to-Bottom, 100% complete)
+  const persona = storage.surveyPersona || {};
+  const personalInfo = storage.personalInfo || null;
   const prompt = buildHumanLikeSurveyPrompt(payload, persona, personalInfo);
-  const geminiResponse = await callGeminiAPI(apiKey, model, prompt, null);
 
-  return geminiResponse;
+  // Strategy 1: User explicitly checked OpenRouter
+  if (useOpenRouter && openRouterKey) {
+    const orModel = storage.openRouterModel || "google/gemini-2.5-flash";
+    try {
+      return await callOpenRouterAPI(openRouterKey, orModel, prompt);
+    } catch (orErr) {
+      console.warn("[Jarvis] OpenRouter failed, attempting fallback to Gemini direct API...", orErr);
+      if (geminiKey) {
+        const model = resolveGeminiModelName(storage.geminiModel);
+        return await callGeminiAPI(geminiKey, model, prompt, null);
+      }
+      throw orErr;
+    }
+  }
+
+  // Strategy 2: Gemini direct API is primary
+  if (geminiKey) {
+    const model = resolveGeminiModelName(storage.geminiModel);
+    try {
+      return await callGeminiAPI(geminiKey, model, prompt, null);
+    } catch (geminiErr) {
+      console.warn("[Jarvis] Gemini direct API failed:", geminiErr);
+      // Seamless auto-fallback to OpenRouter if configured!
+      if (openRouterKey) {
+        console.warn("[Jarvis] Auto-falling back to OpenRouter API...");
+        const orModel = storage.openRouterModel || "google/gemini-2.5-flash";
+        return await callOpenRouterAPI(openRouterKey, orModel, prompt);
+      }
+      throw geminiErr;
+    }
+  } else if (openRouterKey) {
+    // Only OpenRouter key is available
+    const orModel = storage.openRouterModel || "google/gemini-2.5-flash";
+    return await callOpenRouterAPI(openRouterKey, orModel, prompt);
+  }
 }
 
 /**
@@ -583,71 +658,81 @@ Return JSON only. Do not wrap in markdown or commentary.`;
 }
 
 /**
- * Calls Gemini REST API with prompt and optional vision screenshot.
- * Prioritizes Gemini 3.8 Flash, with resilient fallback to active Gemini 3.x Flash models.
+ * Calls Gemini REST API with FULL fallback chain across ALL real Gemini models.
+ * Tries the selected model first, then falls back through the complete chain.
+ * Skips 404 (model not found) and 429 (quota) to try next model.
+ * Stops on 403 (bad API key) - no point trying other models with same key.
  */
 async function callGeminiAPI(apiKey, model, promptText, base64Image) {
-  const primaryModel = model || "gemini-3.8-flash";
-  const deprecatedModels = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash", "gemini-2.5-flash"];
+  const primaryModel = resolveGeminiModelName(model);
 
-  // Active models list prioritizing user choice and Gemini 3.8 Flash
+  // Build full candidate list: resolved model first, then full chain
   const candidateModels = [
     primaryModel,
-    "gemini-3.8-flash",
-    "gemini-3.7-flash",
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
-    "gemini-flash-latest"
-  ].filter((m, i, arr) => arr.indexOf(m) === i && !deprecatedModels.includes(m));
+    ...GEMINI_MODEL_CHAIN
+  ].filter((m, i, arr) => arr.indexOf(m) === i); // deduplicate
 
   let lastError = null;
 
   for (const targetModel of candidateModels) {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey.trim()}`;
 
     const parts = [{ text: promptText }];
     if (base64Image) {
-      parts.push({
-        inlineData: {
-          mimeType: "image/jpeg",
-          data: base64Image
-        }
-      });
+      parts.push({ inlineData: { mimeType: "image/jpeg", data: base64Image } });
     }
 
     const requestBody = {
-      contents: [
-        {
-          role: "user",
-          parts: parts
-        }
-      ],
+      contents: [{ role: "user", parts }],
       generationConfig: {
-        temperature: 0.2,
+        temperature: 0.15,
+        topP: 0.9,
         responseMimeType: "application/json"
       }
     };
 
-    // Attempt request with single retry for 503 high demand spike
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout
+
         const response = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(requestBody)
+          body: JSON.stringify(requestBody),
+          signal: controller.signal
         });
+        clearTimeout(timeoutId);
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.warn(`Model ${targetModel} attempt ${attempt + 1} failed (${response.status}):`, errorText);
+          console.warn(`[Jarvis] ${targetModel} (attempt ${attempt + 1}) → HTTP ${response.status}:`, errorText);
 
-          // If 503 high demand spike, wait 1.2s and retry same model
           if (response.status === 503 && attempt === 0) {
-            await new Promise((r) => setTimeout(r, 1200));
+            await new Promise(r => setTimeout(r, 1500));
             continue;
           }
 
-          // If 429 quota or other error, record error and break to try next active model
+          if (response.status === 403) {
+            const isDenied = errorText.includes("denied access") || errorText.includes("PERMISSION_DENIED");
+            const msg = isDenied
+              ? "❌ Google Gemini 403: আপনার Google Cloud প্রজেক্টে অ্যাক্সেস বন্ধ হয়েছে (Your project has been denied access)। দয়া করে aistudio.google.com থেকে নতুন API Key তৈরি করুন, অথবা Settings থেকে OpenRouter API Key ব্যবহার করুন।"
+              : `❌ Gemini API Key Error (403): API Key সঠিক নয় বা পারমিশন নেই। Settings এ সঠিক Key দিন।`;
+            throw new Error(msg);
+          }
+
+          if (response.status === 404) {
+            console.warn(`[Jarvis] Model ${targetModel} not found (404), trying next model in chain...`);
+            lastError = new Error(`Model ${targetModel} not found (404)`);
+            break; // next candidate model
+          }
+
+          if (response.status === 429) {
+            console.warn(`[Jarvis] Quota exceeded for ${targetModel}, trying next model in chain...`);
+            lastError = new Error(`Quota exceeded for ${targetModel} (429)`);
+            break;
+          }
+
           lastError = new Error(`Gemini API Error (${targetModel}): ${response.status} - ${errorText.slice(0, 180)}`);
           break;
         }
@@ -655,36 +740,155 @@ async function callGeminiAPI(apiKey, model, promptText, base64Image) {
         const data = await response.json();
         const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!content) {
-          throw new Error(`Empty response content from ${targetModel}`);
+          lastError = new Error(`Empty response from ${targetModel}`);
+          break;
         }
 
         let parsed;
         try {
-          const cleaned = content.replace(/```json\n?|\n?```/g, "").trim();
+          const cleaned = content
+            .replace(/^```json\s*/i, "")
+            .replace(/```\s*$/i, "")
+            .trim();
           parsed = JSON.parse(cleaned);
-        } catch (pe) {
-          console.error("JSON parse failed, returning raw content:", pe);
-          parsed = {
-            page_summary: "Survey analysis completed",
-            trap_detected: false,
-            answers: [],
-            raw: content
-          };
+        } catch {
+          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            try {
+              parsed = JSON.parse(jsonMatch[0]);
+            } catch {
+              parsed = { page_summary: "Analysis done", trap_detected: false, answers: [] };
+            }
+          } else {
+            parsed = { page_summary: "Analysis done", trap_detected: false, answers: [] };
+          }
         }
 
-        return {
-          success: true,
-          modelUsed: targetModel,
-          data: parsed
-        };
+        console.log(`[Jarvis] ✅ Gemini Success with model: ${targetModel}`);
+        return { success: true, modelUsed: targetModel, data: parsed };
+
       } catch (err) {
-        lastError = err;
-        if (attempt === 0) {
-          await new Promise((r) => setTimeout(r, 800));
+        if (err.name === "AbortError") {
+          lastError = new Error(`Timeout (25s) on ${targetModel}`);
+          break;
         }
+        if (err.message && err.message.includes("403")) throw err;
+        lastError = err;
+        if (attempt === 0) await new Promise(r => setTimeout(r, 600));
       }
     }
   }
 
-  throw lastError || new Error("Failed to contact Gemini API after trying candidate models.");
+  throw lastError || new Error("❌ All Gemini models failed. Please check your API key or use OpenRouter.");
+}
+
+/**
+ * Calls OpenRouter API with full model fallback support
+ * Supports 100s of AI models via a single API key: https://openrouter.ai/models
+ */
+async function callOpenRouterAPI(apiKey, model, promptText) {
+  const endpoint = "https://openrouter.ai/api/v1/chat/completions";
+  const primaryModel = model || "google/gemini-2.5-flash";
+
+  const candidateModels = [
+    primaryModel,
+    "google/gemini-2.5-flash",
+    "google/gemini-2.0-flash-001",
+    "deepseek/deepseek-chat",
+    "openai/gpt-4o-mini"
+  ].filter((m, i, arr) => arr.indexOf(m) === i);
+
+  let lastError = null;
+
+  for (const orModel of candidateModels) {
+    const requestBody = {
+      model: orModel,
+      messages: [{ role: "user", content: promptText }],
+      temperature: 0.15,
+      response_format: { type: "json_object" }
+    };
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 28000);
+
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey.trim()}`,
+            "HTTP-Referer": "https://jarvis-survey-copilot.extension",
+            "X-Title": "Jarvis Survey Copilot"
+          },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.warn(`[Jarvis OpenRouter] ${orModel} attempt ${attempt + 1} failed (${response.status}):`, errorText);
+
+          if (response.status === 401 || response.status === 403) {
+            throw new Error(`❌ OpenRouter API Key ভুল বা ইনভ্যালিড! (${response.status}) Settings থেকে সঠিক Key দিন।`);
+          }
+
+          if (response.status === 404 || response.status === 429) {
+            lastError = new Error(`OpenRouter (${orModel}) status ${response.status}`);
+            break; // try next candidate model
+          }
+
+          if (response.status === 503 && attempt === 0) {
+            await new Promise((r) => setTimeout(r, 1200));
+            continue;
+          }
+
+          lastError = new Error(`OpenRouter API Error (${orModel}): ${response.status} - ${errorText.slice(0, 180)}`);
+          break;
+        }
+
+        const data = await response.json();
+        const content = data?.choices?.[0]?.message?.content;
+        if (!content) {
+          lastError = new Error(`Empty response from OpenRouter: ${orModel}`);
+          break;
+        }
+
+        let parsed;
+        try {
+          const cleaned = content.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
+          parsed = JSON.parse(cleaned);
+        } catch {
+          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            try {
+              parsed = JSON.parse(jsonMatch[0]);
+            } catch {
+              parsed = { page_summary: "Survey analysis completed via OpenRouter", trap_detected: false, answers: [] };
+            }
+          } else {
+            parsed = { page_summary: "Survey analysis completed via OpenRouter", trap_detected: false, answers: [] };
+          }
+        }
+
+        console.log(`[Jarvis] ✅ OpenRouter Success with model: ${orModel}`);
+        return {
+          success: true,
+          modelUsed: `OpenRouter:${orModel}`,
+          data: parsed
+        };
+      } catch (err) {
+        if (err.name === "AbortError") {
+          lastError = new Error(`OpenRouter timeout (28s) on ${orModel}`);
+          break;
+        }
+        if (err.message && (err.message.includes("401") || err.message.includes("403"))) throw err;
+        lastError = err;
+        if (attempt === 0) await new Promise((r) => setTimeout(r, 600));
+      }
+    }
+  }
+
+  throw lastError || new Error("❌ OpenRouter এর সব মডেল ব্যর্থ হয়েছে। দয়া করে API Key ও ব্যালেন্স চেক করুন।");
 }

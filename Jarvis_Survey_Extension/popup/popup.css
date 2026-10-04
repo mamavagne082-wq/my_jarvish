@@ -798,3 +798,24 @@ input:focus, select:focus {
   background: rgba(59, 130, 246, 0.3);
   color: #fff;
 }
+
+/* Settings Section Title */
+.settings-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #00f0ff;
+  text-transform: uppercase;
+  padding: 6px 0 4px 0;
+  border-bottom: 1px solid rgba(0, 240, 255, 0.15);
+  margin-bottom: 8px;
+}
+
+/* Helper text links */
+.helper-text a {
+  color: #00f0ff;
+  text-decoration: none;
+}
+.helper-text a:hover {
+  text-decoration: underline;
+}

@@ -44,6 +44,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   const btnSaveSettings = document.getElementById("btn-save-settings");
   const modelNameBadge = document.getElementById("model-name-badge");
 
+  // OpenRouter settings elements
+  const inputOrApiKey = document.getElementById("input-or-api-key");
+  const btnToggleOrKey = document.getElementById("btn-toggle-or-key");
+  const selectOrModel = document.getElementById("select-or-model");
+  const checkUseOpenRouter = document.getElementById("check-use-openrouter");
+  const openRouterSettings = document.getElementById("openrouter-settings");
+  const openRouterModelSettings = document.getElementById("openrouter-model-settings");
+  const settingsSaveMsg = document.getElementById("settings-save-msg");
+
   let isAutoPilotActive = false;
 
   function switchToTab(tabId) {
@@ -82,23 +91,31 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (storage.geminiApiKey) {
     inputApiKey.value = storage.geminiApiKey;
   }
-  const deprecated = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash", "gemini-2.5-flash"];
-  if (storage.geminiModel && !deprecated.includes(storage.geminiModel)) {
-    selectModel.value = storage.geminiModel;
-    modelNameBadge.innerText = storage.geminiModel.replace("gemini-", "").toUpperCase();
-  } else {
-    selectModel.value = "gemini-3.8-flash";
-    modelNameBadge.innerText = "GEMINI 3.8 FLASH";
-    chrome.storage.local.set({ geminiModel: "gemini-3.8-flash" });
+
+  const savedModel = storage.geminiModel || "gemini-3.8-flash";
+  selectModel.value = savedModel;
+  if (modelNameBadge) {
+    const badgeText = savedModel.replace("gemini-", "").replace("-latest", "").toUpperCase();
+    modelNameBadge.innerText = badgeText;
   }
+
   if (storage.autoFillDelay) {
     inputFillDelay.value = storage.autoFillDelay;
   }
-  if (storage.useVisionScreenshot !== undefined) {
-    checkUseVision.checked = storage.useVisionScreenshot;
-  }
-  if (storage.localBridgeEnabled !== undefined) {
+  if (checkLocalBridge && storage.localBridgeEnabled !== undefined) {
     checkLocalBridge.checked = storage.localBridgeEnabled;
+  }
+
+  // Load OpenRouter settings
+  if (inputOrApiKey && storage.openRouterApiKey) {
+    inputOrApiKey.value = storage.openRouterApiKey;
+  }
+  if (selectOrModel && storage.openRouterModel) {
+    selectOrModel.value = storage.openRouterModel;
+  }
+  if (checkUseOpenRouter) {
+    checkUseOpenRouter.checked = !!storage.useOpenRouter;
+    toggleOpenRouterSectionVisibility(!!storage.useOpenRouter);
   }
 
   // Auto-Pilot state
@@ -156,26 +173,67 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
+  // Toggle OpenRouter API Key visibility
+  if (btnToggleOrKey && inputOrApiKey) {
+    btnToggleOrKey.addEventListener("click", () => {
+      if (inputOrApiKey.type === "password") {
+        inputOrApiKey.type = "text";
+        btnToggleOrKey.innerText = "🔒";
+      } else {
+        inputOrApiKey.type = "password";
+        btnToggleOrKey.innerText = "👁️";
+      }
+    });
+  }
+
+  // Toggle OpenRouter section visibility when checkbox changes
+  if (checkUseOpenRouter) {
+    checkUseOpenRouter.addEventListener("change", () => {
+      toggleOpenRouterSectionVisibility(checkUseOpenRouter.checked);
+    });
+  }
+
   // 5. Save Settings
   if (btnSaveSettings) {
     btnSaveSettings.addEventListener("click", async () => {
       const updated = {
         geminiApiKey: inputApiKey ? inputApiKey.value.trim() : "",
-        geminiModel: selectModel ? selectModel.value : "gemini-3.8-flash",
+        geminiModel: selectModel ? selectModel.value : "gemini-2.5-flash-latest",
         autoFillDelay: inputFillDelay ? parseInt(inputFillDelay.value, 10) || 350 : 350,
-        useVisionScreenshot: checkUseVision ? checkUseVision.checked : true,
-        localBridgeEnabled: checkLocalBridge ? checkLocalBridge.checked : true
+        useVisionScreenshot: false,
+        localBridgeEnabled: checkLocalBridge ? checkLocalBridge.checked : true,
+        // OpenRouter settings
+        openRouterApiKey: inputOrApiKey ? inputOrApiKey.value.trim() : "",
+        openRouterModel: selectOrModel ? selectOrModel.value : "google/gemini-2.5-flash",
+        useOpenRouter: checkUseOpenRouter ? checkUseOpenRouter.checked : false
       };
 
       await chrome.storage.local.set(updated);
+
       if (modelNameBadge && updated.geminiModel) {
         modelNameBadge.innerText = updated.geminiModel.replace("gemini-", "").toUpperCase();
       }
 
-      btnSaveSettings.innerText = "✅ Saved Successfully!";
-      setTimeout(() => {
-        btnSaveSettings.innerText = "💾 Save Settings";
-      }, 1800);
+      if (settingsSaveMsg) {
+        const apiMode = updated.useOpenRouter && updated.openRouterApiKey
+          ? `✅ সেভ হয়েছে! OpenRouter (${updated.openRouterModel}) সক্রিয়।`
+          : updated.geminiApiKey
+          ? `✅ সেভ হয়েছে! Gemini (${updated.geminiModel}) সক্রিয়।`
+          : "⚠️ API Key দেওয়া নেই! এক্সটেনশন কাজ করবে না।";
+        settingsSaveMsg.innerText = apiMode;
+        settingsSaveMsg.className = updated.geminiApiKey || (updated.useOpenRouter && updated.openRouterApiKey)
+          ? "personal-info-msg success" : "personal-info-msg error";
+        setTimeout(() => {
+          if (settingsSaveMsg) settingsSaveMsg.innerText = "";
+        }, 3000);
+      }
+
+      if (btnSaveSettings) {
+        btnSaveSettings.innerText = "✅ Saved!";
+        setTimeout(() => {
+          btnSaveSettings.innerText = "💾 Save Settings";
+        }, 1800);
+      }
     });
   }
 
@@ -555,6 +613,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
       // Short delay to ensure content script listeners are ready
       await new Promise((r) => setTimeout(r, 120));
+    }
+  }
+
+  // Helper: Show/hide OpenRouter settings fields based on checkbox state
+  function toggleOpenRouterSectionVisibility(useOpenRouter) {
+    if (openRouterSettings) {
+      openRouterSettings.style.display = useOpenRouter ? "block" : "none";
+    }
+    if (openRouterModelSettings) {
+      openRouterModelSettings.style.display = useOpenRouter ? "block" : "none";
     }
   }
 });

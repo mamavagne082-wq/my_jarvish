@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Jarvis AI Survey Copilot",
-  "version": "1.0.0",
-  "description": "Real-time AI survey page analyzer & smart answer assistant powered by Gemini & Persona.",
+  "version": "2.0.0",
+  "description": "Real-time AI survey page analyzer & smart answer assistant. Gemini 2.5 Flash + OpenRouter support.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
