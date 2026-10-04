@@ -15,19 +15,20 @@ set OUT_CRX=%ROOT_DIR%Jarvis_Survey_Extension.crx
 
 echo [1] Checking Chrome installation...
 
-set CHROME_EXE=""
+set CHROME_EXE=
 if exist "C:\Program Files\Google\Chrome\Application\chrome.exe" (
-  set CHROME_EXE="C:\Program Files\Google\Chrome\Application\chrome.exe"
+  set "CHROME_EXE=C:\Program Files\Google\Chrome\Application\chrome.exe"
 ) else if exist "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" (
-  set CHROME_EXE="C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
-) else (
-  echo Chrome not found in default paths. Trying Edge...
-  if exist "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" (
-    set CHROME_EXE="C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-  )
+  set "CHROME_EXE=C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
+) else if exist "%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe" (
+  set "CHROME_EXE=%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"
+) else if exist "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" (
+  set "CHROME_EXE=C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+) else if exist "C:\Program Files\Microsoft\Edge\Application\msedge.exe" (
+  set "CHROME_EXE=C:\Program Files\Microsoft\Edge\Application\msedge.exe"
 )
 
-if %CHROME_EXE%=="" (
+if not defined CHROME_EXE (
   echo ERROR: Chrome/Edge not found! Cannot pack .crx
   echo.
   echo MANUAL LOAD INSTRUCTIONS:
@@ -45,9 +46,9 @@ echo [3] Packing extension...
 if exist "%OUT_CRX%" del /f /q "%OUT_CRX%"
 
 if exist "%PEM_FILE%" (
-  %CHROME_EXE% --pack-extension="%EXT_DIR%" --pack-extension-key="%PEM_FILE%" --no-message-box
+  "%CHROME_EXE%" --pack-extension="%EXT_DIR%" --pack-extension-key="%PEM_FILE%" --no-message-box
 ) else (
-  %CHROME_EXE% --pack-extension="%EXT_DIR%" --no-message-box
+  "%CHROME_EXE%" --pack-extension="%EXT_DIR%" --no-message-box
 )
 
 echo.

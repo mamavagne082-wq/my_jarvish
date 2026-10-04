@@ -137,7 +137,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === "CAPTURE_SCREENSHOT") {
-    chrome.tabs.captureVisibleTab(null, { format: "jpeg", quality: 65 }, (dataUrl) => {
+    chrome.tabs.captureVisibleTab(null, { format: "jpeg", quality: 80 }, (dataUrl) => {
       if (chrome.runtime.lastError) {
         sendResponse({ success: false, error: chrome.runtime.lastError.message });
       } else {
@@ -500,43 +500,79 @@ async function handleSurveyAnalysis(payload, tabId) {
 
   const persona = storage.surveyPersona || {};
   const personalInfo = storage.personalInfo || null;
-  const prompt = buildHumanLikeSurveyPrompt(payload, persona, personalInfo);
+
+  // Determine if this is a visual screenshot analysis or DOM text analysis
+  const isScreenshot = !!(payload && (payload.screenshot || payload.isScreenshot));
+  let base64Image = null;
+  let fullDataUrl = null;
+
+  if (isScreenshot && payload.screenshot) {
+    fullDataUrl = payload.screenshot;
+    // Strip header prefix for direct Gemini inlineData
+    base64Image = payload.screenshot.replace(/^data:image\/[a-zA-Z+]+;base64,/, "");
+  }
+
+  const prompt = isScreenshot
+    ? buildVisionSurveyPrompt(payload, persona, personalInfo)
+    : buildHumanLikeSurveyPrompt(payload, persona, personalInfo);
+
+  let result = null;
 
   // Strategy 1: User explicitly checked OpenRouter
   if (useOpenRouter && openRouterKey) {
     const orModel = storage.openRouterModel || "google/gemini-2.5-flash";
     try {
-      return await callOpenRouterAPI(openRouterKey, orModel, prompt);
+      result = await callOpenRouterAPI(openRouterKey, orModel, prompt, fullDataUrl);
     } catch (orErr) {
       console.warn("[Jarvis] OpenRouter failed, attempting fallback to Gemini direct API...", orErr);
       if (geminiKey) {
         const model = resolveGeminiModelName(storage.geminiModel);
-        return await callGeminiAPI(geminiKey, model, prompt, null);
+        result = await callGeminiAPI(geminiKey, model, prompt, base64Image);
+      } else {
+        throw orErr;
       }
-      throw orErr;
     }
-  }
-
-  // Strategy 2: Gemini direct API is primary
-  if (geminiKey) {
+  } else if (geminiKey) {
+    // Strategy 2: Gemini direct API is primary
     const model = resolveGeminiModelName(storage.geminiModel);
     try {
-      return await callGeminiAPI(geminiKey, model, prompt, null);
+      result = await callGeminiAPI(geminiKey, model, prompt, base64Image);
     } catch (geminiErr) {
       console.warn("[Jarvis] Gemini direct API failed:", geminiErr);
       // Seamless auto-fallback to OpenRouter if configured!
       if (openRouterKey) {
         console.warn("[Jarvis] Auto-falling back to OpenRouter API...");
         const orModel = storage.openRouterModel || "google/gemini-2.5-flash";
-        return await callOpenRouterAPI(openRouterKey, orModel, prompt);
+        result = await callOpenRouterAPI(openRouterKey, orModel, prompt, fullDataUrl);
+      } else {
+        throw geminiErr;
       }
-      throw geminiErr;
     }
   } else if (openRouterKey) {
     // Only OpenRouter key is available
     const orModel = storage.openRouterModel || "google/gemini-2.5-flash";
-    return await callOpenRouterAPI(openRouterKey, orModel, prompt);
+    result = await callOpenRouterAPI(openRouterKey, orModel, prompt, fullDataUrl);
   }
+
+  if (result && result.data) {
+    result.data.is_screenshot_analysis = isScreenshot;
+    result.data.analyzed_at = Date.now();
+    result.data.page_title = payload.title || "";
+    result.data.page_url = payload.url || "";
+
+    // Save into chrome.storage.local so popup & HUD immediately reflect latest answers
+    await chrome.storage.local.set({ lastAnalysisResult: result.data });
+
+    // Broadcast update to all tabs/popup
+    try {
+      chrome.runtime.sendMessage({
+        action: "SURVEY_ANALYSIS_UPDATED",
+        data: result.data
+      }).catch(() => {});
+    } catch (e) {}
+  }
+
+  return result;
 }
 
 /**
@@ -640,6 +676,7 @@ Return ONLY a valid JSON object matching this exact structure:
   "page_summary": "Short 1-sentence summary of what this survey page is asking",
   "trap_detected": true/false,
   "trap_alert_message": "Explanation if trap/attention check detected, otherwise empty string",
+  "is_last_page": true/false,
   "estimated_human_reading_seconds": 3,
   "answers": [
     {
@@ -649,6 +686,85 @@ Return ONLY a valid JSON object matching this exact structure:
       "recommended_action": "select_radio" | "select_checkbox" | "select_dropdown" | "type_text" | "matrix_choice",
       "target_element_ids": ["id-or-selector-of-element-to-click"],
       "selected_labels": ["Exact text or label of the chosen option"],
+      "text_input_value": "Short natural human text if text input required, otherwise null",
+      "reasoning": "Brief natural explanation of why this answer fits human persona"
+    }
+  ]
+}
+Return JSON only. Do not wrap in markdown or commentary.`;
+}
+
+/**
+ * Constructs vision prompt for Gemini Vision / OpenRouter Vision when DOM analysis cannot find elements
+ */
+function buildVisionSurveyPrompt(pageData, persona, personalInfo) {
+  const p = personalInfo || DEFAULT_PERSONAL_INFO;
+  const infoSection = `
+==================================================
+EXACT VERIFIED PERSONAL INFO (CRITICAL: ALWAYS MATCH THESE VALUES):
+==================================================
+- Full Name: ${p.firstName || "Al Amin"} ${p.lastName || "Miah"}
+- First Name: ${p.firstName || "Al Amin"}
+- Last Name: ${p.lastName || "Miah"}
+- My Age: ${p.myAge || "50"}
+- Birthdate: ${p.birthdate || "08/03/1976"} (Born March 8, 1976)
+- Gender: Male (Heterosexual)
+- Marital Status: Married
+- Wife Age: ${p.wifeAge || "40"}
+- Children Count: 2 (Son Age: ${p.sonAge || "13"}, Daughter Age: ${p.daughterAge || "12"})
+- Household Size: 4 people (Myself, wife, son, daughter)
+- Race / Ethnicity: White, Non-Hispanic / Not Latino
+- Home Ownership: Own Single Family Home / Detached house / Condo
+- Spoken Language at Home: English
+- Animals / Pets: Dog, Cat
+- Employment / Job Type: Employed Full-time (35+ hours)
+- Occupation / Role: Computer Software / Information Technology (Manager / Director)
+- Company Size / Employees: 2500-5000 (or 1000-5000)
+- Decision Making / Purchasing Authority: Primary decision maker or equal joint decision maker (Myself - all sections)
+- Annual Income: $125,000 - $149,999 (Monthly: Over $5,000 / $5,000+)
+- Personal Vehicle: Yes (Owns personal vehicle / SUV)
+- Education / Degree: Master's or Professional Degree (or Bachelor Degree)
+- Postal / Zip Code: ${p.postalZipCode || "10001"} (New York, NY)
+- Email: ${p.emailAddress || "alaminmiah1976@gmail.com"}
+- Country: ${p.country || "United States"}
+`;
+
+  return `You are analyzing a complete full-page survey screenshot image as a human survey respondent named ${p.firstName || "Al Amin"} ${p.lastName || "Miah"}.
+This page could not be parsed via simple HTML DOM, so your vision analysis is the source of truth.
+
+${infoSection}
+
+==================================================
+VISION ANALYSIS INSTRUCTIONS:
+==================================================
+1. Read ALL visual text, survey questions, matrix grids, radio buttons, checkboxes, dropdowns, and text fields shown on the screenshot from top to bottom.
+2. Check for attention-check / trap questions (e.g., "Select somewhat agree", "Choose the color blue"). If detected, obey the instruction strictly and set "trap_detected": true.
+3. For EVERY visible question, choose the exact option text shown in the screenshot that fits the respondent profile above.
+4. Detect if this is the FINAL / LAST PAGE of the survey (look for Submit button, Finish button, Complete button, or 100% progress indicator). Set "is_last_page": true if final page, false otherwise.
+5. In "selected_labels", provide the exact wording of the option as printed on screen so it can be located and highlighted.
+
+Webpage Info:
+URL: ${pageData.url || "N/A"}
+Page Title: ${pageData.title || "N/A"}
+Visible Text Context:
+${(pageData.fullPageText || "").slice(0, 2500)}
+
+==================================================
+OUTPUT FORMAT:
+==================================================
+Return ONLY a valid JSON object matching this exact structure:
+{
+  "page_summary": "Short 1-sentence summary of what this survey screenshot is asking",
+  "trap_detected": false,
+  "trap_alert_message": "",
+  "is_last_page": false,
+  "estimated_human_reading_seconds": 4,
+  "answers": [
+    {
+      "question_index": 0,
+      "question_text": "Exact text of the question as seen in the image",
+      "recommended_action": "select_radio" | "select_checkbox" | "select_dropdown" | "type_text" | "matrix_choice",
+      "selected_labels": ["Exact text or label of the chosen option visible on screen"],
       "text_input_value": "Short natural human text if text input required, otherwise null",
       "reasoning": "Brief natural explanation of why this answer fits human persona"
     }
@@ -786,7 +902,7 @@ async function callGeminiAPI(apiKey, model, promptText, base64Image) {
  * Calls OpenRouter API with full model fallback support
  * Supports 100s of AI models via a single API key: https://openrouter.ai/models
  */
-async function callOpenRouterAPI(apiKey, model, promptText) {
+async function callOpenRouterAPI(apiKey, model, promptText, base64Image = null) {
   const endpoint = "https://openrouter.ai/api/v1/chat/completions";
   const primaryModel = model || "google/gemini-2.5-flash";
 
@@ -801,9 +917,20 @@ async function callOpenRouterAPI(apiKey, model, promptText) {
   let lastError = null;
 
   for (const orModel of candidateModels) {
+    let userContent;
+    if (base64Image) {
+      const imgUrl = base64Image.startsWith("data:") ? base64Image : `data:image/jpeg;base64,${base64Image}`;
+      userContent = [
+        { type: "text", text: promptText },
+        { type: "image_url", image_url: { url: imgUrl } }
+      ];
+    } else {
+      userContent = promptText;
+    }
+
     const requestBody = {
       model: orModel,
-      messages: [{ role: "user", content: promptText }],
+      messages: [{ role: "user", content: userContent }],
       temperature: 0.15,
       response_format: { type: "json_object" }
     };

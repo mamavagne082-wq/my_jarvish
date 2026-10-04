@@ -486,7 +486,7 @@ body {
 }
 
 .results-scroll-container {
-  max-height: 170px;
+  max-height: 240px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;

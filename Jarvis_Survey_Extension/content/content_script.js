@@ -20,12 +20,12 @@
     if (res && res.active) {
       isAutoPilotActive = true;
       updateAutoPilotUI(true);
-      // Wait a realistic initial settling time for dynamic questions to render
+      // Wait a realistic initial settling time (3-5s as specified by user) for dynamic questions to render
       setTimeout(() => {
         if (isAutoPilotActive) {
           triggerAutoPilotCycle();
         }
-      }, 1400);
+      }, 3500);
     }
   });
 
@@ -109,6 +109,22 @@
     if (message.action === "SHOW_API_ALERT") {
       showInPageApiAlert(message.alert);
       sendResponse({ success: true });
+      return true;
+    }
+
+    if (message.action === "SURVEY_ANALYSIS_UPDATED") {
+      if (message.data) {
+        lastAnalysisResult = message.data;
+        renderAnalysisInHUD(message.data);
+      }
+      sendResponse({ success: true });
+      return true;
+    }
+
+    if (message.action === "CAPTURE_AND_ANALYZE_SCREENSHOT") {
+      performScreenshotAnalysis()
+        .then((res) => sendResponse(res))
+        .catch((err) => sendResponse({ success: false, error: err.message }));
       return true;
     }
   });
@@ -229,6 +245,272 @@
     return null;
   }
 
+  /**
+   * Helper to detect if current page is the final / last submit page of the survey
+   */
+  function isLastSurveyPage(aiData = null) {
+    if (aiData && aiData.is_last_page === true) {
+      return true;
+    }
+
+    const submitKeywords = [
+      "submit", "finish", "complete", "end survey", "submit survey", "finalize", "done",
+      "জমা দিন", "সমাপ্ত", "শেষ করুন", "terminer", "finaliser", "absenden", "finalizar", "concluir"
+    ];
+    const normalNextOnly = ["next", "continue", "পরবর্তী", "চালিয়ে যান", "suivant", "weiter", "siguiente"];
+
+    const nextBtn = findNextButton();
+    if (nextBtn) {
+      const btnText = (nextBtn.innerText || nextBtn.value || "").trim().toLowerCase();
+      if (submitKeywords.some(kw => btnText === kw || btnText.includes(kw))) {
+        if (!normalNextOnly.some(kw => btnText === kw)) {
+          return true;
+        }
+      }
+    }
+
+    // Check progress indicators (>= 90% or 100%)
+    const progressBars = document.querySelectorAll('[role="progressbar"], .progress-bar, .survey-progress, progress, .progress');
+    for (const pb of progressBars) {
+      const val = parseFloat(pb.getAttribute("aria-valuenow") || pb.value || "");
+      const max = parseFloat(pb.getAttribute("aria-valuemax") || pb.max || "100");
+      if (val && max && (val / max) >= 0.90) {
+        return true;
+      }
+      const txt = (pb.innerText || "").toLowerCase();
+      const match = txt.match(/(\d+)%/);
+      if (match && parseInt(match[1], 10) >= 90) {
+        return true;
+      }
+    }
+
+    // Check headings or text
+    const bodyText = (document.body?.innerText || "").toLowerCase();
+    if (bodyText.includes("final question") || bodyText.includes("last question") || bodyText.includes("click submit to complete") || bodyText.includes("সার্ভের শেষ প্রশ্ন")) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Captures the entire page (multi-slice scrolling stitched on canvas if tall)
+   */
+  async function captureFullPageScreenshot() {
+    const doc = document.documentElement;
+    const body = document.body;
+    const scrollHeight = Math.max(doc ? doc.scrollHeight : 0, body ? body.scrollHeight : 0, window.innerHeight);
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+
+    // Single screen or slightly taller
+    if (scrollHeight <= viewportHeight * 1.25) {
+      window.scrollTo(0, 0);
+      await sleep(120);
+      const res = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({ action: "CAPTURE_SCREENSHOT" }, (r) => resolve(r));
+      });
+      return res?.screenshot || null;
+    }
+
+    // Multi-slice scrolling capture
+    const origScrollX = window.scrollX;
+    const origScrollY = window.scrollY;
+    const maxSlices = Math.min(4, Math.ceil(scrollHeight / viewportHeight));
+    const sliceImages = [];
+
+    try {
+      for (let i = 0; i < maxSlices; i++) {
+        const targetY = Math.min(i * viewportHeight, Math.max(0, scrollHeight - viewportHeight));
+        window.scrollTo(0, targetY);
+        await sleep(180);
+
+        const res = await new Promise((resolve) => {
+          chrome.runtime.sendMessage({ action: "CAPTURE_SCREENSHOT" }, (r) => resolve(r));
+        });
+
+        if (res && res.screenshot) {
+          sliceImages.push({ dataUrl: res.screenshot, y: targetY });
+        }
+      }
+
+      window.scrollTo(origScrollX, origScrollY);
+
+      if (sliceImages.length === 0) return null;
+      if (sliceImages.length === 1) return sliceImages[0].dataUrl;
+
+      return await stitchScreenshotSlices(sliceImages, viewportWidth, scrollHeight, viewportHeight);
+    } catch (e) {
+      console.warn("[Jarvis] Multi-slice screenshot failed, falling back to visible tab:", e);
+      window.scrollTo(origScrollX, origScrollY);
+      const res = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({ action: "CAPTURE_SCREENSHOT" }, (r) => resolve(r));
+      });
+      return res?.screenshot || null;
+    }
+  }
+
+  function stitchScreenshotSlices(slices, width, totalHeight, viewportHeight) {
+    return new Promise((resolve) => {
+      try {
+        const canvas = document.createElement("canvas");
+        const effectiveHeight = Math.min(4000, slices.length * viewportHeight);
+        canvas.width = Math.min(width, 1920);
+        canvas.height = effectiveHeight;
+        const ctx = canvas.getContext("2d");
+
+        let loaded = 0;
+        slices.forEach((slice, idx) => {
+          const img = new Image();
+          img.onload = () => {
+            const destY = idx * viewportHeight;
+            if (destY < effectiveHeight) {
+              ctx.drawImage(img, 0, destY, canvas.width, Math.min(viewportHeight, effectiveHeight - destY));
+            }
+            loaded++;
+            if (loaded === slices.length) {
+              resolve(canvas.toDataURL("image/jpeg", 0.80));
+            }
+          };
+          img.onerror = () => {
+            loaded++;
+            if (loaded === slices.length) {
+              resolve(slices[0]?.dataUrl || null);
+            }
+          };
+          img.src = slice.dataUrl;
+        });
+      } catch (err) {
+        resolve(slices[0]?.dataUrl || null);
+      }
+    });
+  }
+
+  /**
+   * Performs full-page visual screenshot analysis via Gemini Vision API
+   * Used when DOM element analysis is not possible or cannot select answers
+   */
+  async function performScreenshotAnalysis() {
+    updateHUDStatus("analyzing", "📸 পেজ সরাসরি বিশ্লেষণ করা যাচ্ছে না! সম্পূর্ণ পেজের স্ক্রিনশট নেওয়া হচ্ছে...");
+
+    const hudContainer = document.getElementById("jarvis-hud-container");
+    if (hudContainer) hudContainer.style.visibility = "hidden";
+
+    await sleep(100);
+    const screenshotDataUrl = await captureFullPageScreenshot();
+
+    if (hudContainer) hudContainer.style.visibility = "visible";
+
+    if (!screenshotDataUrl) {
+      updateHUDStatus("error", "❌ স্ক্রিনশট নিতে ব্যর্থ হয়েছে!");
+      return { success: false, error: "Screenshot capture failed" };
+    }
+
+    updateHUDStatus("analyzing", "🤖 Gemini Vision দিয়ে স্ক্রিনশট এনালাইসিস করে সঠিক উত্তর বের করা হচ্ছে...");
+
+    const fullBodyText = document.body ? cleanText(document.body.innerText).slice(0, 3000) : "";
+    const payload = {
+      title: document.title,
+      url: window.location.href,
+      fullPageText: fullBodyText,
+      screenshot: screenshotDataUrl,
+      isScreenshot: true
+    };
+
+    const response = await new Promise((resolve) => {
+      chrome.runtime.sendMessage(
+        { action: "ANALYZE_SURVEY_PAGE", payload: payload },
+        (res) => resolve(res)
+      );
+    });
+
+    if (!response || !response.success || !response.data) {
+      const err = response?.error || "Vision analysis failed";
+      updateHUDStatus("error", err);
+      return { success: false, error: err };
+    }
+
+    const data = response.data;
+    data.is_screenshot_analysis = true;
+    lastAnalysisResult = data;
+
+    // Save into storage for popup and persistent display
+    await chrome.storage.local.set({ lastAnalysisResult: data });
+
+    // Render results in floating HUD
+    renderAnalysisInHUD(data);
+
+    // Notify popup if open
+    try {
+      chrome.runtime.sendMessage({
+        action: "SURVEY_ANALYSIS_UPDATED",
+        data: data
+      }).catch(() => {});
+    } catch (e) {}
+
+    // Attempt to auto-select matching elements on the webpage
+    updateHUDStatus("analyzing", "🎯 স্ক্রিনশট অনুযায়ী সঠিক উত্তরগুলো পেজে সিলেক্ট করা হচ্ছে...");
+    const selectCount = await autoSelectFromVisionResults(data);
+
+    if (selectCount > 0) {
+      updateHUDStatus("done", `✅ স্ক্রিনশট এনালাইসিস সম্পন্ন! ${selectCount}টি উত্তর সিলেক্ট হয়েছে। নিচে সঠিক উত্তরসমূহ দেখানো হলো।`);
+    } else {
+      updateHUDStatus("done", `✅ স্ক্রিনশট এনালাইসিস সম্পন্ন! সঠিক উত্তর নিচে দেখানো হলো (এইটা এইটা উত্তর হবে)।`);
+    }
+
+    return { success: true, data: data, filledCount: selectCount, isScreenshot: true };
+  }
+
+  /**
+   * Attempts to select on-page options matching vision analysis output
+   */
+  async function autoSelectFromVisionResults(data) {
+    if (!data || !data.answers || data.answers.length === 0) return 0;
+    let selectedCount = 0;
+    const isAuto = isAutoPilotActive;
+    const gapDelay = isAuto ? 3000 : 120; // 3 seconds gap in auto mode as specified by user
+
+    for (let i = 0; i < data.answers.length; i++) {
+      const ans = data.answers[i];
+      const labels = ans.selected_labels || [];
+      let filled = false;
+
+      // 1. Try finding input or label matching the selected choice
+      for (const label of labels) {
+        if (!label) continue;
+        const el = findInputByLabelOrValue(label, ans);
+        if (el) {
+          await simulateHumanAction(el, ans);
+          applyHighlightStyle(el, ans, selectedCount + 1);
+          selectedCount++;
+          filled = true;
+          if (isAuto && i < data.answers.length - 1) {
+            updateHUDStatus("analyzing", `🤖 উত্তর সিলেক্ট হয়েছে (${selectedCount}/${data.answers.length})... কমপক্ষে ৩ সেকেন্ড বিরতি...`);
+            await sleep(gapDelay + Math.random() * 500);
+          } else {
+            await sleep(80);
+          }
+          break;
+        }
+      }
+
+      // 2. If text input
+      if (!filled && (ans.recommended_action === "type_text" || ans.text_input_value)) {
+        const textInputs = Array.from(document.querySelectorAll('textarea, input[type="text"], input:not([type])')).filter(isElementVisible);
+        if (textInputs.length > selectedCount) {
+          const targetInput = textInputs[selectedCount] || textInputs[0];
+          await simulateHumanAction(targetInput, ans);
+          selectedCount++;
+          filled = true;
+          if (isAuto && i < data.answers.length - 1) {
+            await sleep(gapDelay + Math.random() * 500);
+          }
+        }
+      }
+    }
+    return selectedCount;
+  }
+
   async function triggerAutoPilotCycle() {
     if (autoPilotRunningCycle || !isAutoPilotActive) return;
     autoPilotRunningCycle = true;
@@ -295,58 +577,109 @@
         return;
       }
 
-      // 5. Normal Survey Page Scan & Solve
-      updateHUDStatus("analyzing", "🤖 Auto-Pilot: Scanning page elements (Gemini 3.8)...");
+      // 5. Initial Settling & Reading Delay for new page
+      // User requirement: নেক্সট পেজ আসার পর একটু সময় নিয়ে (৩-৫/৬ সেকেন্ড) পেজ পর্যবেক্ষণ করে উত্তর সিলেক্ট করবে
+      const initialDelay = 3200 + Math.random() * 2200; // 3.2s to 5.4s
+      updateHUDStatus("analyzing", `🤖 নতুন পেজ এসেছে... মানুষের মতো পর্যবেক্ষণ করা হচ্ছে (${(initialDelay / 1000).toFixed(1)}s)...`);
+      await sleep(initialDelay);
 
-      const scanRes = await performFullScan();
-      if (!scanRes || !scanRes.success || !scanRes.data) {
-        // Check if there are visible questions on the page
-        const questionsOnPage = extractSurveyQuestions();
-        if (questionsOnPage.length > 0) {
-          // NEVER advance if unanswered questions exist! That causes "This question is mandatory"!
-          updateHUDStatus("error", `⚠️ ${scanRes?.error || "Gemini 3.8 Flash retrying in 2s..."}`);
-          await sleep(2500);
-          autoPilotRunningCycle = false;
-          if (isAutoPilotActive) {
-            triggerAutoPilotCycle();
-          }
-          return;
-        }
-
-        // Only if ZERO questions exist on page, look for an intro or transition Next button
-        const nextBtnFallback = findNextButton();
-        if (nextBtnFallback) {
-          updateHUDStatus("done", "🤖 Advancing intro/transition page...");
-          await sleep(1500);
-          clickElementLikeHuman(nextBtnFallback);
-        } else {
-          updateHUDStatus("idle", "🤖 Auto-Pilot: Waiting for questions or dashboard...");
-        }
+      if (!isAutoPilotActive) {
         autoPilotRunningCycle = false;
         return;
       }
 
-      updateHUDStatus("analyzing", "🤖 Auto-Pilot: Filling answers with human behavior...");
-      await autoFillAnswers(scanRes.data);
+      // 6. Check if this is the LAST PAGE initially
+      // User requirement: লাস্ট পেজে যাওয়ার পর অবশ্যই থামবে। ৭-১০ সেকেন্ড সময় নিয়ে উত্তর সিলেক্ট করবে
+      const isLastPageInitial = isLastSurveyPage();
+      if (isLastPageInitial) {
+        const lastPageDelay = 7500 + Math.random() * 2000; // 7.5s - 9.5s
+        updateHUDStatus("analyzing", `🛑 লাস্ট পেজ সনাক্ত হয়েছে! টার্মিনেশন এড়াতে ${(lastPageDelay / 1000).toFixed(1)} সেকেন্ড অপেক্ষা করে উত্তর দেওয়া হচ্ছে...`);
+        await sleep(lastPageDelay);
+        if (!isAutoPilotActive) {
+          autoPilotRunningCycle = false;
+          return;
+        }
+      }
 
-      // Human-like reading delay before proceeding (Prevents "speeders" bot detection: 2.5 - 5 seconds)
-      const qCount = scanRes.data.answers?.length || 1;
-      const readingSeconds = scanRes.data.estimated_human_reading_seconds || Math.max(2.5, Math.min(5.5, qCount * 1.5));
-      const naturalPauseMs = Math.round((readingSeconds * 1000) + (Math.random() * 800));
+      // 7. Solve questions (DOM or Screenshot Fallback)
+      updateHUDStatus("analyzing", "🤖 Auto-Pilot: পেজের প্রশ্ন ও তথ্য এনালাইসিস হচ্ছে...");
 
-      updateHUDStatus("done", `🤖 Auto-Pilot: Simulating human reading pause (${(naturalPauseMs / 1000).toFixed(1)}s)...`);
-      await sleep(naturalPauseMs);
+      let analysisData = null;
+      let filledCount = 0;
+      let usedScreenshot = false;
 
-      if (!isAutoPilotActive) return;
+      const questionsOnPage = extractSurveyQuestions();
+      if (questionsOnPage.length > 0) {
+        const scanRes = await performFullScan();
+        if (scanRes && scanRes.success && scanRes.data && scanRes.data.answers?.length > 0) {
+          analysisData = scanRes.data;
+          updateHUDStatus("analyzing", "🤖 Auto-Pilot: কমপক্ষে ৩ সেকেন্ড বিরতি দিয়ে উত্তর সিলেক্ট করা হচ্ছে...");
+          const fillRes = await autoFillAnswers(analysisData);
+          filledCount = fillRes.filledCount;
+        }
+      }
 
+      // If DOM analysis failed, found 0 questions, or could not select elements:
+      // USER REQUIREMENT: যদি পেজ এনালাইসিস করতে না পারে, সিলেক্ট করতে না পারে তখন স্ক্রিনশট নিয়ে এনালাইসিস করে সঠিক উত্তর সিলেক্ট করবে
+      if (!analysisData || filledCount === 0 || !analysisData.answers || analysisData.answers.length === 0) {
+        updateHUDStatus("analyzing", "📸 পেজ সরাসরি সিলেক্ট করা যায়নি! সম্পূর্ণ পেজের স্ক্রিনশট নিয়ে এনালাইসিস করা হচ্ছে...");
+        const ssRes = await performScreenshotAnalysis();
+        if (ssRes && ssRes.success && ssRes.data) {
+          analysisData = ssRes.data;
+          filledCount = ssRes.filledCount || 0;
+          usedScreenshot = true;
+        } else {
+          // If still no questions and not a question page, check if there is an intro/transition button
+          const nextBtnFallback = findNextButton();
+          if (nextBtnFallback && questionsOnPage.length === 0) {
+            updateHUDStatus("done", "🤖 Advancing intro/transition page...");
+            await sleep(2500);
+            clickElementLikeHuman(nextBtnFallback);
+          } else {
+            updateHUDStatus("error", "⚠️ পেজের প্রশ্ন চিহ্নিত করা যায়নি। ২ সেকেন্ড পর পুনরায় চেষ্টা হবে...");
+            await sleep(2500);
+          }
+          autoPilotRunningCycle = false;
+          return;
+        }
+      }
+
+      if (!isAutoPilotActive) {
+        autoPilotRunningCycle = false;
+        return;
+      }
+
+      // 8. Post-Answering Pause before Next / Submit
+      // User requirement:
+      // নরমাল পেজের ক্ষেত্রে ৫ সেকেন্ডের মতো সময় নিবে
+      // লাস্ট পেজের ক্ষেত্রে ৭-১০ সেকেন্ড সময় নিয়ে থামবে, তারপর সাবমিট করবে যাতে সার্ভে থেকে বের না করে দেয়
+      const isFinalPage = isLastSurveyPage(analysisData) || isLastPageInitial;
+
+      if (isFinalPage) {
+        const submitWaitMs = 8000 + Math.random() * 2000; // 8.0s - 10.0s
+        updateHUDStatus("done", `🛑 লাস্ট পেজ সম্পন্ন! সার্ভে ড্রপ এড়াতে ${(submitWaitMs / 1000).toFixed(1)} সেকেন্ড পর সাবমিট করা হচ্ছে...`);
+        await sleep(submitWaitMs);
+      } else {
+        const nextWaitMs = 4500 + Math.random() * 1200; // 4.5s - 5.7s (around 5 seconds)
+        updateHUDStatus("done", `🤖 মানুষের মতো পর্যালোচনা সম্পন্ন (${(nextWaitMs / 1000).toFixed(1)}s)। Next পেজে যাওয়া হচ্ছে...`);
+        await sleep(nextWaitMs);
+      }
+
+      if (!isAutoPilotActive) {
+        autoPilotRunningCycle = false;
+        return;
+      }
+
+      // 9. Click Next or Submit
       const nextBtn = findNextButton();
       if (nextBtn) {
-        updateHUDStatus("done", "🤖 Auto-Pilot: Clicking Next / Submit button...");
+        updateHUDStatus("done", isFinalPage ? "🛑 লাস্ট পেজ: সাবমিট বাটনে ক্লিক করা হচ্ছে..." : "🤖 Next বাটনে ক্লিক করা হচ্ছে...");
         await sleep(400 + Math.random() * 300);
         clickElementLikeHuman(nextBtn);
       } else {
-        updateHUDStatus("done", "🤖 Auto-Pilot: Page completed. Waiting for next step.");
+        updateHUDStatus("done", "🤖 পেজের উত্তর সম্পন্ন। পরবর্তী ধাপের জন্য অপেক্ষা করা হচ্ছে...");
       }
+
     } catch (e) {
       console.error("Auto-pilot cycle error:", e);
       updateHUDStatus("error", `Auto-Pilot error: ${e.message}`);
@@ -356,29 +689,60 @@
   }
 
   /**
-   * 1-Click Auto-Fill current page with human simulation
+   * 1-Click Auto-Fill current page with human simulation & Screenshot fallback
    */
   async function runOneClickAutoFillAndNext(autoProceed = false) {
-    updateHUDStatus("analyzing", "⚡ ম্যানুয়াল মোড: সম্পূর্ণ পেজ Gemini 3.8 Flash দিয়ে বিশ্লেষণ হচ্ছে...");
-    const scanRes = await performFullScan();
-    if (!scanRes || !scanRes.success) {
-      return { success: false, message: scanRes?.error || "Analysis failed." };
+    updateHUDStatus("analyzing", "⚡ ম্যানুয়াল মোড: সম্পূর্ণ পেজ Gemini Flash দিয়ে বিশ্লেষণ হচ্ছে...");
+
+    let analysisData = null;
+    let filledCount = 0;
+    let isScreenshot = false;
+
+    // Step 1: Attempt DOM Extraction
+    const questions = extractSurveyQuestions();
+    if (questions.length > 0) {
+      const scanRes = await performFullScan();
+      if (scanRes && scanRes.success && scanRes.data && scanRes.data.answers?.length > 0) {
+        analysisData = scanRes.data;
+        updateHUDStatus("analyzing", "⚡ মানুষের মতো উত্তর সিলেক্ট ও মেসেজ বক্সে লেখা হচ্ছে...");
+        const fillRes = await autoFillAnswers(analysisData);
+        filledCount = fillRes.filledCount;
+      }
     }
 
-    updateHUDStatus("analyzing", "⚡ মানুষের মতো উত্তর সিলেক্ট ও মেসেজ বক্সে লেখা হচ্ছে...");
-    const fillRes = await autoFillAnswers(scanRes.data);
+    // Step 2: Fallback to Screenshot if DOM found 0 questions or failed or 0 answers filled
+    if (!analysisData || filledCount === 0 || !analysisData.answers || analysisData.answers.length === 0) {
+      updateHUDStatus("analyzing", "📸 পেজ সরাসরি এনালাইসিস বা সিলেক্ট করা যায়নি! সম্পূর্ণ পেজের স্ক্রিনশট নিয়ে সঠিক উত্তর নির্ণয় করা হচ্ছে...");
+      const ssRes = await performScreenshotAnalysis();
+      if (ssRes && ssRes.success && ssRes.data) {
+        analysisData = ssRes.data;
+        filledCount = ssRes.filledCount || 0;
+        isScreenshot = true;
+      } else {
+        return { success: false, message: ssRes?.error || "Analysis failed." };
+      }
+    }
+
+    // Save to storage
+    if (analysisData) {
+      lastAnalysisResult = analysisData;
+      chrome.storage.local.set({ lastAnalysisResult: analysisData });
+    }
 
     if (autoProceed) {
       await sleep(1500 + Math.random() * 500);
       const nextBtn = findNextButton();
       if (nextBtn) {
         clickElementLikeHuman(nextBtn);
-        return { success: true, filledCount: fillRes.filledCount, proceeded: true };
+        return { success: true, filledCount, proceeded: true, data: analysisData, isScreenshot };
       }
     }
 
-    updateHUDStatus("done", `✅ ম্যানুয়াল মোড: ${fillRes.filledCount}টি উত্তর মানুষের মতো পূরণ সম্পন্ন! আপনি দেখে নিয়ে Next চাপুন।`);
-    return { success: true, filledCount: fillRes.filledCount };
+    updateHUDStatus("done", isScreenshot
+      ? `✅ স্ক্রিনশট এনালাইসিস সম্পন্ন! সঠিক উত্তর এক্সটেনশনের নিচে দেখানো হলো, দেখে নিয়ে Next চাপুন।`
+      : `✅ ম্যানুয়াল মোড: ${filledCount}টি উত্তর মানুষের মতো পূরণ সম্পন্ন! আপনি দেখে নিয়ে Next চাপুন।`);
+
+    return { success: true, filledCount, data: analysisData, isScreenshot };
   }
 
   function toggleAutoPilotMode(state) {
@@ -939,18 +1303,21 @@
    * Compatible with React, Vue, Angular, jQuery and Pure HTML DOM
    * =========================================================================
    */
-  async function autoFillAnswers(data) {
+  async function autoFillAnswers(data, customGapMs = null) {
     if (!data || !data.answers || data.answers.length === 0) {
       return { success: false, message: "No analyzed answers available to fill." };
     }
 
     const { autoFillDelay } = await chrome.storage.local.get(["autoFillDelay"]);
-    const baseDelay = autoFillDelay !== undefined ? autoFillDelay : 100;
+    const isAuto = isAutoPilotActive;
+    // User requirement: অটোমেটিকের ক্ষেত্রে আস্তে আস্তে কমপক্ষে তিন সেকেন্ড গ্যাপ দিয়ে দিয়ে উত্তর সিলেক্ট করতে হবে
+    const baseDelay = customGapMs !== null ? customGapMs : (isAuto ? 3000 : (autoFillDelay !== undefined ? autoFillDelay : 100));
 
     let filledCount = 0;
     const questions = extractSurveyQuestions();
 
-    for (const ans of data.answers) {
+    for (let ansIdx = 0; ansIdx < data.answers.length; ansIdx++) {
+      const ans = data.answers[ansIdx];
       let filledThisAnswer = false;
       const targetIds = ans.target_element_ids || [];
       const labels = ans.selected_labels || [];
@@ -963,7 +1330,7 @@
           await simulateHumanAction(el, ans);
           filledCount++;
           filledThisAnswer = true;
-          await sleep(baseDelay);
+          break;
         }
       }
 
@@ -975,7 +1342,7 @@
             await simulateHumanAction(el, ans);
             filledCount++;
             filledThisAnswer = true;
-            await sleep(baseDelay);
+            break;
           }
         }
       }
@@ -990,7 +1357,6 @@
           await simulateHumanAction(textOpt.element, ans);
           filledCount++;
           filledThisAnswer = true;
-          await sleep(baseDelay);
         }
       }
 
@@ -1002,8 +1368,16 @@
           await simulateHumanAction(targetOpt.element, ans);
           filledCount++;
           filledThisAnswer = true;
-          await sleep(baseDelay);
         }
+      }
+
+      // Human-paced inter-question delay
+      if (filledThisAnswer && isAuto && ansIdx < data.answers.length - 1) {
+        const pauseMs = baseDelay + Math.random() * 600; // at least 3 seconds
+        updateHUDStatus("analyzing", `🤖 উত্তর পূরণ হয়েছে (${ansIdx + 1}/${data.answers.length}) - পরবর্তী প্রশ্নের জন্য ৩ সেকেন্ড বিরতি...`);
+        await sleep(pauseMs);
+      } else {
+        await sleep(isAuto ? 60 : baseDelay);
       }
     }
 
@@ -1291,7 +1665,7 @@
           if (isAutoPilotActive && !autoPilotRunningCycle) {
             triggerAutoPilotCycle();
           }
-        }, 1400);
+        }, 3200);
         return;
       }
 
@@ -1311,7 +1685,7 @@
             if (isAutoPilotActive && !autoPilotRunningCycle) {
               triggerAutoPilotCycle();
             }
-          }, 1800);
+          }, 3500);
         }
       }
     });
@@ -1523,6 +1897,13 @@
       trapMsg.innerText = data.trap_alert_message || "Carefully follow this attention-check question!";
     } else {
       trapBox.classList.add("jarvis-hidden");
+    }
+
+    if (data.is_screenshot_analysis) {
+      const banner = document.createElement("div");
+      banner.style.cssText = "background:rgba(0,240,255,0.12); border:1px solid #00f0ff; border-radius:6px; padding:6px 10px; font-size:11px; margin-bottom:8px; color:#00f0ff;";
+      banner.innerHTML = "📸 <strong>স্ক্রিনশট বিশ্লেষণ ফলাফল (Gemini Vision)</strong><br><span style='color:#cbd5e1; font-size:10px;'>পেজ সরাসরি বিশ্লেষণ না হওয়ায় সম্পূর্ণ স্ক্রিনশট নিয়ে সঠিক উত্তর নির্ণয় করা হয়েছে (এইটা এইটা উত্তর হবে):</span>";
+      resultsContainer.appendChild(banner);
     }
 
     if (!data.answers || data.answers.length === 0) {

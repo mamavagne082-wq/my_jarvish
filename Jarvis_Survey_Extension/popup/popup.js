@@ -122,6 +122,31 @@ document.addEventListener("DOMContentLoaded", async () => {
   isAutoPilotActive = !!storage.autoPilotActive;
   updateAutopilotButtonUI(isAutoPilotActive);
 
+  // Render previous or active analysis results if available
+  if (storage.lastAnalysisResult) {
+    renderResults(storage.lastAnalysisResult);
+    updateStatus("idle", storage.lastAnalysisResult.is_screenshot_analysis
+      ? "📸 স্ক্রিনশট এনালাইসিস থেকে পাওয়া সঠিক উত্তর নিচে প্রদর্শিত।"
+      : "পেজ এনালাইসিস ফলাফল নিচে প্রদর্শিত।");
+  }
+
+  // Real-time listener for background / content script updates
+  chrome.storage.onChanged.addListener((changes) => {
+    if (changes.lastAnalysisResult && changes.lastAnalysisResult.newValue) {
+      renderResults(changes.lastAnalysisResult.newValue);
+    }
+    if (changes.autoPilotActive !== undefined) {
+      isAutoPilotActive = !!changes.autoPilotActive.newValue;
+      updateAutopilotButtonUI(isAutoPilotActive);
+    }
+  });
+
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.action === "SURVEY_ANALYSIS_UPDATED" && message.data) {
+      renderResults(message.data);
+    }
+  });
+
   // Populate Personal Info form from storage or desktop bridge
   if (storage.personalInfo) {
     populatePersonalInfoForm(storage.personalInfo);
@@ -280,7 +305,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
 
         if (response && response.success) {
-          updateStatus("success", `✅ ম্যানুয়াল মোড: ${response.filledCount}টি উত্তর সিলেক্ট সম্পন্ন! আপনি দেখে নিয়ে Next চাপুন।`);
+          if (response.data) {
+            renderResults(response.data);
+          }
+          if (response.isScreenshot) {
+            updateStatus("success", `📸 স্ক্রিনশট এনালাইসিস সম্পন্ন! নিচে সঠিক উত্তরগুলো দেখানো হলো।`);
+          } else {
+            updateStatus("success", `✅ ম্যানুয়াল মোড: ${response.filledCount}টি উত্তর সিলেক্ট সম্পন্ন! আপনি দেখে নিয়ে Next চাপুন।`);
+          }
         } else {
           updateStatus("error", response?.message || "Auto-fill failed.");
         }
@@ -453,30 +485,40 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function renderResults(data) {
+    if (!resultsList || !data) return;
     resultsList.innerHTML = "";
 
     if (data.trap_detected) {
-      trapAlertCard.classList.remove("hidden");
-      trapDesc.innerText = data.trap_alert_message || "Carefully follow this attention check question!";
+      if (trapAlertCard) trapAlertCard.classList.remove("hidden");
+      if (trapDesc) trapDesc.innerText = data.trap_alert_message || "Carefully follow this attention check question!";
     } else {
-      trapAlertCard.classList.add("hidden");
+      if (trapAlertCard) trapAlertCard.classList.add("hidden");
     }
 
     const answers = data.answers || [];
-    resultsCount.innerText = answers.length;
+    if (resultsCount) resultsCount.innerText = answers.length;
+
+    // Visual indicator when answers are from full-page screenshot analysis
+    if (data.is_screenshot_analysis) {
+      const banner = document.createElement("div");
+      banner.style.cssText = "background: rgba(0, 240, 255, 0.12); border: 1px solid #00f0ff; border-radius: 6px; padding: 6px 10px; font-size: 11px; margin-bottom: 8px; color: #00f0ff;";
+      banner.innerHTML = "📸 <strong>স্ক্রিনশট বিশ্লেষণ সম্পন্ন (Gemini Vision)</strong><br><span style='color: #cbd5e1; font-size: 10px;'>পেজ সরাসরি বিশ্লেষণ না হওয়ায় সম্পূর্ণ স্ক্রিনশট নিয়ে সঠিক উত্তর নির্ণয় করা হয়েছে (এইটা এইটা উত্তর হবে):</span>";
+      resultsList.appendChild(banner);
+    }
 
     if (answers.length === 0) {
-      resultsList.innerHTML = `<div class="empty-state">No questions found to answer.</div>`;
+      resultsList.innerHTML = `<div class="empty-state">কোনো উত্তর পাওয়া যায়নি।</div>`;
       return;
     }
 
     answers.forEach((ans, idx) => {
       const item = document.createElement("div");
       item.className = "ans-item";
+      const choice = (ans.selected_labels || []).join(", ") || ans.text_input_value || "Option Chosen";
       item.innerHTML = `
-        <div class="ans-title">Q${idx + 1}: ${ans.question_text || "Question"}</div>
-        <div class="ans-pick"><strong>Choice:</strong> ${(ans.selected_labels || []).join(", ") || ans.text_input_value || "Option Chosen"}</div>
-        ${ans.reasoning ? `<div style="font-size:10px; color:#64748b; margin-top:2px;">💡 ${ans.reasoning}</div>` : ""}
+        <div class="ans-title"><strong>প্রশ্ন ${idx + 1}:</strong> ${ans.question_text || "Question"}</div>
+        <div class="ans-pick"><span style="color:#00f0ff; font-weight:600;">সঠিক উত্তর:</span> <strong style="color:#00ff88;">${choice}</strong></div>
+        ${ans.reasoning ? `<div style="font-size:10px; color:#94a3b8; margin-top:3px;">💡 <em>${ans.reasoning}</em></div>` : ""}
       `;
       resultsList.appendChild(item);
     });
