@@ -1,74 +1,74 @@
 {
-  "user_name": "ALAMIN",
-  "assistant_name": "Jarvis",
-  "llm": {
-    "provider": "google",
-    "model": "gemini-3.8-live"
-  },
-  "api_keys": {
-    "google": "AQ.Ab8RN6J1FBmr5Rfi34mDhIDv1nmmVqt9WLcpUZrGS30lX761ng",
-    "openai": "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",
-    "anthropic": "LLM_1089835267245217_rxi6Zx-GZZdWjNu-LknJ0GmY3Ig",
-    "livekit_url": "wss://jarvish-cdq66wc9.livekit.cloud",
-    "livekit_key": "APIudafoJVHneWA",
-    "livekit_secret": "QQlG0TxB5wxhZ3hiSkTNnXVNgsgbwSY1Yh1XFTzuTgL",
-    "mem0": "m0-zXEwUTUVUBNC6xUyne1UtoFr5jSHrsspEfcBLS3S",
-    "google_search": "977565840084-3d463snmaaa7iq1rnr6lo26jdr3c38sk.apps.googleusercontent.com",
-    "search_engine_id": "0669cc931ac6f4b1e",
-    "openweather": "df80983835aa91632af139cb1846be67",
-    "openrouter": "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",
-    "grok": "xai-LvoLgGHbxHJ6PV3SJpc4MbrRysgqKEuGSY8qJiVJCOIgoojJexEOPGMZwkmW4s3mK7IF8lDfdJLlGy2e",
-    "xiaomi_mimo": "sk-s9mnjmqs3jesdkhnls9x94jm5aoj248zo85t89anckwmva1m",
-    "mimo": "sk-s9mnjmqs3jesdkhnls9x94jm5aoj248zo85t89anckwmva1m",
-    "elevenlabs": "sk_9177b45b24484fbbc84b3ea08febf2445d061bfb2a003f17",
-    "google_backup_1": "AQ.Ab8RN6LtcM7pevIID9jpLXKQ_030T06c0A2UhJDnYOBQPb7O5w",
-    "google_backup_2": "",
-    "openai_backup_1": "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",
-    "openrouter_backup_1": "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",
-    "grok_backup_1": "",
-    "anthropic_backup_1": "",
-    "xiaomi_mimo_backup_1": "",
-    "elevenlabs_backup_1": "",
-    "mem0_backup_1": "",
-    "meta_ai": "LLM_2669867663448731_1QzjpJ8TB1g_7VLeHYNajinyc9I",
-    "meta_ai_backup_1": "LLM_1641492130932646_FGADlFzHcoNNNLCWI5geRiCgv90",
-    "meta": "LLM_2669867663448731_1QzjpJ8TB1g_7VLeHYNajinyc9I",
-    "fast_router": "sk-v1-43ef5710114097156125b9b556c77f5df84982f05911c34667d2e1c5d2dadbfd",
-    "fast_router_backup_1": "pk-v1-819765dbde1db23db69d64ade5b0e9759293398f9ffdf334085d1e40b22596ab"
-  },
-  "model_routing": {
-    "screenshot_vision": "gemini-3.8-flash",
-    "coding_reasoning": "grok-2-1212",
-    "mimo": "mimo-v2.6-flash"
-  },
-  "specialized_roles": {
-    "vision": "google",
-    "coding_reasoning": "google",
-    "data_processing": "google"
-  },
-  "voice_profile": "female",
-  "voice_name": "Aoede",
-  "elevenlabs_voice_id": "EXAVITQu4vr4xnSDxMaL",
-  "orb_theme": "particle-nebula",
-  "overlay_mode": "border-glow",
-  "location": "Dhaka, Bangladesh",
-  "exists": true,
-  "deep_research": {
-    "deepResearchEnabled": true,
-    "searchDepth": 8,
-    "autoCite": true,
-    "surveyAutoPilot": true,
-    "academicMode": false
-  },
-  "pc_bridge": {
-    "hostIp": "127.0.0.1",
-    "port": "8765",
-    "authPin": "252646",
-    "autoConnect": true,
-    "safeMode": true,
-    "allowPyAutoGUI": true,
-    "allowShellCommands": true,
-    "allowScreenVision": true,
-    "windowManagerActive": true
-  }
+    "user_name": "ALAMIN",
+    "assistant_name": "Jarvis",
+    "llm": {
+        "provider": "google",
+        "model": "gemini-3.8-live"
+    },
+    "api_keys": {
+        "google": "AQ.Ab8RN6LtcM7pevIID9jpLXKQ_030T06c0A2UhJDnYOBQPb7O5w",
+        "openai": "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",
+        "anthropic": "LLM_1089835267245217_rxi6Zx-GZZdWjNu-LknJ0GmY3Ig",
+        "livekit_url": "wss://jarvish-cdq66wc9.livekit.cloud",
+        "livekit_key": "APIudafoJVHneWA",
+        "livekit_secret": "QQlG0TxB5wxhZ3hiSkTNnXVNgsgbwSY1Yh1XFTzuTgL",
+        "mem0": "m0-zXEwUTUVUBNC6xUyne1UtoFr5jSHrsspEfcBLS3S",
+        "google_search": "977565840084-3d463snmaaa7iq1rnr6lo26jdr3c38sk.apps.googleusercontent.com",
+        "search_engine_id": "0669cc931ac6f4b1e",
+        "openweather": "df80983835aa91632af139cb1846be67",
+        "openrouter": "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",
+        "grok": "xai-LvoLgGHbxHJ6PV3SJpc4MbrRysgqKEuGSY8qJiVJCOIgoojJexEOPGMZwkmW4s3mK7IF8lDfdJLlGy2e",
+        "xiaomi_mimo": "sk-s9mnjmqs3jesdkhnls9x94jm5aoj248zo85t89anckwmva1m",
+        "mimo": "sk-s9mnjmqs3jesdkhnls9x94jm5aoj248zo85t89anckwmva1m",
+        "elevenlabs": "sk_9177b45b24484fbbc84b3ea08febf2445d061bfb2a003f17",
+        "google_backup_1": "AQ.Ab8RN6J1FBmr5Rfi34mDhIDv1nmmVqt9WLcpUZrGS30lX761ng",
+        "google_backup_2": "",
+        "openai_backup_1": "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",
+        "openrouter_backup_1": "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",
+        "grok_backup_1": "",
+        "anthropic_backup_1": "",
+        "xiaomi_mimo_backup_1": "",
+        "elevenlabs_backup_1": "",
+        "mem0_backup_1": "",
+        "meta_ai": "LLM_2669867663448731_1QzjpJ8TB1g_7VLeHYNajinyc9I",
+        "meta_ai_backup_1": "LLM_1641492130932646_FGADlFzHcoNNNLCWI5geRiCgv90",
+        "meta": "LLM_2669867663448731_1QzjpJ8TB1g_7VLeHYNajinyc9I",
+        "fast_router": "sk-v1-43ef5710114097156125b9b556c77f5df84982f05911c34667d2e1c5d2dadbfd",
+        "fast_router_backup_1": "pk-v1-819765dbde1db23db69d64ade5b0e9759293398f9ffdf334085d1e40b22596ab"
+    },
+    "model_routing": {
+        "screenshot_vision": "gemini-3.8-flash",
+        "coding_reasoning": "grok-2-1212",
+        "mimo": "mimo-v2.6-flash"
+    },
+    "specialized_roles": {
+        "vision": "google",
+        "coding_reasoning": "google",
+        "data_processing": "google"
+    },
+    "voice_profile": "female",
+    "voice_name": "Aoede",
+    "elevenlabs_voice_id": "EXAVITQu4vr4xnSDxMaL",
+    "orb_theme": "particle-nebula",
+    "overlay_mode": "border-glow",
+    "location": "Dhaka, Bangladesh",
+    "exists": true,
+    "deep_research": {
+        "deepResearchEnabled": true,
+        "searchDepth": 8,
+        "autoCite": true,
+        "surveyAutoPilot": true,
+        "academicMode": false
+    },
+    "pc_bridge": {
+        "hostIp": "127.0.0.1",
+        "port": "8765",
+        "authPin": "252646",
+        "autoConnect": true,
+        "safeMode": true,
+        "allowPyAutoGUI": true,
+        "allowShellCommands": true,
+        "allowScreenVision": true,
+        "windowManagerActive": true
+    }
 }

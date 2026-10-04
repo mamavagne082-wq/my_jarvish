@@ -32,6 +32,53 @@
     </div>
   </header>
 
+  <!-- Top API Health Bar (Matches PC Jarvis EXE Interface) -->
+  <div class="api-health-bar" id="apiHealthBar">
+    <div class="health-row-main">
+      <div class="health-label-wrap" onclick="switchTab('settings')" title="Open API Settings">
+        <span class="health-title">API HEALTH</span>
+      </div>
+      <div class="health-progress-wrap" id="healthProgressWrap" onclick="switchTab('settings')" title="Overall API Health">
+        <div class="health-progress-track">
+          <div class="health-progress-fill fill-emerald" id="healthProgressFill" style="width: 100%;"></div>
+        </div>
+        <span class="health-pct-text text-emerald" id="healthPctText">100%</span>
+      </div>
+      <span class="health-summary-count" id="healthSummaryCount">Checking...</span>
+      <span class="health-time" id="healthTime">--:--</span>
+      <button class="health-refresh-btn" id="healthRefreshBtn" onclick="refreshApiHealth(true)" title="Refresh API Health">
+        <span id="healthRefreshIcon">↺</span>
+      </button>
+    </div>
+
+    <!-- Per-API Status Chips -->
+    <div class="health-chips-row" id="healthChipsRow">
+      <div class="health-chip" onclick="focusApiKey('google')">
+        <span class="health-chip-dot dot-emerald"></span>
+        <span class="health-chip-name">Gemini</span>
+        <span class="health-chip-badge">✅</span>
+      </div>
+      <div class="health-chip" onclick="focusApiKey('openai')">
+        <span class="health-chip-dot dot-emerald"></span>
+        <span class="health-chip-name">OpenAI</span>
+        <span class="health-chip-badge">✅</span>
+      </div>
+      <div class="health-chip" onclick="focusApiKey('openrouter')">
+        <span class="health-chip-dot dot-emerald"></span>
+        <span class="health-chip-name">OpenRouter</span>
+        <span class="health-chip-badge">✅</span>
+      </div>
+      <div class="health-chip" onclick="focusApiKey('elevenlabs')">
+        <span class="health-chip-dot dot-emerald"></span>
+        <span class="health-chip-name">ElevenLabs</span>
+        <span class="health-chip-badge">✅</span>
+      </div>
+    </div>
+
+    <!-- Warning / Error detail banner (if any key exhausted or invalid) -->
+    <div class="health-errors-row" id="healthErrorsRow" style="display: none;"></div>
+  </div>
+
   <!-- Main Viewport containing Tabs -->
   <main class="main-viewport" id="mainViewport">
 
@@ -419,18 +466,50 @@
         </p>
 
         <div class="form-group">
-          <label for="cfgGoogleKey">Google Gemini API Key</label>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <label for="cfgGoogleKey" style="margin-bottom:0;">Google Gemini API Key</label>
+            <span id="statusBadge-google" style="font-size:10px; font-weight:700; color:#34d399;">✅ Healthy</span>
+          </div>
           <div class="input-toggle-group">
-            <input type="password" id="cfgGoogleKey" class="form-control" placeholder="AIzaSy... (Enter your Google Gemini API Key)" oninput="triggerAutoSave()" title="Google Gemini API Key" aria-label="Google Gemini API Key">
+            <input type="password" id="cfgGoogleKey" class="form-control" placeholder="AIzaSy... (Enter your Google Gemini API Key)" oninput="onApiKeyInputChanged('google')" title="Google Gemini API Key" aria-label="Google Gemini API Key">
             <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgGoogleKey')" title="Show/Hide">👁️</button>
+            <button type="button" class="btn-toggle-eye" onclick="testKeyLive('google')" title="Test Gemini Key" style="font-size:11px; width:auto; padding:0 8px;">⚡ টেস্ট</button>
           </div>
         </div>
 
         <div class="form-group">
-          <label for="cfgOpenAiKey">OpenAI API Key</label>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <label for="cfgOpenAiKey" style="margin-bottom:0;">OpenAI API Key</label>
+            <span id="statusBadge-openai" style="font-size:10px; font-weight:700; color:#94a3b8;">—</span>
+          </div>
           <div class="input-toggle-group">
-            <input type="password" id="cfgOpenAiKey" class="form-control" placeholder="sk-proj-... (Enter your OpenAI API Key)" oninput="triggerAutoSave()" title="OpenAI API Key" aria-label="OpenAI API Key">
+            <input type="password" id="cfgOpenAiKey" class="form-control" placeholder="sk-proj-... (Enter your OpenAI API Key)" oninput="onApiKeyInputChanged('openai')" title="OpenAI API Key" aria-label="OpenAI API Key">
             <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgOpenAiKey')" title="Show/Hide">👁️</button>
+            <button type="button" class="btn-toggle-eye" onclick="testKeyLive('openai')" title="Test OpenAI Key" style="font-size:11px; width:auto; padding:0 8px;">⚡ টেস্ট</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <label for="cfgOpenRouterKey" style="margin-bottom:0;">OpenRouter API Key (Optional)</label>
+            <span id="statusBadge-openrouter" style="font-size:10px; font-weight:700; color:#94a3b8;">—</span>
+          </div>
+          <div class="input-toggle-group">
+            <input type="password" id="cfgOpenRouterKey" class="form-control" placeholder="sk-or-v1-... (OpenRouter Key)" oninput="onApiKeyInputChanged('openrouter')" title="OpenRouter API Key" aria-label="OpenRouter API Key">
+            <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgOpenRouterKey')" title="Show/Hide">👁️</button>
+            <button type="button" class="btn-toggle-eye" onclick="testKeyLive('openrouter')" title="Test OpenRouter Key" style="font-size:11px; width:auto; padding:0 8px;">⚡ টেস্ট</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <label for="cfgGrokKey" style="margin-bottom:0;">xAI Grok API Key (Optional)</label>
+            <span id="statusBadge-grok" style="font-size:10px; font-weight:700; color:#94a3b8;">—</span>
+          </div>
+          <div class="input-toggle-group">
+            <input type="password" id="cfgGrokKey" class="form-control" placeholder="xai-... (Grok Key)" oninput="onApiKeyInputChanged('grok')" title="Grok API Key" aria-label="Grok API Key">
+            <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgGrokKey')" title="Show/Hide">👁️</button>
+            <button type="button" class="btn-toggle-eye" onclick="testKeyLive('grok')" title="Test Grok Key" style="font-size:11px; width:auto; padding:0 8px;">⚡ টেস্ট</button>
           </div>
         </div>
 

@@ -14,6 +14,7 @@ import android.content.pm.ServiceInfo
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
@@ -23,9 +24,11 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import java.util.Locale
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.jarvis.assistant.automation.android.JarvisNotificationListenerService
 import io.livekit.android.LiveKit
 import io.livekit.android.events.RoomEvent
 import io.livekit.android.room.Room
@@ -34,10 +37,18 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 
+/**
+ * 24/7 Standalone Jarvis Foreground Service for Android.
+ * Fully autonomous: Operates 100% independently on mobile even when PC is completely OFF.
+ * Provides hands-free Wake Word detection, continuous conversational voice loop,
+ * full phone control (YouTube, Apps, Calls, WhatsApp, Messenger, Survey, Screen Lock),
+ * and direct AI engine with multi-model failover.
+ */
 class JarvisForegroundService : Service() {
 
     companion object {
@@ -48,7 +59,7 @@ class JarvisForegroundService : Service() {
         const val ACTION_START = "com.jarvis.assistant.START"
         const val ACTION_STOP = "com.jarvis.assistant.STOP"
 
-        // ── Wake Word, Session State & Idle broadcast actions ──────────────
+        // Wake Word, Session State & Idle broadcast actions
         const val ACTION_WAKE_WORD_DETECTED = "com.jarvis.assistant.WAKE_WORD"
         const val ACTION_SESSION_STATE_CHANGED = "com.jarvis.assistant.SESSION_STATE_CHANGED"
         const val ACTION_RESET_IDLE = "com.jarvis.assistant.RESET_IDLE"
@@ -78,175 +89,23 @@ class JarvisForegroundService : Service() {
         }
     }
 
-    fun sendDataPacket(payload: JSONObject) {
-        val room = liveKitRoom ?: return
-        val bytes = payload.toString().toByteArray(Charsets.UTF_8)
-        serviceScope.launch {
-            try {
-                room.localParticipant.publishData(bytes)
-                Log.d(TAG, "Sent data packet to Python agent: $payload")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to send data packet: ${e.message}")
-            }
-        }
-    }
+    private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var explicitlyStopped = false
 
-    /**
-     * Publishes platform identity to Jarvis Agent (Mobile standalone vs PC Paired).
-     */
-    fun sendPlatformIdentify(isPairedOverride: Boolean? = null) {
-        val isPaired = isPairedOverride ?: MobileConfig.isPcPaired(this)
-        val identifyPayload = JSONObject().apply {
-            put("type", "PLATFORM_IDENTIFY")
-            put("platform", if (isPaired) "paired" else "mobile")
-            put("paired", isPaired)
-        }
-        sendDataPacket(identifyPayload)
-        Log.i(TAG, "Dispatched PLATFORM_IDENTIFY packet: platform=${if (isPaired) "paired" else "mobile"}, paired=$isPaired")
-    }
+    // Audio & Loudspeaker Management
+    private var audioManager: AudioManager? = null
+    private var audioFocusRequest: AudioFocusRequest? = null
 
-    // ── Local Text-To-Speech for Proactive Verbal Announcements ──────────
+    // Autonomous On-Device Voice Manager
+    private var autonomousVoiceManager: AutonomousVoiceManager? = null
+
+    // Text To Speech
     private var textToSpeech: TextToSpeech? = null
     private var ttsReady = false
 
-    private fun initLocalTTS() {
-        try {
-            textToSpeech = TextToSpeech(applicationContext) { status ->
-                if (status == TextToSpeech.SUCCESS) {
-                    ttsReady = true
-                    try {
-                        val bn = Locale("bn", "BD")
-                        if (textToSpeech?.isLanguageAvailable(bn) == TextToSpeech.LANG_AVAILABLE) {
-                            textToSpeech?.language = bn
-                        }
-                    } catch (_: Exception) {}
-                    Log.d(TAG, "Local TextToSpeech initialized successfully")
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not initialize local TTS: ${e.message}")
-        }
-    }
-
-    fun speakTextLocally(text: String) {
-        if (!ttsReady || textToSpeech == null) return
-        try {
-            val params = Bundle().apply {
-                putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_VOICE_CALL)
-            }
-            textToSpeech?.speak(text, TextToSpeech.QUEUE_ADD, params, "jarvis_tts_${System.currentTimeMillis()}")
-        } catch (e: Exception) {
-            Log.w(TAG, "speakTextLocally error: ${e.message}")
-        }
-    }
-
-    private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
-    private var wakeLock: PowerManager.WakeLock? = null
+    // Optional PC LiveKit Room (non-blocking)
     private var liveKitRoom: Room? = null
-    private var explicitlyStopped = false
-
-    // ── Audio Routing & Call Assistant Fix ────────────────────────────────
-    private var audioManager: AudioManager? = null
-    private var audioFocusRequest: AudioFocusRequest? = null
-    private var previousAudioMode = AudioManager.MODE_NORMAL
-
-    /**
-     * Applies loudspeaker routing and maximizes audio volume.
-     * Ensures Jarvis is loud and crystal clear through the device speaker.
-     */
-    fun applyLoudspeakerSettings() {
-        try {
-            audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            audioManager?.mode = AudioManager.MODE_IN_COMMUNICATION
-            audioManager?.isSpeakerphoneOn = true
-            audioManager?.isBluetoothScoOn = false
-
-            // Maximize volume streams so Jarvis voice is loud, clear, and doesn't get muffled
-            val maxVoice = audioManager?.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL) ?: 7
-            audioManager?.setStreamVolume(AudioManager.STREAM_VOICE_CALL, maxVoice, 0)
-            val maxMusic = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
-            audioManager?.setStreamVolume(AudioManager.STREAM_MUSIC, maxMusic, 0)
-            Log.d(TAG, "Loudspeaker configured at max volume (Voice: $maxVoice, Music: $maxMusic)")
-        } catch (e: Exception) {
-            Log.w(TAG, "Error applying loudspeaker settings: ${e.message}")
-        }
-    }
-
-    /**
-     * Acquires audio focus for active voice conversation.
-     * Sets MODE_IN_COMMUNICATION to enable hardware Acoustic Echo Cancellation (AEC)
-     * and Noise Suppression (NS) on the device chipset.
-     */
-    private fun acquireAudioFocusForAssistant() {
-        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        previousAudioMode = audioManager?.mode ?: AudioManager.MODE_NORMAL
-
-        // Switch to COMMUNICATION mode for hardware AEC and clear VoIP audio
-        audioManager?.mode = AudioManager.MODE_IN_COMMUNICATION
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                .setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                        .build()
-                )
-                .setAcceptsDelayedFocusGain(true)
-                .setOnAudioFocusChangeListener { focusChange ->
-                    Log.d(TAG, "Audio focus changed: $focusChange")
-                    if (focusChange == AudioManager.AUDIOFOCUS_GAIN && isSessionActive) {
-                        applyLoudspeakerSettings()
-                    }
-                }
-                .build()
-            audioFocusRequest = focusRequest
-            audioManager?.requestAudioFocus(focusRequest)
-        } else {
-            @Suppress("DEPRECATION")
-            audioManager?.requestAudioFocus(
-                null,
-                AudioManager.STREAM_VOICE_CALL,
-                AudioManager.AUDIOFOCUS_GAIN
-            )
-        }
-
-        applyLoudspeakerSettings()
-        Log.d(TAG, "Call Assistant audio focus acquired. Mode: IN_COMMUNICATION, Loudspeaker: ON")
-    }
-
-    private fun releaseAudioFocusForAssistant() {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                audioFocusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }
-            } else {
-                @Suppress("DEPRECATION")
-                audioManager?.abandonAudioFocus(null)
-            }
-            audioManager?.mode = AudioManager.MODE_NORMAL
-            audioManager?.isSpeakerphoneOn = false
-        } catch (e: Exception) {
-            Log.w(TAG, "Error releasing audio focus: ${e.message}")
-        }
-        Log.d(TAG, "Call Assistant audio focus released. Restored normal mode.")
-    }
-
-    // ── [NEW] Wake Word Engine ─────────────────────────────────────────────
-    private var wakeWordEngine: WakeWordEngine? = null
-
-    private val screenReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            val action = intent?.action ?: return
-            Log.d(TAG, "Screen broadcast event: $action")
-            if (isServiceEnabled(this@JarvisForegroundService)) {
-                acquireWakeLock()
-                if (liveKitRoom == null || liveKitRoom?.state != Room.State.CONNECTED) {
-                    Log.d(TAG, "Screen event ($action) detected disconnected LiveKit. Reconnecting...")
-                    connectToLiveKitRoom()
-                }
-            }
-        }
-    }
 
     override fun onCreate() {
         super.onCreate()
@@ -263,7 +122,7 @@ class JarvisForegroundService : Service() {
         if (action == ACTION_STOP) {
             explicitlyStopped = true
             setServiceEnabled(this, false)
-            disconnectSession(sendByePacket = false)
+            stopAutonomousSession()
             stopForegroundService()
             return START_NOT_STICKY
         }
@@ -272,13 +131,13 @@ class JarvisForegroundService : Service() {
         setServiceEnabled(this, true)
         startAsForeground()
 
-        // Standby mode: only start wake word engine if not in active call
-        if (wakeWordEngine == null && !isSessionActive) {
-            wakeWordEngine = WakeWordEngine()
-            wakeWordEngine?.start()
+        // Initialize and start Autonomous Voice Engine
+        if (autonomousVoiceManager == null) {
+            autonomousVoiceManager = AutonomousVoiceManager()
+            autonomousVoiceManager?.start()
         }
 
-        // ── Start Jarvis Mic Bubble / 3D Orb Overlay if permitted ──
+        // Show floating overlay if permitted
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && android.provider.Settings.canDrawOverlays(this)) {
             try {
                 val overlayIntent = Intent(this, JarvisOverlayService::class.java).apply {
@@ -312,7 +171,7 @@ class JarvisForegroundService : Service() {
             val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
             alarmManager?.set(
                 AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                SystemClock.elapsedRealtime() + 1000,
+                SystemClock.elapsedRealtime() + 800,
                 pendingIntent
             )
         }
@@ -324,14 +183,13 @@ class JarvisForegroundService : Service() {
             instance = null
         }
         isRunning = false
-        // ── Release audio focus & restore audio mode ──────────────────────
         releaseAudioFocusForAssistant()
-        // ── [NEW] Stop wake word engine ───────────────────────────────────
-        wakeWordEngine?.stop()
-        wakeWordEngine = null
+        autonomousVoiceManager?.stop()
+        autonomousVoiceManager = null
         unregisterScreenStateReceiver()
         disconnectLiveKit()
         releaseWakeLock()
+
         try {
             textToSpeech?.stop()
             textToSpeech?.shutdown()
@@ -339,7 +197,6 @@ class JarvisForegroundService : Service() {
         textToSpeech = null
         ttsReady = false
 
-        // ── Hide floating overlay ─────────────────────────────────────────
         try {
             val hideOverlayIntent = Intent(this, JarvisOverlayService::class.java).apply {
                 action = JarvisOverlayService.ACTION_HIDE_OVERLAY
@@ -348,7 +205,7 @@ class JarvisForegroundService : Service() {
         } catch (_: Exception) {}
 
         if (!explicitlyStopped && isServiceEnabled(this)) {
-            Log.w(TAG, "Jarvis killed unexpectedly by OS. Auto-resurrecting...")
+            Log.w(TAG, "Jarvis service killed by OS. Auto-resurrecting in 1s...")
             val restartServiceIntent = Intent(applicationContext, JarvisForegroundService::class.java).apply {
                 this.action = ACTION_START
             }
@@ -359,34 +216,158 @@ class JarvisForegroundService : Service() {
             val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
             alarmManager?.set(
                 AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                SystemClock.elapsedRealtime() + 1500,
+                SystemClock.elapsedRealtime() + 1000,
                 pendingIntent
             )
         }
         Log.d(TAG, "JarvisForegroundService destroyed")
     }
 
-    private fun registerScreenStateReceiver() {
-        val filter = IntentFilter().apply {
-            addAction(Intent.ACTION_SCREEN_ON)
-            addAction(Intent.ACTION_SCREEN_OFF)
-            addAction(Intent.ACTION_USER_PRESENT)
-        }
+    // ── Local Text-To-Speech Setup with Utterance Listener ───────────────────
+    private fun initLocalTTS(onInitDone: (() -> Unit)? = null) {
         try {
-            registerReceiver(screenReceiver, filter)
+            textToSpeech = TextToSpeech(applicationContext) { status ->
+                if (status == TextToSpeech.SUCCESS) {
+                    ttsReady = true
+                    try {
+                        val bn = Locale("bn", "BD")
+                        if (textToSpeech?.isLanguageAvailable(bn) == TextToSpeech.LANG_AVAILABLE) {
+                            textToSpeech?.language = bn
+                        }
+                    } catch (_: Exception) {}
+
+                    // Setup listener so mic resumes listening immediately after speaking
+                    textToSpeech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                        override fun onStart(utteranceId: String?) {
+                            sendBroadcast(Intent(ACTION_SESSION_STATE_CHANGED).apply {
+                                setPackage(packageName)
+                                putExtra("active", isSessionActive)
+                                putExtra("state", "speaking")
+                            })
+                        }
+
+                        override fun onDone(utteranceId: String?) {
+                            serviceScope.launch(Dispatchers.Main) {
+                                if (isSessionActive) {
+                                    sendBroadcast(Intent(ACTION_SESSION_STATE_CHANGED).apply {
+                                        setPackage(packageName)
+                                        putExtra("active", true)
+                                        putExtra("state", "listening")
+                                    })
+                                    autonomousVoiceManager?.resumeListeningAfterSpeech()
+                                }
+                            }
+                        }
+
+                        override fun onError(utteranceId: String?) {
+                            serviceScope.launch(Dispatchers.Main) {
+                                if (isSessionActive) {
+                                    autonomousVoiceManager?.resumeListeningAfterSpeech()
+                                }
+                            }
+                        }
+                    })
+
+                    Log.d(TAG, "Local TextToSpeech initialized successfully with UtteranceListener")
+                    onInitDone?.invoke()
+                }
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Error registering screenReceiver: ${e.message}")
+            Log.w(TAG, "Could not initialize local TTS: ${e.message}")
         }
     }
 
-    private fun unregisterScreenStateReceiver() {
+    fun speakTextLocally(text: String) {
+        applyLoudspeakerSettings()
+        autonomousVoiceManager?.pauseListeningForSpeech()
+
+        if (!ttsReady || textToSpeech == null) {
+            Log.w(TAG, "Local TTS not ready yet, queuing text: $text")
+            initLocalTTS {
+                speakTextLocally(text)
+            }
+            return
+        }
+
         try {
-            unregisterReceiver(screenReceiver)
+            val utteranceId = "jarvis_tts_${System.currentTimeMillis()}"
+            val params = Bundle().apply {
+                putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC)
+                putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
+                putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
+            }
+            textToSpeech?.speak(text, TextToSpeech.QUEUE_FLUSH, params, utteranceId)
+            Log.i(TAG, "Jarvis speaking locally: \"$text\"")
+
+            // Failsafe watchdog: resume listening if onDone not fired within expected time
+            val maxWait = (text.length * 90L).coerceIn(2500L, 12000L)
+            serviceScope.launch {
+                delay(maxWait)
+                if (isSessionActive) {
+                    autonomousVoiceManager?.resumeListeningAfterSpeech()
+                }
+            }
         } catch (e: Exception) {
-            // ignore if not registered
+            Log.w(TAG, "speakTextLocally error: ${e.message}")
+            autonomousVoiceManager?.resumeListeningAfterSpeech()
         }
     }
 
+    // ── Loudspeaker Audio Setup ─────────────────────────────────────────────
+    fun applyLoudspeakerSettings() {
+        try {
+            audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            audioManager?.mode = AudioManager.MODE_NORMAL
+            audioManager?.isSpeakerphoneOn = true
+            audioManager?.isBluetoothScoOn = false
+
+            val maxMusic = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
+            audioManager?.setStreamVolume(AudioManager.STREAM_MUSIC, maxMusic, 0)
+            val maxVoice = audioManager?.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL) ?: 7
+            audioManager?.setStreamVolume(AudioManager.STREAM_VOICE_CALL, maxVoice, 0)
+            Log.d(TAG, "Loudspeaker configured at max volume (Music: $maxMusic, Voice: $maxVoice)")
+        } catch (e: Exception) {
+            Log.w(TAG, "Error applying loudspeaker settings: ${e.message}")
+        }
+    }
+
+    private fun acquireAudioFocusForAssistant() {
+        try {
+            audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build()
+                    )
+                    .setAcceptsDelayedFocusGain(true)
+                    .build()
+                audioFocusRequest = focusRequest
+                audioManager?.requestAudioFocus(focusRequest)
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager?.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+            }
+            applyLoudspeakerSettings()
+        } catch (e: Exception) {
+            Log.w(TAG, "Audio focus acquire error: ${e.message}")
+        }
+    }
+
+    private fun releaseAudioFocusForAssistant() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                audioFocusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager?.abandonAudioFocus(null)
+            }
+        } catch (_: Exception) {}
+    }
+
+    // ── Foreground Notification Setup ───────────────────────────────────────
     private fun startAsForeground() {
         val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -395,8 +376,8 @@ class JarvisForegroundService : Service() {
         )
 
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(getString(R.string.service_running_title))
-            .setContentText(getString(R.string.service_running_desc))
+            .setContentTitle("Jarvis AI Assistant (সক্রিয়)")
+            .setContentText("মোবাইল সম্পূর্ণ স্বয়ংক্রিয়ভাবে প্রস্তুত • কথা বলুন বা নির্দেশ দিন")
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
@@ -404,11 +385,7 @@ class JarvisForegroundService : Service() {
             .build()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            )
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
@@ -418,10 +395,10 @@ class JarvisForegroundService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Jarvis Voice Assistant Background Service",
+                "Jarvis Autonomous Mobile Voice Channel",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Keeps Jarvis connected to microphone and speaker 24/7"
+                description = "Keeps Jarvis connected to microphone and speaker 24/7 on mobile"
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager?.createNotificationChannel(channel)
@@ -434,242 +411,35 @@ class JarvisForegroundService : Service() {
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Jarvis::VoiceWakeLock").apply {
                 acquire()
             }
-            Log.d(TAG, "WakeLock acquired")
         }
     }
 
     private fun releaseWakeLock() {
-        wakeLock?.let {
-            if (it.isHeld) it.release()
-        }
+        wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
     }
 
-    /**
-     * Connects to LiveKit Room using MobileConfig credentials.
-     * Enforces hardware AEC, loudspeaker output, and track filtering to eliminate any echo.
-     */
-    private fun connectToLiveKitRoom() {
-        serviceScope.launch {
-            try {
-                if (liveKitRoom != null && liveKitRoom?.state == Room.State.CONNECTED) {
-                    Log.d(TAG, "LiveKit room already connected.")
-                    return@launch
+    private fun registerScreenStateReceiver() {
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_USER_PRESENT)
+        }
+        try { registerReceiver(screenReceiver, filter) } catch (_: Exception) {}
+    }
+
+    private fun unregisterScreenStateReceiver() {
+        try { unregisterReceiver(screenReceiver) } catch (_: Exception) {}
+    }
+
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (isServiceEnabled(this@JarvisForegroundService)) {
+                acquireWakeLock()
+                if (autonomousVoiceManager == null) {
+                    autonomousVoiceManager = AutonomousVoiceManager()
+                    autonomousVoiceManager?.start()
                 }
-
-                val livekitUrl = MobileConfig.getLiveKitUrl(this@JarvisForegroundService)
-                val livekitKey = MobileConfig.getLiveKitKey(this@JarvisForegroundService)
-                val livekitSecret = MobileConfig.getLiveKitSecret(this@JarvisForegroundService)
-                val userName = MobileConfig.getUserName(this@JarvisForegroundService)
-
-                if (livekitUrl.isBlank() || livekitKey.isBlank() || livekitSecret.isBlank()) {
-                    Log.w(TAG, "LiveKit credentials missing. Please configure in Settings.")
-                    isSessionActive = false
-                    sendBroadcast(Intent(ACTION_SESSION_STATE_CHANGED).apply {
-                        setPackage(packageName)
-                        putExtra("active", false)
-                        putExtra("state", "idle")
-                        putExtra("error", "missing_keys")
-                    })
-                    return@launch
-                }
-
-                Log.d(TAG, "Connecting to LiveKit room: $livekitUrl...")
-                
-                val room = LiveKit.create(applicationContext)
-                liveKitRoom = room
-
-                // Listen to room events
-                serviceScope.launch {
-                    room.events.events.collect { event ->
-                        when (event) {
-                            is RoomEvent.Connected -> {
-                                Log.d(TAG, "Successfully connected to LiveKit Room!")
-                                // Automatically enable local microphone
-                                room.localParticipant.setMicrophoneEnabled(true)
-                                applyLoudspeakerSettings()
-
-                                // Send platform identity to Jarvis Agent (Mobile vs Paired)
-                                sendPlatformIdentify()
-
-                                sendBroadcast(Intent(ACTION_SESSION_STATE_CHANGED).apply {
-                                    setPackage(packageName)
-                                    putExtra("active", true)
-                                    putExtra("state", "listening")
-                                })
-                            }
-                            is RoomEvent.TrackSubscribed -> {
-                                if (event.track is RemoteAudioTrack) {
-                                    val remoteAudio = event.track as RemoteAudioTrack
-                                    val pId = (event.participant.identity?.toString() ?: "").lowercase()
-                                    val localId = (room.localParticipant.identity?.toString() ?: "").lowercase()
-                                    Log.d(TAG, "TrackSubscribed from remote participant: $pId (local: $localId)")
-
-                                    // Mute only if it's our own local identity or user audio feedback; ALWAYS unmute the assistant!
-                                    if (pId.isNotBlank() && (pId == localId || (pId.contains("user") && !pId.contains("agent") && !pId.contains("jarvis")))) {
-                                        Log.d(TAG, "Muting duplicate audio track from $pId")
-                                        try { remoteAudio.rtcTrack.setVolume(0.0) } catch (_: Exception) {}
-                                    } else {
-                                        Log.d(TAG, "Unmuting Jarvis assistant audio track at full volume from $pId")
-                                        try { remoteAudio.rtcTrack.setVolume(1.0) } catch (_: Exception) {}
-                                    }
-                                    applyLoudspeakerSettings()
-                                }
-                            }
-                            is RoomEvent.Disconnected -> {
-                                Log.w(TAG, "LiveKit room disconnected.")
-                                if (isSessionActive && isRunning && isServiceEnabled(this@JarvisForegroundService)) {
-                                    Log.d(TAG, "Unexpected drop during active session. Auto-reconnecting in 3s...")
-                                    delay(3000)
-                                    if (isSessionActive) {
-                                        connectToLiveKitRoom()
-                                    }
-                                } else {
-                                    Log.d(TAG, "LiveKit session ended intentionally. Standby mode active.")
-                                    sendBroadcast(Intent(ACTION_SESSION_STATE_CHANGED).apply {
-                                        setPackage(packageName)
-                                        putExtra("active", false)
-                                        putExtra("state", "idle")
-                                    })
-                                }
-                            }
-                            is RoomEvent.DataReceived -> {
-                                handleIncomingDataPacket(event.data)
-                            }
-                            else -> {}
-                        }
-                    }
-                }
-
-                // Deterministic participant identity
-                val cleanUser = userName.trim().lowercase().replace(Regex("[^a-z0-9_]"), "")
-                val identity = "mobile_user_${cleanUser.ifEmpty { "alamin" }}"
-
-                // Unique room name per active session ensures LiveKit Cloud immediately dispatches an active agent instance
-                val sessionRoom = "voice_assistant_room_${System.currentTimeMillis() / 1000}"
-
-                val token = MobileConfig.generateLiveKitToken(
-                    apiKey = livekitKey,
-                    apiSecret = livekitSecret,
-                    roomName = sessionRoom,
-                    identity = identity,
-                    participantName = userName
-                )
-                room.connect(livekitUrl, token)
-
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to connect to LiveKit: ${e.message}", e)
-                if (isSessionActive && isRunning && isServiceEnabled(this@JarvisForegroundService)) {
-                    delay(5000)
-                    if (isSessionActive) {
-                        connectToLiveKitRoom()
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Parses incoming command packets from the Python Jarvis Agent.
-     */
-    private fun handleIncomingDataPacket(data: ByteArray) {
-        try {
-            // Activity detected: notify MainActivity to keep UI active / reset idle timer
-            sendBroadcast(Intent(ACTION_RESET_IDLE).setPackage(packageName))
-
-            val text = String(data, Charsets.UTF_8)
-            val json = JSONObject(text)
-            val type = json.optString("type", "")
-
-            if (type == "JARVIS_MOBILE_CMD") {
-                val action = json.optString("action", "")
-                val payload = json.optJSONObject("payload") ?: JSONObject()
-                Log.d(TAG, "Received mobile command from Jarvis: action=$action")
-
-                JarvisAccessibilityService.instance?.handleCommand(action, payload)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error handling incoming data packet: ${e.message}")
-        }
-    }
-
-    fun isSessionConnected(): Boolean {
-        return liveKitRoom != null && liveKitRoom?.state == Room.State.CONNECTED
-    }
-
-    fun connectSession() {
-        if (!MobileConfig.hasValidCredentials(this)) {
-            Log.w(TAG, "Cannot connect session: Missing LiveKit credentials in Settings")
-            sendBroadcast(Intent(ACTION_SESSION_STATE_CHANGED).apply {
-                setPackage(packageName)
-                putExtra("active", false)
-                putExtra("state", "idle")
-                putExtra("error", "missing_keys")
-            })
-            return
-        }
-
-        isSessionActive = true
-        // Pause wake word engine so it releases the microphone completely for WebRTC
-        wakeWordEngine?.stop()
-        wakeWordEngine = null
-
-        acquireAudioFocusForAssistant()
-        connectToLiveKitRoom()
-    }
-
-    fun disconnectSession(sendByePacket: Boolean = true) {
-        val wasActive = isSessionActive
-        isSessionActive = false
-
-        if (sendByePacket && liveKitRoom != null && liveKitRoom?.state == Room.State.CONNECTED) {
-            try {
-                val byeJson = JSONObject().apply { put("type", "SAY_BYE") }
-                sendDataPacket(byeJson)
-                Log.d(TAG, "SAY_BYE packet sent to Jarvis agent")
-            } catch (e: Exception) {
-                Log.w(TAG, "Could not send SAY_BYE: ${e.message}")
-            }
-        }
-
-        serviceScope.launch {
-            if (sendByePacket && wasActive) {
-                delay(1200) // Allow SAY_BYE data packet to flush to agent before disconnecting socket
-            }
-            disconnectLiveKit()
-            releaseAudioFocusForAssistant()
-            sendBroadcast(Intent(ACTION_SESSION_STATE_CHANGED).apply {
-                setPackage(packageName)
-                putExtra("active", false)
-                putExtra("state", "idle")
-            })
-
-            // Resume wake word engine for standby listening if service is running
-            if (isRunning && isServiceEnabled(this@JarvisForegroundService) && wakeWordEngine == null) {
-                wakeWordEngine = WakeWordEngine()
-                wakeWordEngine?.start()
-            }
-        }
-    }
-
-    fun setSpeakerphone(enabled: Boolean) {
-        try {
-            audioManager?.isSpeakerphoneOn = enabled
-            if (enabled) {
-                applyLoudspeakerSettings()
-            }
-            Log.d(TAG, "Speakerphone set to: $enabled")
-        } catch (_: Exception) {}
-    }
-
-    fun disconnectLiveKit() {
-        serviceScope.launch {
-            try {
-                liveKitRoom?.disconnect()
-                liveKitRoom?.release()
-                liveKitRoom = null
-            } catch (e: Exception) {
-                Log.e(TAG, "Error disconnecting LiveKit: ${e.message}")
             }
         }
     }
@@ -679,147 +449,703 @@ class JarvisForegroundService : Service() {
         stopSelf()
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // [NEW] WakeWordEngine — Continuously listens for "Hey Jarvis"
-    //        Uses Android SpeechRecognizer (on-device, no cloud needed on
-    //        Android 13+ / Pixel devices; falls back to Google cloud STT).
-    // ═══════════════════════════════════════════════════════════════════════
-    inner class WakeWordEngine {
+    // ── Public Session Controls (Called from MainActivity & WebUI) ──────────
+    fun connectSession() {
+        startAutonomousSession(initialGreeting = true)
+    }
 
-        private val TAG_WW = "JarvisWakeWord"
-        private var recognizer: SpeechRecognizer? = null
-        private var isActive = false
-        private var lastActivationMs = 0L
-        private val COOLDOWN_MS = 3000L
+    fun disconnectSession(sendByePacket: Boolean = true) {
+        stopAutonomousSession()
+    }
 
-        /** Wake phrases to detect (case-insensitive substring match). */
+    fun startAutonomousSession(initialGreeting: Boolean = true) {
+        isSessionActive = true
+        applyLoudspeakerSettings()
+        acquireAudioFocusForAssistant()
+
+        sendBroadcast(Intent(ACTION_SESSION_STATE_CHANGED).apply {
+            setPackage(packageName)
+            putExtra("active", true)
+            putExtra("state", "listening")
+        })
+
+        if (initialGreeting) {
+            val userName = MobileConfig.getUserName(this)
+            speakTextLocally("হ্যালো $userName স্যার! জারভিস প্রস্তুত, বলুন কীভাবে সাহায্য করতে পারি?")
+        }
+
+        // Start interactive listening immediately
+        autonomousVoiceManager?.resumeListeningAfterSpeech()
+
+        // Optional non-blocking background PC connection
+        startOptionalBackgroundLiveKit()
+    }
+
+    fun stopAutonomousSession() {
+        isSessionActive = false
+        releaseAudioFocusForAssistant()
+        disconnectLiveKit()
+
+        sendBroadcast(Intent(ACTION_SESSION_STATE_CHANGED).apply {
+            setPackage(packageName)
+            putExtra("active", false)
+            putExtra("state", "idle")
+        })
+
+        // Return to standby wake word listening
+        if (isRunning && isServiceEnabled(this)) {
+            autonomousVoiceManager?.resumeListeningAfterSpeech()
+        }
+    }
+
+    fun setSpeakerphone(enabled: Boolean) {
+        try {
+            audioManager?.isSpeakerphoneOn = enabled
+            if (enabled) applyLoudspeakerSettings()
+        } catch (_: Exception) {}
+    }
+
+    fun isSessionConnected(): Boolean = isSessionActive
+
+    // ── Autonomous Mobile Command & Tool Execution Engine ───────────────────
+    fun handleUserSpokenCommand(commandText: String) {
+        val clean = commandText.trim()
+        if (clean.isBlank()) return
+        val lower = clean.lowercase()
+
+        Log.i(TAG, "Executing Autonomous Command: \"$clean\"")
+
+        // 1. BYE / SHUTDOWN
+        if (isMatch(lower, listOf("বাই বাই", "বিদায়", "বিদায়", "বন্ধ করো", "থাক", "ঘুমিয়ে পড়ো", "stop", "exit", "bye", "goodbye", "good bye"))) {
+            MainActivity.instance?.runOnUiThread {
+                MainActivity.instance?.postDirectTranscript(clean, "বাই বাই জানু, ধন্যবাদ তোমাকে!")
+            }
+            speakTextLocally("বাই বাই জানু, ধন্যবাদ তোমাকে!")
+            disconnectSession(sendByePacket = false)
+            return
+        }
+
+        // 2. LOCK DEVICE
+        if (isMatch(lower, listOf("লক", "লক করো", "লক করে দাও", "স্ক্রিন বন্ধ", "ফোন লক", "মোবাইল লক", "lock", "lock screen", "turn off screen"))) {
+            val reply = "মোবাইল স্ক্রিন লক করা হচ্ছে।"
+            MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+            speakTextLocally(reply)
+            JarvisAccessibilityService.instance?.handleCommand("lock", JSONObject())
+            return
+        }
+
+        // 3. YOUTUBE SEARCH & PLAY
+        if (isMatch(lower, listOf("ইউটিউব", "ইউটিউবে", "গান", "ভিডিও", "youtube", "play", "চালাও", "প্লে করো", "প্লে", "শোনাও", "সার্চ"))) {
+            var query = clean
+            val removeKeywords = listOf(
+                "ইউটিউবে একটা গান চালাও", "ইউটিউবে গান চালাও", "ইউটিউবে", "ইউটিউব",
+                "একটা গান চালাও", "গান চালাও", "গান প্লে করো", "গানটি চালাও", "গানটি প্লে করো",
+                "ভিডিও চালাও", "ভিডিও প্লে করো", "প্লে করো", "চালাও", "শোনাও", "সার্চ করো",
+                "খোঁজো", "খোজো", "play", "on youtube", "youtube", "song", "video", "search"
+            )
+            for (kw in removeKeywords) {
+                query = query.replace(Regex("(?i)$kw"), "").trim()
+            }
+            if (query.isBlank() || query.length < 2) {
+                query = "Iron Man Theme"
+            }
+            val reply = "ইউটিউবে '$query' সার্চ ও প্লে করা হচ্ছে।"
+            MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+            speakTextLocally(reply)
+            JarvisAccessibilityService.instance?.searchAndPlayYouTube(query)
+            return
+        }
+
+        // 4. PHONE CALL & DIALER (SIM 1 Default)
+        if (isMatch(lower, listOf("কল", "কল দাও", "কল করো", "ফোন দাও", "ফোন করো", "ডায়াল", "ডায়াল", "call", "dial"))) {
+            val isDialpad = isMatch(lower, listOf("ডায়াল প্যাড", "ডায়াল প্যাড", "ডায়ালার", "ডায়ালার", "dialpad", "dialer"))
+            var target = clean
+            val callRemovals = listOf(
+                "১ সিম দিয়ে", "১ সিম দিয়ে", "১ নম্বর সিম দিয়ে", "১ম সিম দিয়ে", "ওয়ান সিম দিয়ে",
+                "one sim", "sim 1", "sim1", "ডায়াল প্যাড ওপেন করে", "ডায়াল প্যাড খুলে", "ডায়াল প্যাড",
+                "কল দাও", "কল করো", "ফোন দাও", "ফোন করো", "ডায়াল করো", "ডায়াল করো", "কে", "call", "dial"
+            )
+            for (kw in callRemovals) {
+                target = target.replace(Regex("(?i)$kw"), "").trim()
+            }
+            val reply = if (target.isBlank() || isDialpad) "ডায়াল প্যাড ওপেন করা হচ্ছে।" else "'$target'-কে কল দেওয়া হচ্ছে।"
+            MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+            speakTextLocally(reply)
+
+            val success = JarvisAccessibilityService.instance?.makePhoneCall(target.ifBlank { "dialer" }, simSlot = 1, openDialpad = isDialpad) ?: false
+            if (!success && !isDialpad) {
+                try {
+                    val fallback = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${target.replace(Regex("[^0-9+]"), "")}")).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    startActivity(fallback)
+                } catch (_: Exception) {}
+            }
+            return
+        }
+
+        // 5. WHATSAPP MESSAGE & CALL
+        if (lower.contains("হোয়াটসঅ্যাপ") || lower.contains("whatsapp")) {
+            val isCall = isMatch(lower, listOf("কল", "ভিডিও কল", "অডিও কল", "call"))
+            if (isCall) {
+                val reply = "হোয়াটসঅ্যাপ কল করা হচ্ছে।"
+                MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+                speakTextLocally(reply)
+                JarvisAccessibilityService.instance?.makeWhatsAppCall("", "voice")
+                return
+            }
+            val reply = "হোয়াটসঅ্যাপ ওপেন করে মেসেজ পাঠানো হচ্ছে।"
+            MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+            speakTextLocally(reply)
+            JarvisAccessibilityService.instance?.sendWhatsAppMessage("", clean)
+            return
+        }
+
+        // 6. MESSENGER / FACEBOOK MESSAGE
+        if (lower.contains("মেসেঞ্জার") || lower.contains("messenger")) {
+            val reply = "মেসেঞ্জারে মেসেজ পাঠানো হচ্ছে।"
+            MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+            speakTextLocally(reply)
+            JarvisAccessibilityService.instance?.sendMessengerMessage("", clean)
+            return
+        }
+
+        // 7. OPEN APPLICATION
+        if (isMatch(lower, listOf("ওপেন", "খোল", "খোলো", "চালু", "অন করো", "open", "launch", "start"))) {
+            var appName = clean
+            val openRemovals = listOf("অ্যাপস ওপেন করো", "অ্যাপ ওপেন করো", "ওপেন করো", "অ্যাপস খোলো", "অ্যাপ খোলো", "খোলো", "খোল", "চালু করো", "অন করো", "অ্যাপটি", "অ্যাপস", "open app", "open", "launch")
+            for (kw in openRemovals) {
+                appName = appName.replace(Regex("(?i)$kw"), "").trim()
+            }
+            if (appName.isNotBlank()) {
+                val reply = "'$appName' অ্যাপটি চালু করা হচ্ছে।"
+                MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+                speakTextLocally(reply)
+                JarvisAccessibilityService.instance?.openApplication(appName)
+                return
+            }
+        }
+
+        // 8. SURVEY AUTOMATION
+        if (isMatch(lower, listOf("সার্ভে", "সার্ভে করো", "অটো সার্ভে", "নেক্সট বাটন", "ফর্ম পূরণ", "survey", "auto survey"))) {
+            val reply = "সার্ভে অটোমেশন কার্যকর করা হয়েছে।"
+            MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+            speakTextLocally(reply)
+            JarvisAccessibilityService.instance?.performSurveyAutomation()
+            return
+        }
+
+        // 9. READ NOTIFICATIONS
+        if (isMatch(lower, listOf("নোটিফিকেশন", "মেসেজ কি এসেছে", "নোটিফিকেশন পড়ো", "নোটিফিকেশন পড়ো", "read notification", "notifications"))) {
+            val sender = JarvisNotificationListenerService.lastNotificationSender
+            val text = JarvisNotificationListenerService.lastNotificationText
+            val app = JarvisNotificationListenerService.lastNotificationApp
+            val reply = if (sender.isNotBlank() && text.isNotBlank()) {
+                "সর্বশেষ নোটিফিকেশন $app থেকে $sender পাঠিয়েছেন: $text"
+            } else {
+                "বর্তমানে কোনো নতুন আনরিড নোটিফিকেশন নেই।"
+            }
+            MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+            speakTextLocally(reply)
+            return
+        }
+
+        // 10. VOLUME & BRIGHTNESS & SCROLL
+        if (lower.contains("ভলিউম") || lower.contains("সাউন্ড") || lower.contains("শব্দ")) {
+            val up = isMatch(lower, listOf("বাড়া", "বাড়া", "ফুল", "up", "high", "increase"))
+            JarvisAccessibilityService.instance?.adjustVolume(increase = up)
+            val reply = if (up) "ভলিউম বাড়ানো হয়েছে।" else "ভলিউম কমানো হয়েছে।"
+            MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+            speakTextLocally(reply)
+            return
+        }
+
+        if (lower.contains("ব্রাইটনেস") || lower.contains("আলো")) {
+            val up = isMatch(lower, listOf("বাড়া", "বাড়া", "ফুল", "up", "high", "increase"))
+            JarvisAccessibilityService.instance?.adjustScreenBrightness(increase = up)
+            val reply = if (up) "স্ক্রিন ব্রাইটনেস বাড়ানো হয়েছে।" else "স্ক্রিন ব্রাইটনেস কমানো হয়েছে।"
+            MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+            speakTextLocally(reply)
+            return
+        }
+
+        if (lower.contains("স্ক্রোল") || lower.contains("scroll") || lower.contains("নিচে যাও") || lower.contains("উপরে যাও")) {
+            val isUp = lower.contains("উপরে") || lower.contains("up")
+            JarvisAccessibilityService.instance?.performScroll(if (isUp) "up" else "down")
+            val reply = if (isUp) "উপরে স্ক্রোল করা হয়েছে।" else "নিচে স্ক্রোল করা হয়েছে।"
+            MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+            speakTextLocally(reply)
+            return
+        }
+
+        if (isMatch(lower, listOf("হোম", "হোমে যাও", "পিছনে", "পিছনে যাও", "ব্যাক", "home", "back"))) {
+            val isHome = lower.contains("হোম") || lower.contains("home")
+            JarvisAccessibilityService.instance?.performGlobalAction(
+                if (isHome) android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME
+                else android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK
+            )
+            val reply = if (isHome) "হোমে ফিরে যাওয়া হয়েছে।" else "পিছনে ফিরে যাওয়া হয়েছে।"
+            MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+            speakTextLocally(reply)
+            return
+        }
+
+        // 11. CONVERSATIONAL AI & GENERAL KNOWLEDGE
+        sendBroadcast(Intent(ACTION_SESSION_STATE_CHANGED).apply {
+            setPackage(packageName)
+            putExtra("active", true)
+            putExtra("state", "thinking")
+        })
+
+        queryDirectAI(clean) { reply ->
+            MainActivity.instance?.runOnUiThread {
+                MainActivity.instance?.postDirectTranscript(clean, reply)
+            }
+            speakTextLocally(reply)
+        }
+    }
+
+    private fun isMatch(text: String, keywords: List<String>): Boolean {
+        val lower = text.lowercase()
+        for (kw in keywords) {
+            if (lower.contains(kw.lowercase())) return true
+        }
+        return false
+    }
+
+    // ── Direct Multi-Model AI Engine (Gemini -> OpenRouter -> Offline) ───────
+    fun queryDirectAI(userPrompt: String, onResponse: (String) -> Unit) {
+        serviceScope.launch(Dispatchers.IO) {
+            val googleKey = MobileConfig.getGoogleKey(this@JarvisForegroundService)
+            val openRouterKey = MobileConfig.getOpenRouterKey(this@JarvisForegroundService)
+            val openAiKey = MobileConfig.getOpenAiKey(this@JarvisForegroundService)
+            var answered = false
+
+            // 1. Google Gemini API with fallback models
+            if (googleKey.isNotBlank() && googleKey != "0" && !googleKey.startsWith("AQ.")) {
+                val geminiModels = listOf("gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash")
+                for (model in geminiModels) {
+                    if (answered) break
+                    try {
+                        val result = callGeminiApi(googleKey, model, userPrompt)
+                        if (result.isNotBlank()) {
+                            answered = true
+                            withContext(Dispatchers.Main) { onResponse(result) }
+                        }
+                    } catch (e: Exception) {
+                        Log.d(TAG, "Gemini $model failed: ${e.message}")
+                    }
+                }
+            }
+
+            // 2. OpenRouter Multi-Model Cloud API
+            if (!answered && openRouterKey.isNotBlank()) {
+                val orModels = listOf(
+                    "qwen/qwen3.8-27b:free",
+                    "nvidia/nemotron-3.5-lightning:free",
+                    "meta-llama/llama-3.3-70b-instruct:free",
+                    "google/gemini-2.0-flash-exp:free",
+                    "openrouter/auto"
+                )
+                for (m in orModels) {
+                    if (answered) break
+                    try {
+                        val result = callOpenRouterApi(openRouterKey, m, userPrompt)
+                        if (result.isNotBlank()) {
+                            answered = true
+                            withContext(Dispatchers.Main) { onResponse(result) }
+                        }
+                    } catch (e: Exception) {
+                        Log.d(TAG, "OpenRouter $m failed: ${e.message}")
+                    }
+                }
+            }
+
+            // 3. OpenAI API if configured
+            if (!answered && openAiKey.isNotBlank() && !openAiKey.startsWith("0")) {
+                try {
+                    val result = callOpenAiApi(openAiKey, "gpt-4o-mini", userPrompt)
+                    if (result.isNotBlank()) {
+                        answered = true
+                        withContext(Dispatchers.Main) { onResponse(result) }
+                    }
+                } catch (e: Exception) {
+                    Log.d(TAG, "OpenAI failed: ${e.message}")
+                }
+            }
+
+            // 4. Smart Offline Fallback
+            if (!answered) {
+                val offlineReply = generateSmartOfflineReply(userPrompt)
+                withContext(Dispatchers.Main) { onResponse(offlineReply) }
+            }
+        }
+    }
+
+    private fun callGeminiApi(apiKey: String, model: String, prompt: String): String {
+        val endpoint = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=${apiKey.trim()}"
+        val url = java.net.URL(endpoint)
+        val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 4000
+            readTimeout = 6000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+        }
+
+        val sysPrompt = "You are Jarvis, the high-tech AI companion for ALAMIN. " +
+                "Reply naturally, smartly and concisely in Bengali (বাংলা). " +
+                "Keep verbal response to 1-2 short punchy sentences suitable for speech output. " +
+                "Do not include asterisks, emojis or markdown."
+
+        val body = JSONObject().apply {
+            val sysParts = JSONArray().apply {
+                put(JSONObject().apply { put("text", sysPrompt) })
+            }
+            put("system_instruction", JSONObject().apply { put("parts", sysParts) })
+
+            val contents = JSONArray().apply {
+                val userObj = JSONObject().apply {
+                    put("role", "user")
+                    val parts = JSONArray().apply {
+                        put(JSONObject().apply { put("text", prompt) })
+                    }
+                    put("parts", parts)
+                }
+                put(userObj)
+            }
+            put("contents", contents)
+
+            val genConfig = JSONObject().apply {
+                put("temperature", 0.7)
+                put("maxOutputTokens", 150)
+            }
+            put("generationConfig", genConfig)
+        }
+
+        conn.outputStream.use { os ->
+            os.write(body.toString().toByteArray(Charsets.UTF_8))
+        }
+
+        val code = conn.responseCode
+        if (code == 200) {
+            val respText = conn.inputStream.bufferedReader().use { it.readText() }
+            conn.disconnect()
+            val jsonResp = JSONObject(respText)
+            val text = jsonResp.optJSONArray("candidates")
+                ?.optJSONObject(0)
+                ?.optJSONObject("content")
+                ?.optJSONArray("parts")
+                ?.optJSONObject(0)
+                ?.optString("text", "") ?: ""
+            return text.trim()
+        }
+        conn.disconnect()
+        throw Exception("HTTP $code")
+    }
+
+    private fun callOpenRouterApi(apiKey: String, model: String, prompt: String): String {
+        val endpoint = "https://openrouter.ai/api/v1/chat/completions"
+        val url = java.net.URL(endpoint)
+        val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 5000
+            readTimeout = 8000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+            setRequestProperty("Authorization", "Bearer ${apiKey.trim()}")
+        }
+
+        val sysPrompt = "You are Jarvis, the personal AI companion for ALAMIN. " +
+                "Reply naturally, smartly and concisely in Bengali (বাংলা). " +
+                "Keep verbal response to 1-2 short punchy sentences suitable for speech output. " +
+                "Do not include asterisks or markdown."
+
+        val body = JSONObject().apply {
+            put("model", model)
+            put("max_tokens", 150)
+            val messages = JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "system")
+                    put("content", sysPrompt)
+                })
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", prompt)
+                })
+            }
+            put("messages", messages)
+        }
+
+        conn.outputStream.use { os ->
+            os.write(body.toString().toByteArray(Charsets.UTF_8))
+        }
+
+        val code = conn.responseCode
+        if (code == 200) {
+            val respText = conn.inputStream.bufferedReader().use { it.readText() }
+            conn.disconnect()
+            val jsonResp = JSONObject(respText)
+            val text = jsonResp.optJSONArray("choices")
+                ?.optJSONObject(0)
+                ?.optJSONObject("message")
+                ?.optString("content", "") ?: ""
+            return text.trim()
+        }
+        conn.disconnect()
+        throw Exception("HTTP $code")
+    }
+
+    private fun callOpenAiApi(apiKey: String, model: String, prompt: String): String {
+        val endpoint = "https://api.openai.com/v1/chat/completions"
+        val url = java.net.URL(endpoint)
+        val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 5000
+            readTimeout = 8000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+            setRequestProperty("Authorization", "Bearer ${apiKey.trim()}")
+        }
+
+        val sysPrompt = "You are Jarvis, the personal AI companion for ALAMIN. " +
+                "Reply naturally, smartly and concisely in Bengali (বাংলা). " +
+                "Keep verbal response to 1-2 short punchy sentences."
+
+        val body = JSONObject().apply {
+            put("model", model)
+            put("max_tokens", 150)
+            val messages = JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "system")
+                    put("content", sysPrompt)
+                })
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", prompt)
+                })
+            }
+            put("messages", messages)
+        }
+
+        conn.outputStream.use { os ->
+            os.write(body.toString().toByteArray(Charsets.UTF_8))
+        }
+
+        val code = conn.responseCode
+        if (code == 200) {
+            val respText = conn.inputStream.bufferedReader().use { it.readText() }
+            conn.disconnect()
+            val jsonResp = JSONObject(respText)
+            val text = jsonResp.optJSONArray("choices")
+                ?.optJSONObject(0)
+                ?.optJSONObject("message")
+                ?.optString("content", "") ?: ""
+            return text.trim()
+        }
+        conn.disconnect()
+        throw Exception("HTTP $code")
+    }
+
+    private fun generateSmartOfflineReply(prompt: String): String {
+        val lower = prompt.lowercase()
+        return when {
+            isMatch(lower, listOf("সময়", "টাইম", "কয়টা বাজে", "time")) -> {
+                val timeStr = java.text.SimpleDateFormat("hh:mm a", Locale.getDefault()).format(java.util.Date())
+                "এখন সময় $timeStr।"
+            }
+            isMatch(lower, listOf("তারিখ", "আজকে কি বার", "date", "day")) -> {
+                val dateStr = java.text.SimpleDateFormat("EEEE, dd MMMM yyyy", Locale("bn", "BD")).format(java.util.Date())
+                "আজকের তারিখ $dateStr।"
+            }
+            isMatch(lower, listOf("কেমন আছো", "how are you")) -> {
+                "আমি চমৎকার আছি স্যার! আপনাকে সাহায্য করতে সর্বদা প্রস্তুত।"
+            }
+            isMatch(lower, listOf("তুমি কে", "তোমার নাম", "who are you", "your name")) -> {
+                "আমি জারভিস, আপনার ব্যক্তিগত এআই সহকারী। আমি মোবাইল ও পিসির সমস্ত কাজ সম্পূর্ণ করতে পারি।"
+            }
+            isMatch(lower, listOf("ধন্যবাদ", "থ্যাংক ইউ", "thank you", "thanks")) -> {
+                "আপনাকে অসংখ্য ধন্যবাদ স্যার! সবসময় আপনার সেবায় নিয়োজিত আছি।"
+            }
+            isMatch(lower, listOf("কি করতে পারো", "ফিচার", "সাহায্য", "help", "features")) -> {
+                "আমি ইউটিউবে গান বাজানো, যেকোনো অ্যাপ চালু করা, কল দেওয়া, মেসেজ পাঠানো, স্ক্রিন লক করা, নোটিফিকেশন পড়া এবং সার্ভে অটোমেশন সহ সব কাজ করতে পারি।"
+            }
+            else -> {
+                "স্যার, আপনার নির্দেশটি বুঝতে পেরেছি। বলুন আর কীভাবে সাহায্য করতে পারি?"
+            }
+        }
+    }
+
+    // ── Autonomous On-Device Voice Manager (Wake Word & Continuous Speech) ──
+    inner class AutonomousVoiceManager {
+        private val TAG_VM = "JarvisVoiceManager"
+        private var speechRecognizer: SpeechRecognizer? = null
+        private var isListening = false
+        private var isPausedForTTS = false
+        private var lastWakeActivationMs = 0L
+        private val WAKE_COOLDOWN_MS = 2500L
+
         private val WAKE_PHRASES = listOf(
             "hey jarvis", "ok jarvis", "okay jarvis", "hi jarvis",
-            "jarvis",          // just the name
-            "জারভিস",          // Bengali
-            "হে জারভিস",       // Bengali "Hey Jarvis"
-            "ও জারভিস",        // Bengali "Oh Jarvis"
-            "হ্যালো জারভিস"    // Bengali "Hello Jarvis"
+            "jarvis", "hello jarvis",
+            "জারভিস", "হে জারভিস", "ও জারভিস", "হ্যালো জারভিস", "শোনো", "অ্যাসিস্ট্যান্ট"
         )
 
         fun start() {
-            isActive = true
-            // SpeechRecognizer must be created on main thread
+            isListening = true
+            isPausedForTTS = false
             serviceScope.launch(Dispatchers.Main) {
-                startListening()
+                initRecognizerAndListen()
             }
-            Log.i(TAG_WW, "Wake word engine started. Say 'Hey Jarvis' to activate.")
+            Log.i(TAG_VM, "Autonomous Voice Manager started (24/7 Standalone Ready)")
         }
 
         fun stop() {
-            isActive = false
+            isListening = false
+            isPausedForTTS = false
             serviceScope.launch(Dispatchers.Main) {
-                recognizer?.stopListening()
-                recognizer?.destroy()
-                recognizer = null
+                destroyRecognizer()
             }
-            Log.i(TAG_WW, "Wake word engine stopped.")
+            Log.i(TAG_VM, "Autonomous Voice Manager stopped")
         }
 
-        private fun startListening() {
-            if (!isActive) return
+        fun pauseListeningForSpeech() {
+            isPausedForTTS = true
+            serviceScope.launch(Dispatchers.Main) {
+                try {
+                    speechRecognizer?.stopListening()
+                } catch (_: Exception) {}
+            }
+        }
+
+        fun resumeListeningAfterSpeech() {
+            isPausedForTTS = false
+            serviceScope.launch(Dispatchers.Main) {
+                if (isListening && !isPausedForTTS) {
+                    startListening()
+                }
+            }
+        }
+
+        private fun destroyRecognizer() {
+            try {
+                speechRecognizer?.stopListening()
+                speechRecognizer?.destroy()
+            } catch (_: Exception) {}
+            speechRecognizer = null
+        }
+
+        private fun initRecognizerAndListen() {
+            if (!isListening) return
             if (!SpeechRecognizer.isRecognitionAvailable(applicationContext)) {
-                Log.w(TAG_WW, "Speech recognition not available on this device.")
+                Log.w(TAG_VM, "Speech recognition is not available on this device.")
                 return
             }
+            destroyRecognizer()
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(applicationContext).apply {
+                setRecognitionListener(object : RecognitionListener {
+                    override fun onReadyForSpeech(params: Bundle?) {}
+                    override fun onBeginningOfSpeech() {
+                        sendBroadcast(Intent(ACTION_RESET_IDLE).setPackage(packageName))
+                    }
+                    override fun onRmsChanged(rmsdB: Float) {}
+                    override fun onBufferReceived(buffer: ByteArray?) {}
+                    override fun onEndOfSpeech() {}
 
-            recognizer?.destroy()
-            recognizer = SpeechRecognizer.createSpeechRecognizer(applicationContext)
+                    override fun onError(error: Int) {
+                        if (isPausedForTTS) return
+                        val delayMs = if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) 1000L else 350L
+                        restartListening(delayMs)
+                    }
 
-            recognizer?.setRecognitionListener(object : RecognitionListener {
+                    override fun onResults(results: Bundle?) {
+                        if (isPausedForTTS) return
+                        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION) ?: emptyList<String>()
+                        val heardText = matches.firstOrNull()?.trim() ?: ""
 
-                override fun onResults(results: Bundle?) {
-                    val matches = results
-                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        ?: emptyList<String>()
+                        if (heardText.isNotBlank()) {
+                            Log.i(TAG_VM, "Recognized: \"$heardText\" (SessionActive=$isSessionActive)")
+                            if (isSessionActive) {
+                                handleUserSpokenCommand(heardText)
+                            } else {
+                                val lower = heardText.lowercase()
+                                var wakeFound = false
+                                for (p in WAKE_PHRASES) {
+                                    if (p in lower) {
+                                        wakeFound = true
+                                        break
+                                    }
+                                }
+                                if (wakeFound) {
+                                    triggerWakeWordActivation(heardText)
+                                } else {
+                                    restartListening(300L)
+                                }
+                            }
+                        } else {
+                            restartListening(300L)
+                        }
+                    }
 
-                    for (text in matches) {
-                        val lower = text.lowercase()
-                        Log.d(TAG_WW, "Heard: \"$lower\"")
-                        for (phrase in WAKE_PHRASES) {
-                            if (phrase in lower) {
-                                onWakeWordDetected(text)
-                                break
+                    override fun onPartialResults(partialResults: Bundle?) {
+                        if (isPausedForTTS) return
+                        val partial = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.trim() ?: return
+                        if (!isSessionActive) {
+                            val lower = partial.lowercase()
+                            for (p in WAKE_PHRASES) {
+                                if (p in lower) {
+                                    triggerWakeWordActivation(partial)
+                                    break
+                                }
                             }
                         }
                     }
-                    // Restart for next phrase
-                    restartAfterDelay(300)
-                }
 
-                override fun onPartialResults(partialResults: Bundle?) {
-                    // Check partial results too for faster response
-                    val partial = partialResults
-                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        ?.firstOrNull()?.lowercase() ?: return
-                    for (phrase in WAKE_PHRASES) {
-                        if (phrase in partial) {
-                            Log.d(TAG_WW, "Partial match: \"$partial\"")
-                            onWakeWordDetected(partial)
-                            break
-                        }
-                    }
-                }
-
-                override fun onError(error: Int) {
-                    val msg = when (error) {
-                        SpeechRecognizer.ERROR_NO_MATCH -> "No match"
-                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Timeout"
-                        SpeechRecognizer.ERROR_AUDIO -> "Audio error"
-                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy"
-                        else -> "Error $error"
-                    }
-                    Log.d(TAG_WW, "Recognition error: $msg. Restarting...")
-                    restartAfterDelay(if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) 1500L else 500L)
-                }
-
-                override fun onReadyForSpeech(params: Bundle?) {}
-                override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) {}
-                override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() {}
-                override fun onEvent(eventType: Int, params: Bundle?) {}
-            })
-
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                // Support both Bengali and English in one session
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "bn-BD")
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "bn-BD")
-                putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, false)
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                // Keep listening longer for wake word detection
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 300L)
+                    override fun onEvent(eventType: Int, params: Bundle?) {}
+                })
             }
-
-            recognizer?.startListening(intent)
+            startListening()
         }
 
-        private fun restartAfterDelay(delayMs: Long = 500L) {
-            if (!isActive) return
+        private fun startListening() {
+            if (!isListening || isPausedForTTS) return
+            try {
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "bn-BD")
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "bn-BD")
+                    putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, false)
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 300L)
+                }
+                speechRecognizer?.startListening(intent)
+            } catch (e: Exception) {
+                Log.w(TAG_VM, "Error starting speech listening: ${e.message}")
+                restartListening(1000L)
+            }
+        }
+
+        private fun restartListening(delayMs: Long) {
+            if (!isListening || isPausedForTTS) return
             serviceScope.launch(Dispatchers.Main) {
                 delay(delayMs)
-                if (isActive) startListening()
+                if (isListening && !isPausedForTTS) {
+                    startListening()
+                }
             }
         }
 
-        private fun onWakeWordDetected(phrase: String) {
+        private fun triggerWakeWordActivation(phrase: String) {
             val now = System.currentTimeMillis()
-            if (now - lastActivationMs < COOLDOWN_MS) return  // cooldown
-            lastActivationMs = now
+            if (now - lastWakeActivationMs < WAKE_COOLDOWN_MS) return
+            lastWakeActivationMs = now
 
-            Log.i(TAG_WW, "🔊 WAKE WORD DETECTED: \"$phrase\" → Activating Jarvis UI!")
+            Log.i(TAG_VM, "🔊 WAKE WORD DETECTED: \"$phrase\" -> Activating Jarvis Mobile UI!")
 
-            // 1. Wake screen if sleeping
+            // Wake screen if sleeping
             try {
                 val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
                 @Suppress("DEPRECATION")
@@ -830,11 +1156,9 @@ class JarvisForegroundService : Service() {
                     "Jarvis::WakeWordScreenOn"
                 )
                 screenLock.acquire(3000L)
-            } catch (e: Exception) {
-                Log.w(TAG_WW, "Screen wakeup error: ${e.message}")
-            }
+            } catch (_: Exception) {}
 
-            // 2. Prepare Intent to launch/bring MainActivity to front
+            // Bring MainActivity to front
             val bringIntent = Intent(applicationContext, MainActivity::class.java).apply {
                 action = ACTION_WAKE_WORD_DETECTED
                 addFlags(
@@ -847,26 +1171,13 @@ class JarvisForegroundService : Service() {
                 putExtra("phrase", phrase)
             }
 
-            // 3. Direct launch
-            try {
-                startActivity(bringIntent)
-            } catch (e: Exception) {
-                Log.w(TAG_WW, "Direct startActivity error: ${e.message}")
-            }
+            try { startActivity(bringIntent) } catch (_: Exception) {}
+            try { JarvisAccessibilityService.instance?.startActivity(bringIntent) } catch (_: Exception) {}
 
-            // 4. Accessibility service launch fallback (bypasses Android 10+ background restriction)
-            try {
-                JarvisAccessibilityService.instance?.startActivity(bringIntent)
-            } catch (e: Exception) {
-                Log.w(TAG_WW, "Accessibility startActivity error: ${e.message}")
-            }
-
-            // 5. High-priority Full-Screen Notification (guaranteed foreground popup on Android 10-15)
+            // High-priority alert notification
             try {
                 val fullScreenPendingIntent = PendingIntent.getActivity(
-                    applicationContext,
-                    1004,
-                    bringIntent,
+                    applicationContext, 1004, bringIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
                 )
                 val alertNotification = NotificationCompat.Builder(this@JarvisForegroundService, CHANNEL_ID)
@@ -880,19 +1191,156 @@ class JarvisForegroundService : Service() {
                     .build()
                 val notifManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 notifManager.notify(1005, alertNotification)
-            } catch (e: Exception) {
-                Log.w(TAG_WW, "Full screen notification error: ${e.message}")
-            }
+            } catch (_: Exception) {}
 
-            // 6. Send broadcast for any active receiver
-            val wakeIntent = Intent(ACTION_WAKE_WORD_DETECTED).apply {
+            sendBroadcast(Intent(ACTION_WAKE_WORD_DETECTED).apply {
                 setPackage(packageName)
                 putExtra("phrase", phrase)
-            }
-            sendBroadcast(wakeIntent)
+            })
 
-            // Connect voice call session upon wake word detection
-            connectSession()
+            // Activate session with instant verbal response
+            startAutonomousSession(initialGreeting = true)
+        }
+    }
+
+    // ── Optional Non-Blocking Background LiveKit Link ────────────────────────
+    fun sendDataPacket(payload: JSONObject) {
+        val room = liveKitRoom ?: return
+        val bytes = payload.toString().toByteArray(Charsets.UTF_8)
+        serviceScope.launch {
+            try {
+                room.localParticipant.publishData(bytes)
+                Log.d(TAG, "Sent data packet to PC agent: $payload")
+            } catch (e: Exception) {
+                Log.d(TAG, "Optional data packet send skipped: ${e.message}")
+            }
+        }
+    }
+
+    fun sendConfigSyncPacket(configJson: JSONObject? = null) {
+        val payload = JSONObject().apply {
+            put("type", "SYNC_CONFIG")
+            val cfg = configJson ?: MobileConfig.getAllConfigJson(this@JarvisForegroundService)
+            put("config", cfg)
+            put("google_key", MobileConfig.getGoogleKey(this@JarvisForegroundService))
+            put("openai_key", MobileConfig.getOpenAiKey(this@JarvisForegroundService))
+            put("llm_model", MobileConfig.getLlmModel(this@JarvisForegroundService))
+        }
+        sendDataPacket(payload)
+    }
+
+    fun sendPlatformIdentify(isPairedOverride: Boolean? = null) {
+        val isPaired = isPairedOverride ?: MobileConfig.isPcPaired(this)
+        val identifyPayload = JSONObject().apply {
+            put("type", "PLATFORM_IDENTIFY")
+            put("platform", if (isPaired) "paired" else "mobile")
+            put("paired", isPaired)
+        }
+        sendDataPacket(identifyPayload)
+    }
+
+    fun reconnectWithUpdatedKeys() {
+        Log.i(TAG, "Re-syncing configuration with fresh API credentials...")
+        sendConfigSyncPacket()
+    }
+
+    private fun startOptionalBackgroundLiveKit() {
+        val livekitUrl = MobileConfig.getLiveKitUrl(this)
+        val livekitKey = MobileConfig.getLiveKitKey(this)
+        val livekitSecret = MobileConfig.getLiveKitSecret(this)
+        if (livekitUrl.isBlank() || livekitKey.isBlank() || livekitSecret.isBlank()) return
+
+        serviceScope.launch(Dispatchers.IO) {
+            try {
+                if (liveKitRoom != null && liveKitRoom?.state == Room.State.CONNECTED) return@launch
+                connectToLiveKitRoom()
+            } catch (e: Exception) {
+                Log.d(TAG, "Optional LiveKit background link: ${e.message}")
+            }
+        }
+    }
+
+    private fun connectToLiveKitRoom() {
+        serviceScope.launch {
+            try {
+                if (liveKitRoom != null && liveKitRoom?.state == Room.State.CONNECTED) return@launch
+
+                val livekitUrl = MobileConfig.getLiveKitUrl(this@JarvisForegroundService)
+                val livekitKey = MobileConfig.getLiveKitKey(this@JarvisForegroundService)
+                val livekitSecret = MobileConfig.getLiveKitSecret(this@JarvisForegroundService)
+                val userName = MobileConfig.getUserName(this@JarvisForegroundService)
+
+                if (livekitUrl.isBlank() || livekitKey.isBlank() || livekitSecret.isBlank()) return@launch
+
+                val room = LiveKit.create(applicationContext)
+                liveKitRoom = room
+
+                serviceScope.launch {
+                    room.events.events.collect { event ->
+                        when (event) {
+                            is RoomEvent.Connected -> {
+                                Log.d(TAG, "Optional LiveKit link connected in background")
+                                sendConfigSyncPacket()
+                            }
+                            is RoomEvent.TrackSubscribed -> {
+                                if (event.track is RemoteAudioTrack) {
+                                    val remoteAudio = event.track as RemoteAudioTrack
+                                    val pId = (event.participant.identity?.toString() ?: "").lowercase()
+                                    val localId = (room.localParticipant.identity?.toString() ?: "").lowercase()
+                                    if (pId.isNotBlank() && (pId == localId || (pId.contains("user") && !pId.contains("agent") && !pId.contains("jarvis")))) {
+                                        try { remoteAudio.rtcTrack.setVolume(0.0) } catch (_: Exception) {}
+                                    } else {
+                                        try { remoteAudio.rtcTrack.setVolume(1.0) } catch (_: Exception) {}
+                                    }
+                                }
+                            }
+                            is RoomEvent.DataReceived -> {
+                                handleIncomingDataPacket(event.data)
+                            }
+                            else -> {}
+                        }
+                    }
+                }
+
+                val cleanUser = userName.trim().lowercase().replace(Regex("[^a-z0-9_]"), "")
+                val identity = "mobile_user_${cleanUser.ifEmpty { "alamin" }}"
+                val sessionRoom = "voice_assistant_room_${System.currentTimeMillis() / 1000}"
+
+                val token = MobileConfig.generateLiveKitToken(
+                    apiKey = livekitKey,
+                    apiSecret = livekitSecret,
+                    roomName = sessionRoom,
+                    identity = identity,
+                    participantName = userName
+                )
+                room.connect(livekitUrl, token)
+            } catch (e: Exception) {
+                Log.d(TAG, "LiveKit background link attempt: ${e.message}")
+            }
+        }
+    }
+
+    private fun handleIncomingDataPacket(data: ByteArray) {
+        try {
+            sendBroadcast(Intent(ACTION_RESET_IDLE).setPackage(packageName))
+            val text = String(data, Charsets.UTF_8)
+            val json = JSONObject(text)
+            val type = json.optString("type", "")
+            if (type == "JARVIS_MOBILE_CMD") {
+                val action = json.optString("action", "")
+                val payload = json.optJSONObject("payload") ?: JSONObject()
+                JarvisAccessibilityService.instance?.handleCommand(action, payload)
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun disconnectLiveKit() {
+        serviceScope.launch {
+            try {
+                liveKitRoom?.disconnect()
+                liveKitRoom?.release()
+                liveKitRoom = null
+            } catch (_: Exception) {}
         }
     }
 }

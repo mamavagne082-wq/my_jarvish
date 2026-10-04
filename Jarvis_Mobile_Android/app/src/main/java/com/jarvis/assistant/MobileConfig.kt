@@ -22,7 +22,10 @@ object MobileConfig {
     const val DEFAULT_LIVEKIT_KEY = "APIudafoJVHneWA"
     const val DEFAULT_LIVEKIT_SECRET = "QQlG0TxB5wxhZ3hiSkTNnXVNgsgbwSY1Yh1XFTzuTgL"
 
-    const val DEFAULT_GOOGLE_KEY = "AQ.Ab8RN6J1FBmr5Rfi34mDhIDv1nmmVqt9WLcpUZrGS30lX761ng"
+    const val DEFAULT_OPENROUTER_KEY = "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"
+    const val DEFAULT_GROK_KEY = "xai-LvoLgGHbxHJ6PV3SJpc4MbrRysgqKEuGSY8qJiVJCOIgoojJexEOPGMZwkmW4s3mK7IF8lDfdJLlGy2e"
+
+    const val DEFAULT_GOOGLE_KEY = "AQ.Ab8RN6LtcM7pevIID9jpLXKQ_030T06c0A2UhJDnYOBQPb7O5w"
     const val DEFAULT_OPENAI_KEY = "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"
     const val DEFAULT_MEM0_KEY = "m0-zXEwUTUVUBNC6xUyne1UtoFr5jSHrsspEfcBLS3S"
     const val DEFAULT_GOOGLE_SEARCH_KEY = "977565840084-3d463snmaaa7iq1rnr6lo26jdr3c38sk.apps.googleusercontent.com"
@@ -79,9 +82,23 @@ object MobileConfig {
         return if (v.isNotBlank()) v else DEFAULT_GOOGLE_KEY
     }
 
+    fun setGoogleKey(context: Context, key: String) {
+        getPrefs(context).edit().putString("google_key", key).apply()
+    }
+
     fun getOpenAiKey(context: Context): String {
         val v = getPrefs(context).getString("openai_key", DEFAULT_OPENAI_KEY) ?: DEFAULT_OPENAI_KEY
         return if (v.isNotBlank()) v else DEFAULT_OPENAI_KEY
+    }
+
+    fun getOpenRouterKey(context: Context): String {
+        val v = getPrefs(context).getString("openrouter_key", DEFAULT_OPENROUTER_KEY) ?: DEFAULT_OPENROUTER_KEY
+        return if (v.isNotBlank()) v else DEFAULT_OPENROUTER_KEY
+    }
+
+    fun getGrokKey(context: Context): String {
+        val v = getPrefs(context).getString("grok_key", DEFAULT_GROK_KEY) ?: DEFAULT_GROK_KEY
+        return if (v.isNotBlank()) v else DEFAULT_GROK_KEY
     }
 
     fun getMem0Key(context: Context): String {
@@ -133,7 +150,11 @@ object MobileConfig {
         val url = getLiveKitUrl(context)
         val key = getLiveKitKey(context)
         val sec = getLiveKitSecret(context)
-        return url.isNotBlank() && key.isNotBlank() && sec.isNotBlank()
+        val hasLiveKit = url.isNotBlank() && key.isNotBlank() && sec.isNotBlank()
+        val hasGoogle = getGoogleKey(context).isNotBlank()
+        val hasOpenAi = getOpenAiKey(context).isNotBlank()
+        val hasOpenRouter = getOpenRouterKey(context).isNotBlank()
+        return hasLiveKit || hasGoogle || hasOpenAi || hasOpenRouter
     }
 
     /**
@@ -159,6 +180,10 @@ object MobileConfig {
         if (apiKeys.has("google_key")) editor.putString("google_key", apiKeys.optString("google_key"))
         if (apiKeys.has("openai")) editor.putString("openai_key", apiKeys.optString("openai"))
         if (apiKeys.has("openai_key")) editor.putString("openai_key", apiKeys.optString("openai_key"))
+        if (apiKeys.has("openrouter")) editor.putString("openrouter_key", apiKeys.optString("openrouter"))
+        if (apiKeys.has("openrouter_key")) editor.putString("openrouter_key", apiKeys.optString("openrouter_key"))
+        if (apiKeys.has("grok")) editor.putString("grok_key", apiKeys.optString("grok"))
+        if (apiKeys.has("grok_key")) editor.putString("grok_key", apiKeys.optString("grok_key"))
         if (apiKeys.has("mem0")) editor.putString("mem0_key", apiKeys.optString("mem0"))
         if (apiKeys.has("mem0_key")) editor.putString("mem0_key", apiKeys.optString("mem0_key"))
         if (apiKeys.has("google_search")) editor.putString("google_search_key", apiKeys.optString("google_search"))
@@ -193,6 +218,8 @@ object MobileConfig {
                 put("livekit_secret", getLiveKitSecret(context))
                 put("google", getGoogleKey(context))
                 put("openai", getOpenAiKey(context))
+                put("openrouter", getOpenRouterKey(context))
+                put("grok", getGrokKey(context))
                 put("mem0", getMem0Key(context))
                 put("google_search", getGoogleSearchKey(context))
                 put("search_engine_id", getSearchEngineId(context))

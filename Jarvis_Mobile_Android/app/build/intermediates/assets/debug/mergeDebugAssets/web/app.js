@@ -59,7 +59,12 @@ const THEMES = {
 // -------------------------------------------------------------------------
 // Tab Navigation
 // -------------------------------------------------------------------------
-function switchTab(tabId) {
+function switchTab(rawTabId) {
+  let tabId = rawTabId || 'home';
+  if (tabId === 'pclink' || tabId === 'pc' || tabId === 'pc-link') tabId = 'pc-connect';
+  if (tabId === 'models' || tabId === 'model') tabId = 'modes';
+  if (tabId === 'setting') tabId = 'settings';
+
   state.currentTab = tabId;
 
   // Update tabs
@@ -67,23 +72,29 @@ function switchTab(tabId) {
     el.classList.remove('active');
   });
   const target = document.getElementById(`tab-${tabId}`);
-  if (target) target.classList.add('active');
+  if (target) {
+    target.classList.add('active');
+  }
 
   // Update bottom navigation
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.remove('active');
   });
   const navItem = document.getElementById(`nav-${tabId}`);
-  if (navItem) navItem.classList.add('active');
+  if (navItem) {
+    navItem.classList.add('active');
+  }
 
-  // If opening settings, reload latest saved configuration
+  // If opening settings, reload latest saved configuration & health
   if (tabId === 'settings') {
     loadConfiguration();
+    refreshApiHealth(false);
   }
 
   // Notify native of user activity
   callNative('resetIdleTimer');
 }
+window.switchTab = switchTab;
 
 // -------------------------------------------------------------------------
 // 3D Holographic Canvas Orb
@@ -269,23 +280,13 @@ function renderSpectrum() {
 // -------------------------------------------------------------------------
 function playByeAudio() {
   try {
+    callNative('speakTextLocally', 'বাই বাই জানু, ধন্যবাদ তোমাকে!');
+  } catch (_) {}
+  try {
     const audio = new Audio('bye.mp3');
     audio.volume = 1.0;
-    const playPromise = audio.play();
-    if (playPromise !== undefined) {
-      playPromise.catch(e => {
-        console.warn('Audio element play failed, falling back to Web Speech:', e);
-        if ('speechSynthesis' in window) {
-          window.speechSynthesis.cancel();
-          const u = new SpeechSynthesisUtterance('বাই বাই জানু, ধন্যবাদ তোমাকে!');
-          u.lang = 'bn-BD';
-          window.speechSynthesis.speak(u);
-        }
-      });
-    }
-  } catch (err) {
-    console.warn('playByeAudio exception:', err);
-  }
+    audio.play().catch(() => {});
+  } catch (_) {}
 }
 
 function startVoiceSession() {
@@ -302,9 +303,9 @@ function startVoiceSession() {
   if (micBtn) micBtn.classList.add('active');
 
   updateAgentState('listening', 'ONLINE // LISTENING');
-  addTranscript('Jarvis এ কানেক্ট হচ্ছে (Loudspeaker On)... কথা বলুন!', 'assistant');
+  addTranscript('Jarvis সক্রিয় হচ্ছে (Loudspeaker On)... কথা বলুন!', 'assistant');
 
-  // Trigger Native LiveKit Connection
+  // Trigger Native LiveKit Connection / Gemini Direct fallback
   callNative('startVoiceCall');
   showToast('JARVIS VOICE SESSION STARTED // কথা বলুন');
 }
@@ -328,9 +329,21 @@ function endVoiceSession() {
   updateAgentState('idle', 'STANDBY // READY');
   addTranscript('Jarvis বন্ধ করা হয়েছে। বাই বাই জানু, ধন্যবাদ তোমাকে!', 'assistant');
 
-  // 3. Trigger Native LiveKit Disconnect (with SAY_BYE data packet)
+  // 3. Trigger Native LiveKit Disconnect (with SAY_BYE data packet & sound release)
   callNative('endVoiceCall');
   showToast('JARVIS DISCONNECTED // বন্ধ করা হয়েছে (বাই বাই!)');
+}
+
+function toggleVoiceSession() {
+  if (state.isSessionActive) {
+    endVoiceSession();
+  } else {
+    startVoiceSession();
+  }
+}
+
+function toggleMicrophone() {
+  toggleVoiceSession();
 }
 
 function shutdownJarvis() {
@@ -361,33 +374,6 @@ function toggleSpeakerphone() {
   }
   callNative('setSpeakerphone', isSpeakerphoneOn);
   showToast(isSpeakerphoneOn ? 'LOUDSPEAKER ACTIVE (হাই সাউন্ড)' : 'EARPIECE ACTIVE');
-}
-
-// -------------------------------------------------------------------------
-// Microphone & Voice Trigger
-// -------------------------------------------------------------------------
-function toggleMicrophone() {
-  if (!state.isSessionActive) {
-    startVoiceSession();
-    return;
-  }
-
-  state.isMicActive = !state.isMicActive;
-  const micBtn = document.getElementById('centerMicBtn');
-  const ring = document.getElementById('micPulsingRing');
-
-  if (state.isMicActive) {
-    micBtn.classList.add('active');
-    ring.style.borderColor = 'rgba(244, 63, 94, 0.8)';
-    updateAgentState('listening', 'Listening for your voice...');
-    addTranscript('Listening...', 'user');
-  } else {
-    micBtn.classList.remove('active');
-    ring.style.borderColor = 'rgba(34, 211, 238, 0.5)';
-    updateAgentState('idle', 'READY // LISTENING');
-  }
-
-  callNative('toggleMic');
 }
 
 function updateAgentState(newState, label) {
@@ -503,6 +489,8 @@ function loadConfiguration() {
     const keys = cfg.api_keys || {};
     setFieldVal('cfgGoogleKey', keys.google || keys.google_key || '');
     setFieldVal('cfgOpenAiKey', keys.openai || keys.openai_key || '');
+    setFieldVal('cfgOpenRouterKey', keys.openrouter || keys.openrouter_key || '');
+    setFieldVal('cfgGrokKey', keys.grok || keys.grok_key || '');
     setFieldVal('cfgLiveKitUrl', keys.livekit_url || '');
     setFieldVal('cfgLiveKitKey', keys.livekit_key || '');
     setFieldVal('cfgLiveKitSecret', keys.livekit_secret || '');
@@ -528,6 +516,8 @@ function loadConfiguration() {
       }
     } catch (_) {}
     console.log("Configuration and API keys loaded successfully!");
+    // Trigger initial health refresh
+    setTimeout(() => refreshApiHealth(false), 200);
   } catch (e) {
     console.error('Failed to load initial config from native bridge:', e);
   }
@@ -551,12 +541,14 @@ function saveConfiguration(silent = false) {
     user_name: getFieldVal('cfgUserName', 'ALAMIN'),
     assistant_name: getFieldVal('cfgAssistantName', 'Jarvis'),
     llm_provider: getFieldVal('modeProviderSelect', 'google'),
-    llm_model: getFieldVal('modeModelSelect', 'gemini-3.8-live'),
+    llm_model: getFieldVal('modeModelSelect', 'gemini-3.8-flash'),
     orb_theme: getFieldVal('auraThemeSelect', 'neon'),
     pc_host: fullPcHost,
     api_keys: {
       google: getFieldVal('cfgGoogleKey'),
       openai: getFieldVal('cfgOpenAiKey'),
+      openrouter: getFieldVal('cfgOpenRouterKey'),
+      grok: getFieldVal('cfgGrokKey'),
       livekit_url: getFieldVal('cfgLiveKitUrl'),
       livekit_key: getFieldVal('cfgLiveKitKey'),
       livekit_secret: getFieldVal('cfgLiveKitSecret'),
@@ -574,6 +566,8 @@ function saveConfiguration(silent = false) {
   if (!silent) {
     showToast(success !== false ? '✅ সকল সেটিংস ও API কী ডিভাইসে সংরক্ষিত হয়েছে!' : '⚠️ সেটিংস সংরক্ষণে সমস্যা হয়েছে');
   }
+  // Refresh health indicator after save
+  setTimeout(() => refreshApiHealth(true), 300);
 }
 
 function toggleFieldVisibility(fieldId) {
@@ -777,8 +771,231 @@ function showToast(msg) {
 }
 
 // -------------------------------------------------------------------------
+// API Health Verification & HUD Bar (Matches Desktop Jarvis EXE)
+// -------------------------------------------------------------------------
+let latestHealthData = null;
+
+function refreshApiHealth(force = false) {
+  const icon = document.getElementById('healthRefreshIcon');
+  if (icon) icon.style.animation = 'spin 0.8s linear infinite';
+
+  try {
+    // 1. Trigger background async network health check in native Kotlin
+    callNative('checkApiHealthAsync');
+
+    // 2. Also fetch cached health immediately
+    const raw = callNative('getApiHealth');
+    if (raw) {
+      const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      renderApiHealth(data);
+    }
+  } catch (err) {
+    console.error('refreshApiHealth error:', err);
+  } finally {
+    setTimeout(() => {
+      if (icon) icon.style.animation = '';
+    }, 1000);
+  }
+}
+
+function renderApiHealth(data) {
+  if (!data) return;
+  latestHealthData = data;
+
+  const pct = Math.max(0, Math.min(100, Math.round(data.overall_health_percent || 0)));
+  const healthyCount = data.healthy_keys_count || 0;
+  const totalCount = data.total_keys_count || 0;
+
+  // 1. Overall Progress Fill & Percent text
+  const fillEl = document.getElementById('healthProgressFill');
+  const pctEl = document.getElementById('healthPctText');
+  const countEl = document.getElementById('healthSummaryCount');
+  const timeEl = document.getElementById('healthTime');
+
+  if (fillEl) {
+    fillEl.style.width = `${pct}%`;
+    fillEl.className = 'health-progress-fill ' + (pct >= 80 ? 'fill-emerald' : pct >= 40 ? 'fill-amber' : 'fill-red');
+  }
+
+  if (pctEl) {
+    pctEl.innerText = `${pct}%`;
+    pctEl.className = 'health-pct-text ' + (pct >= 80 ? 'text-emerald' : pct >= 40 ? 'text-amber' : 'text-red');
+  }
+
+  if (countEl) {
+    countEl.innerText = `${healthyCount}/${totalCount} OK`;
+  }
+
+  if (timeEl && data.checked_at) {
+    try {
+      const dt = new Date(data.checked_at);
+      const hours = String(dt.getHours()).padStart(2, '0');
+      const mins = String(dt.getMinutes()).padStart(2, '0');
+      const secs = String(dt.getSeconds()).padStart(2, '0');
+      timeEl.innerText = `${hours}:${mins}:${secs}`;
+    } catch (_) {
+      timeEl.innerText = 'Active';
+    }
+  }
+
+  // 2. Render Status Chips
+  const chipsRow = document.getElementById('healthChipsRow');
+  if (chipsRow && Array.isArray(data.keys)) {
+    chipsRow.innerHTML = '';
+    data.keys.forEach(k => {
+      const chip = document.createElement('div');
+      const isErr = k.status === 'exhausted' || k.status === 'invalid';
+      chip.className = 'health-chip' + (isErr ? ' chip-error' : '');
+      chip.onclick = () => focusApiKey(k.provider || k.name);
+
+      const dotClass = k.status === 'healthy' ? 'dot-emerald' :
+                       isErr ? 'dot-red' :
+                       k.status === 'configured' ? 'dot-amber' : 'dot-gray';
+
+      const iconBadge = k.status === 'healthy' ? '✅' :
+                        k.status === 'exhausted' ? '⚠️ কোটা শেষ' :
+                        k.status === 'invalid' ? '❌ ত্রুটি' :
+                        k.status === 'not_configured' ? '—' : '⚙️';
+
+      chip.innerHTML = `
+        <span class="health-chip-dot ${dotClass}"></span>
+        <span class="health-chip-name">${k.name || k.provider}</span>
+        <span class="health-chip-badge">${iconBadge}</span>
+      `;
+      chipsRow.appendChild(chip);
+
+      // Also update settings badges if visible
+      updateSettingKeyBadge(k.provider, k.status, k.detail);
+    });
+  }
+
+  // 3. Error Banner
+  const errBanner = document.getElementById('healthErrorsRow');
+  if (errBanner) {
+    const errorKeys = (data.keys || []).filter(k => k.status === 'exhausted' || k.status === 'invalid');
+    if (errorKeys.length > 0) {
+      errBanner.style.display = 'flex';
+      const msg = errorKeys.map(k => `<strong>${k.name}</strong>: ${k.detail || 'ত্রুটি'}`).join(' • ');
+      errBanner.innerHTML = `⚠️ <span>${msg}</span> <button class="btn-fix-key" onclick="focusApiKey('${errorKeys[0].provider}')">চেঞ্জ করুন</button>`;
+    } else {
+      errBanner.style.display = 'none';
+      errBanner.innerHTML = '';
+    }
+  }
+}
+
+function updateSettingKeyBadge(provider, status, detail) {
+  const badge = document.getElementById(`statusBadge-${provider}`);
+  if (!badge) return;
+
+  if (status === 'healthy') {
+    badge.innerText = '✅ Healthy (সক্রিয়)';
+    badge.style.color = '#34d399';
+  } else if (status === 'exhausted') {
+    badge.innerText = '⚠️ কোটা শেষ (429 Quota Exhausted)';
+    badge.style.color = '#f87171';
+  } else if (status === 'invalid') {
+    badge.innerText = '❌ ইনভ্যালিড কী (Invalid Key)';
+    badge.style.color = '#ef4444';
+  } else if (status === 'not_configured') {
+    badge.innerText = '— সেট করা হয়নি';
+    badge.style.color = '#94a3b8';
+  } else {
+    badge.innerText = detail || 'কনফিগার করা হয়েছে';
+    badge.style.color = '#fbbf24';
+  }
+}
+
+function focusApiKey(provider) {
+  switchTab('settings');
+  const map = {
+    google: 'cfgGoogleKey',
+    openai: 'cfgOpenAiKey',
+    openrouter: 'cfgOpenRouterKey',
+    grok: 'cfgGrokKey',
+    elevenlabs: 'cfgElevenLabsKey',
+    livekit: 'cfgLiveKitKey'
+  };
+  const inputId = map[provider] || 'cfgGoogleKey';
+  const el = document.getElementById(inputId);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.focus();
+    el.style.boxShadow = '0 0 16px rgba(34, 211, 238, 0.8)';
+    setTimeout(() => { el.style.boxShadow = ''; }, 2000);
+  }
+}
+
+function onApiKeyInputChanged(provider) {
+  triggerAutoSave();
+  const badge = document.getElementById(`statusBadge-${provider}`);
+  if (badge) {
+    badge.innerText = '🔄 সেভ হচ্ছে...';
+    badge.style.color = '#38bdf8';
+  }
+}
+
+function testKeyLive(provider) {
+  const map = {
+    google: 'cfgGoogleKey',
+    openai: 'cfgOpenAiKey',
+    openrouter: 'cfgOpenRouterKey',
+    grok: 'cfgGrokKey'
+  };
+  const inputId = map[provider];
+  const keyVal = getFieldVal(inputId);
+  const badge = document.getElementById(`statusBadge-${provider}`);
+
+  if (!keyVal) {
+    if (badge) {
+      badge.innerText = '⚠️ কী খালি!';
+      badge.style.color = '#f87171';
+    }
+    showToast('অনুগ্রহ করে আগে API কী পেস্ট করুন');
+    return;
+  }
+
+  if (badge) {
+    badge.innerText = '⏳ টেস্ট করা হচ্ছে...';
+    badge.style.color = '#38bdf8';
+  }
+
+  // Trigger test directly through native bridge
+  const res = callNative('checkSingleKeyHealth', provider, keyVal);
+  if (res) {
+    try {
+      const obj = JSON.parse(res);
+      updateSettingKeyBadge(provider, obj.status, obj.detail);
+      showToast(`${provider.toUpperCase()}: ${obj.detail}`);
+      // Refresh overall HUD bar
+      setTimeout(() => refreshApiHealth(false), 500);
+    } catch (_) {}
+  } else {
+    saveConfiguration(true);
+  }
+}
+
+// -------------------------------------------------------------------------
 // Native Event Hooks (Invoked from Kotlin via evaluateJavascript)
 // -------------------------------------------------------------------------
+window.onApiHealthUpdated = function(healthJson) {
+  try {
+    const data = typeof healthJson === 'string' ? JSON.parse(healthJson) : healthJson;
+    renderApiHealth(data);
+  } catch (err) {
+    console.error('onApiHealthUpdated parse error:', err);
+  }
+};
+
+window.onDirectTranscript = function(userPrompt, replyText) {
+  if (userPrompt) {
+    addTranscript(userPrompt, 'user');
+  }
+  if (replyText) {
+    addTranscript(replyText, 'assistant');
+    updateAgentState('speaking', 'SPEAKING // GEMINI 3.8');
+  }
+};
 window.onWakeWordDetected = function(phrase) {
   console.log('Wake word received from native:', phrase);
   updateAgentState('listening', 'WAKE DETECTED // LISTENING');
@@ -900,9 +1117,36 @@ window.updateServiceStatus = function(serviceRunning, accessibilityEnabled, batt
     } else {
       batSub.innerText = 'Restricted by Android Battery Saver';
       batBtn.innerText = 'WHITELIST';
-      batBtn.className = 'badge-yellow';
-    }
   }
+};
+
+window.onDirectTranscript = function(userText, assistantText) {
+  if (userText) addTranscript(userText, 'user');
+  if (assistantText) addTranscript(assistantText, 'assistant');
+};
+
+window.onWakeWordDetected = function(phrase) {
+  startVoiceSession();
+  addTranscript(`🎤 ওয়েক ওয়ার্ড শনাক্ত: "${phrase}"`, 'assistant');
+};
+
+window.onNativeSessionState = function(active, newState) {
+  state.isSessionActive = active;
+  if (active) {
+    const welcome = document.getElementById('welcomeView');
+    const session = document.getElementById('sessionView');
+    if (welcome) welcome.classList.add('view-hidden');
+    if (session) session.classList.remove('view-hidden');
+    const micBtn = document.getElementById('centerMicBtn');
+    if (micBtn) micBtn.classList.add('active');
+  }
+  const labelMap = {
+    'listening': 'ONLINE // LISTENING',
+    'thinking': 'ANALYZING // THINKING',
+    'speaking': 'SPEAKING // LOUDSPEAKER',
+    'idle': 'STANDBY // READY'
+  };
+  updateAgentState(newState || (active ? 'listening' : 'idle'), labelMap[newState] || (newState ? newState.toUpperCase() : 'STANDBY'));
 };
 
 // Periodic status poll
@@ -916,6 +1160,11 @@ setInterval(() => {
   } catch (_) {}
 }, 2500);
 
+// Periodic API health poll (every 30 seconds)
+setInterval(() => {
+  refreshApiHealth(false);
+}, 30000);
+
 // Interaction keeps idle timer alive
 document.addEventListener('touchstart', () => callNative('resetIdleTimer'), { passive: true });
 document.addEventListener('click', () => callNative('resetIdleTimer'), { passive: true });
@@ -928,6 +1177,7 @@ window.addEventListener('DOMContentLoaded', () => {
   renderOrb();
   renderSpectrum();
   loadConfiguration();
+  refreshApiHealth(true);
 
   // Initial service status check
   try {
@@ -938,3 +1188,34 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   } catch (_) {}
 });
+
+// Explicit global exports for HTML inline onclick handlers
+window.switchTab = switchTab;
+window.startVoiceSession = startVoiceSession;
+window.endVoiceSession = endVoiceSession;
+window.toggleVoiceSession = toggleVoiceSession;
+window.toggleMicrophone = toggleMicrophone;
+window.toggleMuteMic = toggleMuteMic;
+window.toggleSpeakerphone = toggleSpeakerphone;
+window.shutdownJarvis = shutdownJarvis;
+window.executeAction = executeAction;
+window.pairWithPcManual = pairWithPcManual;
+window.unpairFromPc = unpairFromPc;
+window.sendPcAction = sendPcAction;
+window.fetchPcScreenNow = fetchPcScreenNow;
+window.loadConfiguration = loadConfiguration;
+window.saveConfiguration = saveConfiguration;
+window.triggerAutoSave = triggerAutoSave;
+window.toggleFieldVisibility = toggleFieldVisibility;
+window.onServiceToggleChanged = onServiceToggleChanged;
+window.requestAccessibilityPermission = requestAccessibilityPermission;
+window.requestBatteryOptimization = requestBatteryOptimization;
+window.requestNotificationAccess = requestNotificationAccess;
+window.refreshApiHealth = refreshApiHealth;
+window.focusApiKey = focusApiKey;
+window.testKeyLive = testKeyLive;
+window.onApiKeyInputChanged = onApiKeyInputChanged;
+window.changeOrbTheme = changeOrbTheme;
+window.toggleParticles = toggleParticles;
+window.onProviderSelectChanged = onProviderSelectChanged;
+

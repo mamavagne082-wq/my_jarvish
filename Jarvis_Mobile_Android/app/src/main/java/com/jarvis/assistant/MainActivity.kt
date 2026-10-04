@@ -38,6 +38,16 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "MainActivity"
         private const val REQUEST_RECORD_AUDIO = 101
+        var instance: MainActivity? = null
+            private set
+    }
+
+    fun postDirectTranscript(userText: String, assistantText: String) {
+        val safeUser = JSONObject.quote(userText)
+        val safeAssistant = JSONObject.quote(assistantText)
+        webView.post {
+            webView.evaluateJavascript("if (window.onDirectTranscript) window.onDirectTranscript($safeUser, $safeAssistant);", null)
+        }
     }
 
     // ── Inactivity Auto-Minimize (20-30s timeout matching PC) ─────────────
@@ -111,6 +121,7 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        instance = this
         setContentView(R.layout.activity_main)
 
         webView = findViewById(R.id.webViewMain)
@@ -173,18 +184,19 @@ class MainActivity : AppCompatActivity() {
                 loadingOverlay?.visibility = View.GONE
                 updateUIState()
 
-                // Auto-start Jarvis service and connect to voice session on launch
-                if (MobileConfig.hasValidCredentials(this@MainActivity)) {
-                    if (!JarvisForegroundService.isRunning) {
-                        startJarvisService()
-                    }
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        if (!JarvisForegroundService.isSessionActive) {
-                            JarvisForegroundService.instance?.connectSession()
-                            webView.evaluateJavascript("if (window.startVoiceSession) window.startVoiceSession();", null)
-                        }
-                    }, 800)
+                // Immediately trigger background API Health check to populate top health bar
+                JarvisNativeBridge(this@MainActivity).checkApiHealthAsync()
+
+                // Auto-start Jarvis service and connect to autonomous voice session on launch
+                if (!JarvisForegroundService.isRunning) {
+                    startJarvisService()
                 }
+                Handler(Looper.getMainLooper()).postDelayed({
+                    if (!JarvisForegroundService.isSessionActive) {
+                        JarvisForegroundService.instance?.startAutonomousSession(initialGreeting = true)
+                        webView.evaluateJavascript("if (window.startVoiceSession) window.startVoiceSession();", null)
+                    }
+                }, 800)
             }
         }
 
@@ -207,10 +219,10 @@ class MainActivity : AppCompatActivity() {
         if (JarvisForegroundService.isServiceEnabled(this) && !JarvisForegroundService.isRunning) {
             startJarvisService()
         }
-        if (MobileConfig.hasValidCredentials(this) && !JarvisForegroundService.isSessionActive) {
+        if (!JarvisForegroundService.isSessionActive) {
             Handler(Looper.getMainLooper()).postDelayed({
                 if (!JarvisForegroundService.isSessionActive) {
-                    JarvisForegroundService.instance?.connectSession()
+                    JarvisForegroundService.instance?.startAutonomousSession(initialGreeting = false)
                     webView.evaluateJavascript("if (window.startVoiceSession) window.startVoiceSession();", null)
                 }
             }, 600)
@@ -226,6 +238,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (instance == this) {
+            instance = null
+        }
         cancelAutoMinimizeTimer()
         try { unregisterReceiver(wakeWordReceiver) } catch (_: Exception) {}
     }
@@ -412,20 +427,94 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun getApiHealth(): String {
+            val cached = ApiHealthChecker.getCachedHealth()
+            return cached?.toString() ?: org.json.JSONObject().apply {
+                put("overall_health_percent", 100)
+                put("checked_at", "--:--")
+                put("results", org.json.JSONArray())
+            }.toString()
+        }
+
+        @JavascriptInterface
+        fun checkApiHealthAsync() {
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val health = ApiHealthChecker.checkAllHealth(activity, force = true)
+                    activity.runOnUiThread {
+                        activity.webView.evaluateJavascript("if (window.onApiHealthUpdated) window.onApiHealthUpdated($health);", null)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "checkApiHealthAsync error: ${e.message}")
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun checkSingleKeyHealth(provider: String, key: String): String {
+            val resultObj = org.json.JSONObject()
+            runBlocking {
+                val res = ApiHealthChecker.checkSingleKey(provider, key)
+                resultObj.put("provider", res.provider)
+                resultObj.put("name", res.name)
+                resultObj.put("status", res.status)
+                resultObj.put("usage_percent", res.usagePercent)
+                resultObj.put("message", res.message)
+            }
+            return resultObj.toString()
+        }
+
+        @JavascriptInterface
         fun saveConfig(jsonStr: String): Boolean {
             return try {
                 val json = JSONObject(jsonStr)
                 MobileConfig.save(activity, json)
+
+                // Immediately run health check to update the top API Health Bar in real time
+                checkApiHealthAsync()
+
+                // Reconnect active session with new credentials immediately
+                if (JarvisForegroundService.isRunning) {
+                    JarvisForegroundService.instance?.reconnectWithUpdatedKeys()
+                    JarvisForegroundService.instance?.sendConfigSyncPacket(json)
+                }
+
+                // Sync config to PC Bridge if reachable
+                syncConfigToPc(json)
+
                 activity.runOnUiThread {
-                    Toast.makeText(activity, "Configuration saved successfully!", Toast.LENGTH_SHORT).show()
-                    if (JarvisForegroundService.isRunning) {
-                        activity.restartJarvisService()
-                    }
+                    Toast.makeText(activity, "কনফিগারেশন ও API কী সফলভাবে আপডেট হয়েছে!", Toast.LENGTH_SHORT).show()
                 }
                 true
             } catch (e: Exception) {
                 Log.e(TAG, "Error saving config: ${e.message}")
                 false
+            }
+        }
+
+        private fun syncConfigToPc(json: JSONObject) {
+            val ip = MobileConfig.getPcIp(activity)
+            val port = MobileConfig.getPcPort(activity)
+            if (ip.isBlank()) return
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val url = java.net.URL("http://$ip:$port/api/config")
+                    val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        connectTimeout = 3000
+                        readTimeout = 3000
+                        doOutput = true
+                        setRequestProperty("Content-Type", "application/json")
+                    }
+                    conn.outputStream.use { os ->
+                        os.write(json.toString().toByteArray(Charsets.UTF_8))
+                    }
+                    val code = conn.responseCode
+                    conn.disconnect()
+                    Log.i(TAG, "Synced config to PC at $ip:$port (HTTP $code)")
+                } catch (e: Exception) {
+                    Log.d(TAG, "PC sync skipped: ${e.message}")
+                }
             }
         }
 
@@ -611,18 +700,13 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun startVoiceCall() {
             activity.runOnUiThread {
-                if (!MobileConfig.hasValidCredentials(activity)) {
-                    Toast.makeText(activity, "⚠️ LiveKit API কী পাওয়া যায়নি! Settings ট্যাবে কী সংরক্ষণ করুন।", Toast.LENGTH_LONG).show()
-                    activity.webView.evaluateJavascript("if (window.onMissingApiKeys) window.onMissingApiKeys();", null)
-                    return@runOnUiThread
-                }
                 if (!JarvisForegroundService.isRunning) {
                     activity.startJarvisService()
                     activity.webView.postDelayed({
-                        JarvisForegroundService.instance?.connectSession()
-                    }, 600)
+                        JarvisForegroundService.instance?.startAutonomousSession(initialGreeting = false)
+                    }, 500)
                 } else {
-                    JarvisForegroundService.instance?.connectSession()
+                    JarvisForegroundService.instance?.startAutonomousSession(initialGreeting = false)
                 }
                 Toast.makeText(activity, "Jarvis সেশন শুরু হয়েছে...", Toast.LENGTH_SHORT).show()
             }
@@ -633,6 +717,13 @@ class MainActivity : AppCompatActivity() {
             activity.runOnUiThread {
                 JarvisForegroundService.instance?.disconnectSession(sendByePacket = true)
                 Toast.makeText(activity, "Jarvis সেশন বন্ধ হয়েছে (বাই বাই!)", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        @JavascriptInterface
+        fun speakTextLocally(text: String) {
+            activity.runOnUiThread {
+                JarvisForegroundService.instance?.speakTextLocally(text)
             }
         }
 
