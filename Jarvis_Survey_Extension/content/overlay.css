@@ -441,6 +441,36 @@
   font-weight: 600;
   color: #f1f5f9;
   line-height: 1.3;
+  flex: 1;
+}
+
+.jarvis-source-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.jarvis-source-badge.badge-cache {
+  background: rgba(0, 255, 136, 0.15);
+  border: 1px solid #00ff88;
+  color: #00ff88;
+}
+
+.jarvis-source-badge.badge-kb {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid #38bdf8;
+  color: #38bdf8;
+}
+
+.jarvis-source-badge.badge-api {
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid #a855f7;
+  color: #c084fc;
 }
 
 .jarvis-a-recommendation {

@@ -1,8 +1,17 @@
 /**
  * Jarvis AI Survey Copilot - Background Service Worker (Manifest V3)
- * Gemini 2.5 Pro/Flash + OpenRouter All Models Support
+ * Gemini 3.8 Flash + OpenRouter + Local Memory Cache & Knowledge Base Matcher
  * Auto-Pilot: Full page scan → AI answers → click Next → repeat
  */
+
+// Import Local Memory Cache & Knowledge Base Matcher
+if (typeof importScripts !== "undefined") {
+  try {
+    importScripts("memory_manager.js");
+  } catch (e) {
+    console.error("[Jarvis ServiceWorker] Error importing memory_manager.js:", e);
+  }
+}
 
 // === ALL REAL, VERIFIED GEMINI MODELS (Latest & Fastest First) ===
 const GEMINI_MODEL_CHAIN = [
@@ -34,6 +43,8 @@ const DEFAULT_SETTINGS = {
   openRouterApiKey2: "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",
   openRouterApiKey3: "",
   openRouterModel: "google/gemini-2.5-flash",
+  memoryApiKey: "",
+  memoryProvider: "local_offline",
   providerPriority: "gemini_first",
   useOpenRouter: true,
   autoPilotActive: false,
@@ -109,6 +120,15 @@ chrome.runtime.onInstalled.addListener(async () => {
   }
 
   await chrome.storage.local.set(toSet);
+
+  if (typeof JarvisMemoryManager !== "undefined" && JarvisMemoryManager.ensureMasterDatasetLoaded) {
+    try {
+      await JarvisMemoryManager.ensureMasterDatasetLoaded();
+    } catch (e) {
+      console.warn("[Jarvis ServiceWorker] Note on master dataset seeding:", e);
+    }
+  }
+
   console.log("[Jarvis v2.0] Service worker ready. Gemini 3.8 Flash + Multi-Key Failover Chain loaded.");
 });
 
@@ -225,6 +245,121 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
 
     sendResponse({ success: true });
+    return true;
+  }
+
+  // =========================================================================
+  // MEMORY CACHE & KNOWLEDGE BASE MESSAGE ACTIONS
+  // =========================================================================
+  if (message.action === "MEMORY_GET_STATS") {
+    if (typeof JarvisMemoryManager !== "undefined") {
+      JarvisMemoryManager.ensureMasterDatasetLoaded()
+        .then(() => JarvisMemoryManager.getMemoryStats())
+        .then((stats) => sendResponse({ success: true, stats }))
+        .catch((err) => sendResponse({ success: false, error: err.message }));
+    } else {
+      sendResponse({ success: false, error: "Memory manager module not loaded" });
+    }
+    return true;
+  }
+
+  if (message.action === "MEMORY_CLEAR_CACHE") {
+    if (typeof JarvisMemoryManager !== "undefined") {
+      JarvisMemoryManager.clearMemoryCache()
+        .then(() => JarvisMemoryManager.getMemoryStats())
+        .then((stats) => sendResponse({ success: true, stats }))
+        .catch((err) => sendResponse({ success: false, error: err.message }));
+    } else {
+      sendResponse({ success: false, error: "Memory manager module not loaded" });
+    }
+    return true;
+  }
+
+  if (message.action === "MEMORY_UPLOAD_FILE") {
+    (async () => {
+      try {
+        if (typeof JarvisMemoryManager === "undefined") {
+          throw new Error("Memory manager module not loaded");
+        }
+        const { fileName, fileType, fileSize, content } = message;
+        const fileId = "file_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+        let entries = [];
+
+        const lowerName = (fileName || "").toLowerCase();
+        if (fileType === "json" || lowerName.endsWith(".json")) {
+          entries = JarvisMemoryManager.parseSurveyJson(content, fileName, fileId);
+        } else if (fileType === "csv" || lowerName.endsWith(".csv")) {
+          entries = JarvisMemoryManager.parseSurveyCsv(content, fileName, fileId);
+        } else if (fileType === "pdf" || lowerName.endsWith(".pdf")) {
+          let buffer = content;
+          if (typeof content === "string") {
+            const base64Data = content.replace(/^data:application\/pdf;base64,/, "");
+            const binary = atob(base64Data);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            buffer = bytes.buffer;
+          }
+          entries = await JarvisMemoryManager.parseSurveyPdf(buffer, fileName, fileId);
+        } else {
+          entries = JarvisMemoryManager.parseSurveyTxt(content, fileName, fileId);
+        }
+
+        if (!entries || entries.length === 0) {
+          throw new Error("ফাইলটিতে কোনো উপযুক্ত প্রশ্ন ও উত্তরের ডাটা শনাক্ত করা যায়নি।");
+        }
+
+        await JarvisMemoryManager.saveKnowledgeFile(fileId, fileName, fileType || "txt", fileSize || 0, entries);
+        const stats = await JarvisMemoryManager.getMemoryStats();
+        sendResponse({ success: true, fileId, fileName, count: entries.length, stats });
+      } catch (err) {
+        sendResponse({ success: false, error: err.message || String(err) });
+      }
+    })();
+    return true;
+  }
+
+  if (message.action === "MEMORY_GET_FILES") {
+    if (typeof JarvisMemoryManager !== "undefined") {
+      JarvisMemoryManager.getKnowledgeFiles()
+        .then((files) => sendResponse({ success: true, files }))
+        .catch((err) => sendResponse({ success: false, error: err.message }));
+    } else {
+      sendResponse({ success: false, error: "Memory manager module not loaded" });
+    }
+    return true;
+  }
+
+  if (message.action === "MEMORY_REMOVE_FILE") {
+    if (typeof JarvisMemoryManager !== "undefined") {
+      JarvisMemoryManager.removeKnowledgeFile(message.fileId)
+        .then(() => JarvisMemoryManager.getMemoryStats())
+        .then((stats) => sendResponse({ success: true, stats }))
+        .catch((err) => sendResponse({ success: false, error: err.message }));
+    } else {
+      sendResponse({ success: false, error: "Memory manager module not loaded" });
+    }
+    return true;
+  }
+
+  if (message.action === "MEMORY_CLEAR_ALL_FILES") {
+    if (typeof JarvisMemoryManager !== "undefined") {
+      JarvisMemoryManager.clearAllKnowledgeFiles()
+        .then(() => JarvisMemoryManager.getMemoryStats())
+        .then((stats) => sendResponse({ success: true, stats }))
+        .catch((err) => sendResponse({ success: false, error: err.message }));
+    } else {
+      sendResponse({ success: false, error: "Memory manager module not loaded" });
+    }
+    return true;
+  }
+
+  if (message.action === "SAVE_MEMORY_SETTINGS") {
+    const toSet = {};
+    if (message.memoryApiKey !== undefined) toSet.memoryApiKey = message.memoryApiKey.trim();
+    if (message.memoryProvider !== undefined) toSet.memoryProvider = message.memoryProvider;
+    chrome.storage.local.set(toSet).then(() => {
+      sendResponse({ success: true });
+    });
     return true;
   }
 });
@@ -500,6 +635,82 @@ async function checkLocalJarvisBridge() {
  * Analyzes complete page top-to-bottom without screenshot cropping
  */
 async function handleSurveyAnalysis(payload, tabId) {
+  const isScreenshot = !!(payload && (payload.screenshot || payload.isScreenshot));
+  const questions = payload?.questions || [];
+
+  // =========================================================================
+  // STEP 1: CHECK KNOWLEDGE BASE & LOCAL MEMORY CACHE BEFORE ANY API CALL
+  // =========================================================================
+  let memoryResolution = null;
+  if (!isScreenshot && questions.length > 0 && typeof JarvisMemoryManager !== "undefined") {
+    try {
+      memoryResolution = await JarvisMemoryManager.resolveSurveyQuestions(questions);
+      console.log(`[Jarvis Memory] Checked ${questions.length} questions: ${memoryResolution.resolvedAnswers.length} hits, ${memoryResolution.missingQuestions.length} misses`);
+    } catch (e) {
+      console.warn("[Jarvis ServiceWorker] Memory resolution error:", e);
+    }
+  }
+
+  // 1A. COMPLETE CACHE / KB HIT: All questions answered without any API call!
+  if (memoryResolution && memoryResolution.allHit && memoryResolution.resolvedAnswers.length > 0) {
+    const dominantSource = memoryResolution.dominantSource;
+    let providerLabel = "Memory Cache ⚡";
+    let summaryText = "Answered from Memory Cache ⚡";
+
+    if (dominantSource === "knowledge_base") {
+      providerLabel = "Knowledge Base 📄";
+      summaryText = "Answered from Knowledge Base 📄";
+    } else if (dominantSource === "mixed_cache") {
+      providerLabel = "Memory & KB ⚡📄";
+      summaryText = "Answered from Memory Cache & Knowledge Base ⚡📄";
+    }
+
+    if (memoryResolution.cacheHitCount > 0) {
+      for (let c = 0; c < memoryResolution.cacheHitCount; c++) await JarvisMemoryManager.recordHit("cache");
+    }
+    if (memoryResolution.kbHitCount > 0) {
+      for (let k = 0; k < memoryResolution.kbHitCount; k++) await JarvisMemoryManager.recordHit("kb");
+    }
+
+    const synthesizedData = {
+      page_summary: `${summaryText} (0 API Calls, 100% Offline Instant)`,
+      trap_detected: false,
+      trap_alert_message: "",
+      is_last_page: false,
+      estimated_human_reading_seconds: 1,
+      answers: memoryResolution.resolvedAnswers,
+      is_screenshot_analysis: false,
+      analyzed_at: Date.now(),
+      page_title: payload.title || "",
+      page_url: payload.url || "",
+      model_used: "Offline Local Matcher",
+      provider_used: providerLabel,
+      source: dominantSource,
+      is_from_cache: true
+    };
+
+    await chrome.storage.local.set({ lastAnalysisResult: synthesizedData });
+
+    try {
+      chrome.runtime.sendMessage({
+        action: "SURVEY_ANALYSIS_UPDATED",
+        data: synthesizedData
+      }).catch(() => {});
+    } catch (e) {}
+
+    return {
+      success: true,
+      providerUsed: providerLabel,
+      modelUsed: "Offline Local Matcher",
+      source: dominantSource,
+      savedApiCall: true,
+      data: synthesizedData
+    };
+  }
+
+  // =========================================================================
+  // STEP 2: CACHE MISS OR PARTIAL HIT -> CALL GEMINI / OPENROUTER API
+  // =========================================================================
   const storage = await chrome.storage.local.get([
     "geminiApiKey",
     "geminiApiKey2",
@@ -530,7 +741,7 @@ async function handleSurveyAnalysis(payload, tabId) {
   ].filter(k => k.key.length > 0);
 
   if (geminiKeys.length === 0 && openRouterKeys.length === 0) {
-    throw new Error("❌ কোনো API Key পাওয়া যায়নি! Settings থেকে Gemini অথবা OpenRouter API Key দিন।");
+    throw new Error("❌ কোনো API Key পাওয়া যায়নি! Settings থেকে Gemini অথবা OpenRouter API Key দিন, অথবা Knowledge Base ফাইল যোগ করুন।");
   }
 
   const priority = storage.providerPriority || "gemini_first";
@@ -560,15 +771,12 @@ async function handleSurveyAnalysis(payload, tabId) {
   } else if (priority === "gemini_only") {
     attemptPipeline = [...geminiAttempts];
   } else {
-    // Default: Gemini first -> OpenRouter
     attemptPipeline = [...geminiAttempts, ...openRouterAttempts];
   }
 
   const persona = storage.surveyPersona || {};
   const personalInfo = storage.personalInfo || null;
 
-  // Determine if visual screenshot or DOM text analysis
-  const isScreenshot = !!(payload && (payload.screenshot || payload.isScreenshot));
   let base64Image = null;
   let fullDataUrl = null;
 
@@ -577,9 +785,18 @@ async function handleSurveyAnalysis(payload, tabId) {
     base64Image = payload.screenshot.replace(/^data:image\/[a-zA-Z+]+;base64,/, "");
   }
 
+  // If partial cache hit: send only missing questions to AI API to save tokens & latency
+  const originalQuestions = payload.questions || [];
+  let apiPayload = payload;
+  if (!isScreenshot && memoryResolution && memoryResolution.missingQuestions.length > 0 && memoryResolution.resolvedAnswers.length > 0) {
+    apiPayload = Object.assign({}, payload, {
+      questions: memoryResolution.missingQuestions
+    });
+  }
+
   const prompt = isScreenshot
-    ? buildVisionSurveyPrompt(payload, persona, personalInfo)
-    : buildHumanLikeSurveyPrompt(payload, persona, personalInfo);
+    ? buildVisionSurveyPrompt(apiPayload, persona, personalInfo)
+    : buildHumanLikeSurveyPrompt(apiPayload, persona, personalInfo);
 
   let result = null;
   let lastError = null;
@@ -604,13 +821,11 @@ async function handleSurveyAnalysis(payload, tabId) {
       lastError = err;
       console.warn(`[Jarvis AI] ⚠️ ${attempt.label} (${attempt.model}) failed: ${err.message}`);
 
-      // Auto-failover to next candidate key
       if (i < attemptPipeline.length - 1) {
         const nextAttempt = attemptPipeline[i + 1];
         const failoverMsg = `⚠️ ${attempt.label} লিমিট/ত্রুটি (${err.message.slice(0, 50)}...)। স্বয়ংক্রিয়ভাবে ${nextAttempt.label} এ সুইচ করা হচ্ছে...`;
         console.warn(`[Jarvis AI Failover] ${failoverMsg}`);
 
-        // Broadcast to tab/HUD
         try {
           if (tabId) {
             chrome.tabs.sendMessage(tabId, {
@@ -627,6 +842,46 @@ async function handleSurveyAnalysis(payload, tabId) {
 
   if (!result || !result.data) {
     throw lastError || new Error("❌ সব Gemini ও OpenRouter API Key এর প্রচেষ্টা ব্যর্থ হয়েছে। Settings থেকে সঠিক Key দিন।");
+  }
+
+  // =========================================================================
+  // STEP 3: CACHE NEWLY GENERATED QA PAIRS & MERGE RESOLVED ANSWERS
+  // =========================================================================
+  const rawApiAnswers = result.data.answers || [];
+
+  // Tag newly generated answers as API
+  for (const ans of rawApiAnswers) {
+    ans.source = "api";
+    ans.model_used = result.modelUsed;
+  }
+
+  // Save new answers to Local Memory Cache immediately
+  if (typeof JarvisMemoryManager !== "undefined") {
+    for (const ans of rawApiAnswers) {
+      try {
+        const matchingQ = (apiPayload.questions || []).find((q) => q.index === ans.question_index || q.text === ans.question_text);
+        const qText = ans.question_text || matchingQ?.text || "";
+        const qOpts = matchingQ?.options || [];
+        if (qText) {
+          await JarvisMemoryManager.saveToCache(qText, qOpts, ans, "api");
+        }
+      } catch (e) {
+        console.warn("[Jarvis ServiceWorker] Error saving QA to cache:", e);
+      }
+    }
+    await JarvisMemoryManager.recordHit("api");
+  }
+
+  // Merge with previously cached answers if partial hit occurred
+  if (!isScreenshot && memoryResolution && memoryResolution.resolvedAnswers.length > 0) {
+    const combinedAnswers = [...memoryResolution.resolvedAnswers, ...rawApiAnswers];
+    // Re-sort by original question index
+    combinedAnswers.sort((a, b) => (a.question_index !== undefined ? a.question_index : 0) - (b.question_index !== undefined ? b.question_index : 0));
+    result.data.answers = combinedAnswers;
+    result.data.source = "mixed_api";
+    result.providerUsed = `${result.providerUsed} + Memory Cache ⚡`;
+  } else {
+    result.data.source = "api";
   }
 
   result.data.is_screenshot_analysis = isScreenshot;

@@ -1,0 +1,423 @@
+First Name: Al Amin
+Last Name: Miah
+Gender: Male (Heterosexual / straight)
+Age: 50
+Birth Date: 1976-03-08
+Street: 123 W 31st St
+City: New York
+State / Region: New York / NY
+Zip Code: 10001
+Phone: 959-582-8149
+Email: alaminmiah1976@gmail.com
+Wife Age: 40
+Children Age (Boy): 13
+Children Age (Girl): 12
+Education Level: Master's or Professional Degree / graduate / post-graduate
+
+What is your date of birth?
+Answer: 03/08/1976
+
+What is your birth in year?
+Answer: 1976
+
+What is your age?
+Answer: 50
+
+Please choose the answer from this category what age best describe to you?
+Answer: 45-54 / 50
+
+What is your zip/Postal code?
+Answer: 10001
+
+What is your postal code?
+Answer: 10001
+
+What is your gender?
+Answer: Male ( Heterosexual / straight )
+
+What is your current marital status?
+Answer: Married
+
+How many children do you have under the age of 18?
+Answer: Two.
+
+Which of the following best describes your race?
+Answer: White
+
+If you are Hispanic / Latino what best describes your heritage?
+Answer: No Hispanic/Not Hispanic
+
+What is the highest level of education you have completed?
+Answer: Master's or Professional Degree / graduate /post-gradute
+
+What best describes your current employment status?
+Answer: Employed full-time (35/40+ hours)
+
+What is your job title, level, or responsibility?
+Answer: information technology, computer software
+
+Which department do you primarily work within at your organization?
+Answer: Information technology, computer software
+
+Which departments/products do you have influence or decisionmaking authority for spending/purchasing?
+Answer: Marketing, Seals, Advertising , financial services, IT hardware, IT software
+
+Which of the following categories best describes your organization's primary industry?
+Answer: manager, senior management, chief technology officer,director
+
+Approximately what is the annual revenue for your organization/?
+Answer: 50-99 million
+
+Approximately how many employees work at your organization? / all location
+Answer: 2500-5000
+
+What industries do members of your household, including yourself, work in?
+Answer: information technology, computer software
+
+What is your annual household income before taxes?
+Answer: 125000-149999
+
+Do you smoke?
+Answer: Yes, I smoke
+
+What best describes your current household?
+Answer: Own house / single family house
+
+Have you been diagnosed with any of the following illnesses/conditions?
+Answer: Allergies (not associated with Hay Fever), Back Pain, Dental Problem, Depression, Diabetes ( type 1), Smoking Addiction
+
+Are you registered to vote?
+Answer: Yes
+
+Which of the following electronic products do you own?
+Answer: Blu-ray/DVD player, Portable game console (e.g. Sony PSP GO), Digital Camera, PC/Mac laptop or portable, Cell Phone, Cable TV/Satellite TV, Printer, 3D TV, Home Internet, Digital Media, Tablet.
+
+In your household, are you the person who makes most of the daily purchasing decisions?
+Answer: Yes / Sole decision maker
+
+Which of the following pets are present in your household?
+Answer: Cat(1), Dog(1)
+
+Which, if any, of these drinks have you consumed in the past four weeks?
+Answer: Beer, Wine, Energy drinks, Coffee, Tea, carbonated soft drinks, Fruit drinks/Juices, Bottled Water, Pre-mixed packaged spirits
+
+Do you drive a car regularly?
+Answer: Yes, I have a car
+
+Do you possess a driver's license?
+Answer: Yes
+
+When do you estimate that you will purchase/lease your next car?
+Answer: Two years from now / within 3-6 month
+
+Are you the primary decision maker in your household for automotive-related purchases?
+Answer: Yes
+
+If you own/lease a car(s), which brand(s) are they?
+Answer: Audi/Nissan (Select Only 2)
+
+How would you describe the vehicle(s) you own/lease?
+Answer: Full Size, Mid-Size
+
+In which year did you purchase/lease your main vehicle?
+Answer: 2023
+
+What year was your main vehicle (owned or leased) manufactured?
+Answer: 2022
+
+Did you purchase/lease your primary vehicle new or used?
+Answer: New
+
+Do you own a motorcycle?
+Answer: “Yes”
+
+What is your primary role in your organization?
+Answer: manager / director
+
+What is your professional position in the organization you work for?
+Answer: manager / director
+
+Which of the following best describes your current profession?
+Answer: A. I don't work in the construction industry. B. I don't work in the education industry. C. I don't work in the healthcare industry.
+
+Which IT role(s)/function(s) do you operate within?
+Answer: computer software
+
+In the last year, have you engaged in any of the following job-related activities?
+Answer: Asked for/provided career advice, used an online social network to advance your career.
+
+Which of the following best describes your primary role at work?
+Answer: information technology, computer software
+
+Please indicate your title. Select one response.
+Answer: information technology, computer software
+
+If you stated that you have been diagnosed with diabetes, can you define the type of diabetes?
+Answer: Diabetes 1
+
+If you stated that you have been diagnosed with cancer, can you define the type of cancer?
+Answer: I don't have cancer
+
+On average, how many cigarettes do you smoke in a day?
+Answer: 4 to 7 cigarettes
+
+What are your household investable assets (not including homeownership)?
+Answer: $500,000 - $999,999
+
+Are you the primary decision maker in your household for grocery purchases?
+Answer: Yes
+
+Are you and your partner/spouse currently expecting a baby?
+Answer: No
+
+Would you say that in your household you speak...?
+Answer: English all the time
+
+Please choose the options that best describe your household.
+Answer: I have one or more children under the age of 18 living in my household
+
+In your household, which of the following things are you responsible or partially responsible for making decisions about?
+Answer: Internet, Television, Banking, Automobile, Finance, Mortgage
+
+How many people live in your household including yourself?
+Answer: 4 persons
+
+Are you the primary decision maker of purchases of electronic products in your household?
+Answer: Yes
+
+Where do you do your main grocery shopping?
+Answer: Walmart, Target, Aldi, costco
+
+What are your hobbies and interests?
+Answer: Cooking, Fishing, playing music, playing video/computer games, Travel, Watch Sports on TV
+
+How many hours a week do you exercise/participate in sports?
+Answer: 05 to 07 hours
+
+How often do you go to the movie theatre?
+Answer: Four or more times per month
+
+Which of the following beverages do you regularly consume?
+Answer: Coffee, Energy Drinks, Imported beer, Red Wine, White Wine, Champagne, Vodka, Flavoured liquor
+
+On average, how many hours of radio do you listen to per week?
+Answer: 6 to 7
+
+What sports do you regularly participate in?
+Answer: Cricket, Basketball
+
+How many hours per week do you spend playing video/computer games?
+Answer: 7 to 13 / or more hours
+
+Which of the following devices do you use to play games?
+Answer: Played offline video games on Mobile , Gaming console
+
+On average, how many hours of television do you watch per week?
+Answer: More than 10 hours
+
+On average, how many alcoholic drinks do you consume in a week?
+Answer: 1 to 2
+
+Which of the following outlet/discount chains have you purchased from in the last 12 months?
+Answer: Walmart, Target, Aldi
+
+Which of the following types of vacation/holidays do you usually go on?
+Answer: Visiting Friends & Family, Boating/Fishing
+
+Would you consider yourself to be an early adopter of new technology (the first to buy new gadgets/electronics/etc)?
+Answer: Yes
+
+Do you have a webcam and are you willing to use it for an online research opportunity?
+Answer: Yes, I have a webcam.
+
+In politics today, do you consider yourself a Democrat, Republican, or Independent?
+Answer: Republican/ strong Republican
+
+Which of the following religions do you most closely identify with?
+Answer: Christian/Protestant/Roman catholic
+
+What type of smartphone do you primarily use?
+Answer: Samsung
+
+Do you use a smart phone?
+Answer: Yes
+
+Which of these is your carrier for your primary mobile / cell phone?
+Answer: Verizon Wireless / AT&T
+
+Which of the following financial products do you own?
+Answer: Personal loan, Mortgage, Credit Card, Checking account, Savings account
+
+Which social media do you actively use?
+Answer: Facebook, Social Media, Pinterest, Instagram, YouTube, Snap Chat. WhatsApp.
+
+In which type of accommodation have you stayed in the past year?
+Answer: 4-star Hotel, 5-star hotel
+
+How often do you fly for business?
+Answer: Once every 2-4 months
+
+Which of the following best describes what role you play when making traveling decisions for you and your household?
+Answer: I am the sole decision-maker in airline and travel choices
+
+For which purposes do you travel by plane?
+Answer: Both, Leisure and Business
+
+Which Of these hotel chains, which one(s) have you stayed at during the last 12 months?
+Answer: 4-star Hotel, 5-star hotel
+
+How many flights did you book online in the past year?
+Answer: 7to 9
+
+Which airlines have you flown with during the last 12 months?
+Answer: United Airlines, Delta Air Lines, jet Blue, Virgin Atlantic
+
+Which of the following countries/regions have you travelled to in the last 12 months?
+Answer: Australia, Japan, North America
+
+When you fly, which types of flights do you take?
+Answer: Both domestic and international
+
+About how often do you access social media service?
+Answer: Several times a day
+
+What Kind of video/computer games do you play?
+Answer: 1st Person Shooter/Acton Call of Duty,3rd Person Adventure, Point & Click Adventure, Sports/FIFA, Role playing Game, Massively Multiplayer online/Warcraft, Fighting/Street Fighter, Party Games/Casual Facebook Games
+
+How often do you eat fast food in any given week?
+Answer: 1 to 3 times
+
+Which of the following lending products have you obtained in th past 24 months?
+Answer: Personal Loan, Home Equity loan, Student Loan.
+
+Which of the following bank do you currently have a banking relationship with?
+Answer: Bank of America, American Express
+
+Do You Use Glasses or contact lenses?
+Answer: Yes.
+
+How many computer/video Games a month do you purchase?
+Answer: 1
+
+How many DVDs/Blu-rays do you purchase on a monthly basis?
+Answer: 4 to 6
+
+What kinds of movies do you watch when you go to the movietheatre?
+Answer: Action, Animated, Children’s films, Comedy, Drama, Horror, Musicals, Mystery, Science Fiction, Thriller
+
+Which of the following fast casual restaurants do you visit at least once every 3 months?
+Answer: Boston Market, Chipotle Mexican Grill, Five Guys Burgers & Fries, Firebirds, Friendly’s, Jerry’s Subs & Pizza, Jason’s Deli, Panda express, Skyline Chili, Smashburger, WinG stop, Baxby’s, Tim Horton’s.
+
+Which fast food restaurants have you visited ever?
+Answer: A&W Restaurants, Arby’s, Burger King, Charley’s Grilled Subs, Hungry Jacks, KFC, McDonald’s, Panda express, Pizza Hut, Subway, Taco Bell, Wendy’s
+
+Which of the following TV Show do you currently watch?
+Answer: The Dr Oz Show, Crossing Swords (On Hulu), Cobra Kale, The Chi (Season 3 on Showtime), The Boys (Prime Video), Coyote (Season 1), S.W.A.T, The Crown on Netflix.
+
+Which types of publications do you read?
+Answer: Computers & Electronics magazines, Cooking & food magazines, Entertainments, Fashion, Health & Fitness, Music, Science, technology, Travel
+
+Which of the following do you currently subscribe to/own?
+Answer: Connected Device for the TV Set (Chromecast), Premium channels Through your paid TV Service (HBO), Tablet computer(iPad), Smart phone (iPhone, Android), Video Strimming (Netflix), Video Games, Paid music (Spotify, Apple Music), Smart home system (Google Home, Alexa), Cable (Xfinity)
+
+Which types/genres of podcasts do you usually listen to?
+Answer: Society & Culture, Music, Educations, Government & Organizations, TV & Film, Health, Science & Medicine, Technology, Sports & recreation, Kids & Family.
+
+Have you shopped for any of the following insurance products & services in the past 12 months?
+Answer: health insurance, Homeowners insurance
+
+Which of the following online retailers have you shopped at in the past 30 days?
+Answer: Amazon, Best Buy, eBay, Target.com, Walmart.com
+
+Do you use hearing aid?
+Answer: No
+
+Which international airlines have you flown with during the last 12 months?
+Answer: Singapore Airlines, EgyptAir, Emirates, Air Canada
+
+Have you tried to quit smoking using any of these products/methods?
+Answer: Cold Turkey, Veep
+
+What type of mobile phone plan do you have?
+Answer: Pre-paid
+
+Which of the following is your primary home internet service provider?
+Answer: Verizon
+
+Which of these is your carrier for your primary mobile / cell phone?
+Answer: AT&T / Verizon Wireless
+
+Which of these devices do you regularly use with an internet connection?
+Answer: Desktop Pc, Apple Tv, Smart Phone, Tablet, Speaker
+
+Which of the following healthcare-related things have you done in the last 3 months?
+Answer: Video call phone call of text with a doctor
+
+how Frequently do you rent or download movies for home viewing?
+Answer: Three times per month
+
+Which of the following brands of jeans if any have you brought within past 6 months?
+Answer: Levi’s, Old Navy, American Eagle
+
+how frequently do you listen to podcasts?
+Answer: Every day or most days
+
+Which of the following services do you utilize on a regular basis?
+Answer: Lyft, Grub hub, Airbnb, UberEATS, Uber, Door Dash
+
+Which of the following activities have you done in past month?
+Answer: Ranted a car, Stayed in a hotel
+
+What are you like to do as hobby?
+Answer: Swimming, Fishing, Hunting, Motorcycling, Biking.
+
+When did you obtain your mortgage?
+Answer: 3 to 6 months ago
+
+How do you play video/computer games?
+Answer: With others in the same room, with others through an internet connection
+
+Which of the following TV providers do you subscribe at your primary residence?
+Answer: AT&T U-verse
+
+Which of the following magazines do you read at least once every 1-2 months?
+Answer: Time, Vogue, Men’s health, Food & wine, ESPN the Magazine, Entertainment weekly, Allure, Bloomberg BusinessWeek.
+
+Please select your car model!
+Answer: Audi A 8 Sedan
+
+Have you suffered from any of the following employment-related issues due to covid-19?
+Answer: No, my employment has not been affected by those policies.
+
+Which of the following credit cards do you use?
+Answer: American Express, Discover, Master Card, Visa
+
+Which of the following credit cards do you use mostly?
+Answer: American Express
+
+How often do you go online on a computer?
+Answer: Several times a day
+
+Which gaming platforms do you regularly use?
+Answer: Netflix, Amazon, Hulu Etc
+
+What if any kind of health insurance do you have?
+Answer: Self-insured
+
+What kind of internet connection do you use at home?
+Answer: Satellite, Wireless
+
+Have you done any online research in last week / last month?
+Answer: No
+
+Do you or dose anyone in your household work in any of the following industries?
+Answer: None of the above ( IT - only for samplicio )
+
+Have you participated in a market research study within the past 2 weeks, on any of the following topics?
+Answer: No
+
+Do you, or does anyone in your immediate family work for any of the following industries?
+Answer: None of the above
+
+To the best of your knowledge, what is your credit score (also known as your FICO score)?
+Answer: 750-800

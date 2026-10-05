@@ -62,6 +62,37 @@ document.addEventListener("DOMContentLoaded", async () => {
   const openRouterModelSettings = document.getElementById("openrouter-model-settings");
   const settingsSaveMsg = document.getElementById("settings-save-msg");
 
+  // Memory Cache & Knowledge Base Hub elements
+  const copilotCacheCount = document.getElementById("copilot-cache-count");
+  const copilotKbCount = document.getElementById("copilot-kb-count");
+  const badgeSavedCalls = document.getElementById("badge-saved-calls");
+  const btnQuickUploadFile = document.getElementById("btn-quick-upload-file");
+  const quickFileInput = document.getElementById("quick-file-input");
+  const btnQuickClearCache = document.getElementById("btn-quick-clear-cache");
+
+  // Memory Tab elements
+  const memQaCount = document.getElementById("mem-qa-count");
+  const memHitCount = document.getElementById("mem-hit-count");
+  const btnClearMemoryCache = document.getElementById("btn-clear-memory-cache");
+  const cacheClearMsg = document.getElementById("cache-clear-msg");
+
+  const kbDropZone = document.getElementById("kb-drop-zone");
+  const kbFileInput = document.getElementById("kb-file-input");
+  const kbUploadStatus = document.getElementById("kb-upload-status");
+  const kbFilesCount = document.getElementById("kb-files-count");
+  const kbFilesList = document.getElementById("kb-files-list");
+  const btnClearAllFiles = document.getElementById("btn-clear-all-files");
+
+  const inputMemoryApiKey = document.getElementById("input-memory-api-key");
+  const btnToggleMemoryKey = document.getElementById("btn-toggle-memory-key");
+  const selectMemoryProvider = document.getElementById("select-memory-provider");
+  const btnSaveMemorySettings = document.getElementById("btn-save-memory-settings");
+  const memorySettingsMsg = document.getElementById("memory-settings-msg");
+
+  // Settings Tab Memory elements
+  const inputSettingsMemKey = document.getElementById("input-settings-mem-key");
+  const btnToggleSettingsMemKey = document.getElementById("btn-toggle-settings-mem-key");
+
   let isAutoPilotActive = false;
 
   function switchToTab(tabId) {
@@ -167,6 +198,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       isAutoPilotActive = !!changes.autoPilotActive.newValue;
       updateAutopilotButtonUI(isAutoPilotActive);
     }
+    if (changes.jarvis_memory_stats || changes.memoryApiKey || changes.memoryProvider) {
+      loadMemoryStatsAndFiles();
+    }
   });
 
   chrome.runtime.onMessage.addListener((message) => {
@@ -174,6 +208,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       renderResults(message.data);
     }
   });
+
+  // Initial load of Memory Cache & Knowledge Base datasets
+  loadMemoryStatsAndFiles();
 
   // Populate Personal Info form from storage or desktop bridge
   if (storage.personalInfo) {
@@ -235,6 +272,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupPasswordToggle(btnToggleOrKey2, inputOrApiKey2);
   setupPasswordToggle(btnToggleOrKey3, inputOrApiKey3);
 
+  setupPasswordToggle(btnToggleMemoryKey, inputMemoryApiKey);
+  setupPasswordToggle(btnToggleSettingsMemKey, inputSettingsMemKey);
+
+  // Sync memory key input fields when typed into either one
+  if (inputMemoryApiKey && inputSettingsMemKey) {
+    inputMemoryApiKey.addEventListener("input", () => {
+      inputSettingsMemKey.value = inputMemoryApiKey.value;
+    });
+    inputSettingsMemKey.addEventListener("input", () => {
+      inputMemoryApiKey.value = inputSettingsMemKey.value;
+    });
+  }
+
   // Toggle OpenRouter section visibility when checkbox changes
   if (checkUseOpenRouter) {
     checkUseOpenRouter.addEventListener("change", () => {
@@ -259,7 +309,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         openRouterApiKey2: inputOrApiKey2 ? inputOrApiKey2.value.trim() : "",
         openRouterApiKey3: inputOrApiKey3 ? inputOrApiKey3.value.trim() : "",
         openRouterModel: selectOrModel ? selectOrModel.value : "google/gemini-2.5-flash",
-        useOpenRouter: checkUseOpenRouter ? checkUseOpenRouter.checked : true
+        useOpenRouter: checkUseOpenRouter ? checkUseOpenRouter.checked : true,
+        // Memory settings
+        memoryApiKey: inputSettingsMemKey ? inputSettingsMemKey.value.trim() : (inputMemoryApiKey ? inputMemoryApiKey.value.trim() : ""),
+        memoryProvider: selectMemoryProvider ? selectMemoryProvider.value : "local_offline"
       };
 
       await chrome.storage.local.set(updated);
@@ -274,7 +327,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         let statusText = `✅ সেটিংস সেভ হয়েছে! Gemini Key: ${geminiCount}টি | OpenRouter Key: ${orCount}টি فعال`;
         if (geminiCount === 0 && orCount === 0) {
-          statusText = "⚠️ কোনো API Key দেওয়া নেই! এক্সটেনশন কাজ করবে না।";
+          statusText = "⚠️ কোনো API Key দেওয়া নেই! লোকাল নলেজ বেস ফাইল বা মেমরি ক্যাশ ছাড়া সার্ভে কাজ করবে না।";
         }
         settingsSaveMsg.innerText = statusText;
         settingsSaveMsg.className = (geminiCount > 0 || orCount > 0)
@@ -296,7 +349,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Auto-save settings on input/change/blur so pasted keys are never lost
   const autoSaveInputs = [
     inputApiKey, inputApiKey2, inputApiKey3, selectModel, selectProviderPriority,
-    inputFillDelay, inputOrApiKey, inputOrApiKey2, inputOrApiKey3, selectOrModel
+    inputFillDelay, inputOrApiKey, inputOrApiKey2, inputOrApiKey3, selectOrModel,
+    inputMemoryApiKey, inputSettingsMemKey, selectMemoryProvider
   ];
   let autoSaveTimer = null;
   function triggerAutoSave() {
@@ -314,7 +368,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         openRouterApiKey2: inputOrApiKey2 ? inputOrApiKey2.value.trim() : "",
         openRouterApiKey3: inputOrApiKey3 ? inputOrApiKey3.value.trim() : "",
         openRouterModel: selectOrModel ? selectOrModel.value : "google/gemini-2.5-flash",
-        useOpenRouter: checkUseOpenRouter ? checkUseOpenRouter.checked : true
+        useOpenRouter: checkUseOpenRouter ? checkUseOpenRouter.checked : true,
+        memoryApiKey: inputSettingsMemKey ? inputSettingsMemKey.value.trim() : (inputMemoryApiKey ? inputMemoryApiKey.value.trim() : ""),
+        memoryProvider: selectMemoryProvider ? selectMemoryProvider.value : "local_offline"
       };
       await chrome.storage.local.set(updated);
       console.log("[Jarvis Popup] Settings auto-saved.");
@@ -379,8 +435,14 @@ document.addEventListener("DOMContentLoaded", async () => {
           }
           if (response.isScreenshot) {
             updateStatus("success", `📸 স্ক্রিনশট এনালাইসিস সম্পন্ন! নিচে সঠিক উত্তরগুলো দেখানো হলো।`);
+          } else if (response.data?.is_from_cache || response.data?.source === "memory_cache") {
+            updateStatus("success", `⚡ Answered from Memory Cache ⚡ (${response.filledCount || response.data?.answers?.length || 0}টি উত্তর সিলেক্ট সম্পন্ন, 0 API Calls)`);
+          } else if (response.data?.source === "knowledge_base") {
+            updateStatus("success", `📄 Answered from Knowledge Base 📄 (${response.filledCount || response.data?.answers?.length || 0}টি উত্তর ফাইল থেকে সিলেক্ট সম্পন্ন)`);
+          } else if (response.data?.source === "mixed_api") {
+            updateStatus("success", `⚡🤖 Hybrid: Memory Cache + API (${response.filledCount || response.data?.answers?.length || 0}টি উত্তর সিলেক্ট সম্পন্ন)`);
           } else {
-            updateStatus("success", `✅ ম্যানুয়াল মোড: ${response.filledCount || 0}টি উত্তর সিলেক্ট সম্পন্ন! আপনি দেখে নিয়ে Next চাপুন।`);
+            updateStatus("success", `🤖 Answered via API 🤖 (${response.filledCount || 0}টি উত্তর সিলেক্ট সম্পন্ন! আপনি দেখে নিয়ে Next চাপুন)`);
           }
         } else {
           updateStatus("error", response?.message || response?.error || "Auto-fill failed.");
@@ -423,7 +485,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         const response = await sendTabAction(targetTab.id, { action: "SCAN_AND_ANALYZE", show_hud: true });
         if (response && response.success) {
           renderResults(response.data);
-          updateStatus("success", "Scan complete. Answers highlighted on page.");
+          if (response.data?.is_from_cache || response.data?.source === "memory_cache") {
+            updateStatus("success", "⚡ Answered from Memory Cache ⚡ (Instant Match / Zero API Cost)");
+          } else if (response.data?.source === "knowledge_base") {
+            updateStatus("success", "📄 Answered from Knowledge Base 📄 (Dataset Match)");
+          } else if (response.data?.source === "mixed_api") {
+            updateStatus("success", "⚡🤖 Hybrid: Answered via Memory Cache + API");
+          } else {
+            updateStatus("success", "🤖 Answered via API 🤖 (Gemini 3.8 Flash)");
+          }
         } else {
           updateStatus("error", response?.error || "Scan failed.");
         }
@@ -568,11 +638,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     const answers = data.answers || [];
     if (resultsCount) resultsCount.innerText = answers.length;
 
-    // Visual indicator when answers are from full-page screenshot analysis
-    if (data.is_screenshot_analysis) {
+    // Visual indicator based on answer source
+    if (data.is_from_cache || data.source === "memory_cache") {
+      const banner = document.createElement("div");
+      banner.style.cssText = "background: rgba(0, 255, 136, 0.12); border: 1px solid #00ff88; border-radius: 6px; padding: 6px 10px; font-size: 11px; margin-bottom: 8px; color: #00ff88;";
+      banner.innerHTML = "⚡ <strong>Answered from Memory Cache ⚡</strong><br><span style='color: #cbd5e1; font-size: 10px;'>পূর্ববর্তী সার্ভে ইতিহাস থেকে 100% অফলাইনে উত্তর সম্পন্ন (0 API Calls / Zero Cost)।</span>";
+      resultsList.appendChild(banner);
+    } else if (data.source === "knowledge_base") {
+      const banner = document.createElement("div");
+      banner.style.cssText = "background: rgba(56, 189, 248, 0.12); border: 1px solid #38bdf8; border-radius: 6px; padding: 6px 10px; font-size: 11px; margin-bottom: 8px; color: #38bdf8;";
+      banner.innerHTML = "📄 <strong>Answered from Knowledge Base 📄</strong><br><span style='color: #cbd5e1; font-size: 10px;'>আপলোড করা সার্ভে ডাটাবেস থেকে সরাসরি সঠিক উত্তর নির্বাচন করা হয়েছে।</span>";
+      resultsList.appendChild(banner);
+    } else if (data.source === "mixed_api") {
+      const banner = document.createElement("div");
+      banner.style.cssText = "background: rgba(168, 85, 247, 0.12); border: 1px solid #a855f7; border-radius: 6px; padding: 6px 10px; font-size: 11px; margin-bottom: 8px; color: #c084fc;";
+      banner.innerHTML = "⚡🤖 <strong>Answered via Hybrid (Memory Cache + API)</strong><br><span style='color: #cbd5e1; font-size: 10px;'>কিছু উত্তর মেমরি ক্যাশ থেকে এবং বাকিগুলো AI API দিয়ে প্রস্তুত করা হয়েছে।</span>";
+      resultsList.appendChild(banner);
+    } else if (data.is_screenshot_analysis) {
       const banner = document.createElement("div");
       banner.style.cssText = "background: rgba(0, 240, 255, 0.12); border: 1px solid #00f0ff; border-radius: 6px; padding: 6px 10px; font-size: 11px; margin-bottom: 8px; color: #00f0ff;";
-      banner.innerHTML = "📸 <strong>স্ক্রিনশট বিশ্লেষণ সম্পন্ন (Gemini Vision)</strong><br><span style='color: #cbd5e1; font-size: 10px;'>পেজ সরাসরি বিশ্লেষণ না হওয়ায় সম্পূর্ণ স্ক্রিনশট নিয়ে সঠিক উত্তর নির্ণয় করা হয়েছে (এইটা এইটা উত্তর হবে):</span>";
+      banner.innerHTML = "📸 <strong>Answered via API 🤖 (Gemini Vision)</strong><br><span style='color: #cbd5e1; font-size: 10px;'>পেজ সরাসরি বিশ্লেষণ না হওয়ায় সম্পূর্ণ স্ক্রিনশট নিয়ে সঠিক উত্তর নির্ণয় করা হয়েছে:</span>";
       resultsList.appendChild(banner);
     }
 
@@ -585,8 +670,22 @@ document.addEventListener("DOMContentLoaded", async () => {
       const item = document.createElement("div");
       item.className = "ans-item";
       const choice = (ans.selected_labels || []).join(", ") || ans.text_input_value || "Option Chosen";
+
+      let sourceBadge = "";
+      if (ans.source === "memory_cache") {
+        sourceBadge = `<span class="ans-source-badge tag-cache">⚡ Cache</span>`;
+      } else if (ans.source === "knowledge_base") {
+        const fn = ans.fileName ? ` (${ans.fileName.slice(0, 14)})` : "";
+        sourceBadge = `<span class="ans-source-badge tag-kb">📄 KB${fn}</span>`;
+      } else {
+        sourceBadge = `<span class="ans-source-badge tag-api">🤖 API</span>`;
+      }
+
       item.innerHTML = `
-        <div class="ans-title"><strong>প্রশ্ন ${idx + 1}:</strong> ${ans.question_text || "Question"}</div>
+        <div class="ans-title">
+          <strong>প্রশ্ন ${idx + 1}:</strong> ${ans.question_text || "Question"}
+          ${sourceBadge}
+        </div>
         <div class="ans-pick"><span style="color:#00f0ff; font-weight:600;">সঠিক উত্তর:</span> <strong style="color:#00ff88;">${choice}</strong></div>
         ${ans.reasoning ? `<div style="font-size:10px; color:#94a3b8; margin-top:3px;">💡 <em>${ans.reasoning}</em></div>` : ""}
       `;
@@ -847,6 +946,229 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     throw new Error("পেজে কোনো প্রতিক্রিয়া পাওয়া যায়নি। অনুগ্রহ করে পেজটি রিফ্রেশ (F5) করুন।");
   }
+
+  // =========================================================================
+  // MEMORY CACHE & KNOWLEDGE BASE LOGIC
+  // =========================================================================
+  async function loadMemoryStatsAndFiles() {
+    try {
+      const statsRes = await chrome.runtime.sendMessage({ action: "MEMORY_GET_STATS" });
+      if (statsRes && statsRes.success && statsRes.stats) {
+        const stats = statsRes.stats;
+        if (copilotCacheCount) copilotCacheCount.innerText = stats.cacheCount || 0;
+        if (copilotKbCount) copilotKbCount.innerText = stats.kbEntriesCount || 0;
+        if (badgeSavedCalls) badgeSavedCalls.innerText = `⚡ ${stats.savedApiCalls || 0} API Saved`;
+
+        if (memQaCount) memQaCount.innerText = stats.cacheCount || 0;
+        if (memHitCount) memHitCount.innerText = stats.savedApiCalls || 0;
+
+        if (inputMemoryApiKey && stats.memoryApiKey) inputMemoryApiKey.value = stats.memoryApiKey;
+        if (inputSettingsMemKey && stats.memoryApiKey) inputSettingsMemKey.value = stats.memoryApiKey;
+        if (selectMemoryProvider && stats.memoryProvider) selectMemoryProvider.value = stats.memoryProvider;
+      }
+
+      const filesRes = await chrome.runtime.sendMessage({ action: "MEMORY_GET_FILES" });
+      if (filesRes && filesRes.success && filesRes.files) {
+        renderKnowledgeFilesList(filesRes.files);
+      }
+    } catch (e) {
+      console.warn("[Jarvis Popup] loadMemoryStatsAndFiles error:", e);
+    }
+  }
+
+  function renderKnowledgeFilesList(files) {
+    if (!kbFilesList) return;
+    if (kbFilesCount) kbFilesCount.innerText = files.length;
+
+    if (!files || files.length === 0) {
+      kbFilesList.innerHTML = `<div class="empty-state">No survey files attached yet. Upload a JSON, CSV, TXT, or PDF file.</div>`;
+      return;
+    }
+
+    kbFilesList.innerHTML = "";
+    files.forEach((f) => {
+      const card = document.createElement("div");
+      card.className = "kb-file-card";
+      const sizeKb = Math.round((f.fileSize || 0) / 1024) || 1;
+      const dateStr = f.uploadedAt ? new Date(f.uploadedAt).toLocaleDateString() : "";
+
+      card.innerHTML = `
+        <div class="kb-file-info">
+          <span class="kb-file-name" title="${f.fileName}">📄 ${f.fileName}</span>
+          <span class="kb-file-meta">${f.entryCount} Q&A entries • ${sizeKb} KB • ${dateStr}</span>
+        </div>
+        <button type="button" class="btn-file-delete" data-file-id="${f.fileId}" title="Remove dataset file">🗑️</button>
+      `;
+
+      const delBtn = card.querySelector(".btn-file-delete");
+      if (delBtn) {
+        delBtn.addEventListener("click", async () => {
+          delBtn.disabled = true;
+          try {
+            await chrome.runtime.sendMessage({ action: "MEMORY_REMOVE_FILE", fileId: f.fileId });
+            await loadMemoryStatsAndFiles();
+          } catch (err) {
+            console.error(err);
+          }
+        });
+      }
+
+      kbFilesList.appendChild(card);
+    });
+  }
+
+  async function handleSurveyFileUpload(file) {
+    if (!file) return;
+
+    const validExtensions = [".json", ".csv", ".txt", ".pdf"];
+    const ext = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+    if (!validExtensions.includes(ext)) {
+      showUploadStatus("error", "❌ শুধুমাত্র JSON, CSV, TXT, বা PDF ফরম্যাটের ফাইল আপলোড করা যাবে।");
+      return;
+    }
+
+    showUploadStatus("loading", `⏳ ${file.name} পড়া ও পার্স করা হচ্ছে...`);
+
+    try {
+      let content = null;
+      let isBinary = false;
+
+      if (ext === ".pdf") {
+        isBinary = true;
+        const arrayBuf = await file.arrayBuffer();
+        let binary = "";
+        const bytes = new Uint8Array(arrayBuf);
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        content = btoa(binary);
+      } else {
+        content = await file.text();
+      }
+
+      const res = await chrome.runtime.sendMessage({
+        action: "MEMORY_UPLOAD_FILE",
+        fileName: file.name,
+        fileType: ext.replace(".", ""),
+        fileSize: file.size,
+        content: content,
+        isBinary: isBinary
+      });
+
+      if (res && res.success) {
+        showUploadStatus("success", `✅ ${res.fileName}: ${res.count}টি প্রশ্ন-উত্তরের ডাটাবেস সফলভাবে মেমরিতে যুক্ত হয়েছে!`);
+        await loadMemoryStatsAndFiles();
+      } else {
+        showUploadStatus("error", `❌ ফাইল পার্সিং ব্যর্থ: ${res?.error || "অজ্ঞাত ত্রুটি"}`);
+      }
+    } catch (err) {
+      showUploadStatus("error", `❌ ফাইল প্রসেসিং সমস্যা: ${err.message}`);
+    }
+  }
+
+  function showUploadStatus(type, msg) {
+    if (kbUploadStatus) {
+      kbUploadStatus.innerText = msg;
+      kbUploadStatus.className = `personal-info-msg ${type === "loading" ? "info" : type}`;
+    }
+    updateStatus(type === "loading" ? "loading" : (type === "success" ? "success" : "error"), msg);
+  }
+
+  async function handleClearMemoryCacheAction() {
+    try {
+      const res = await chrome.runtime.sendMessage({ action: "MEMORY_CLEAR_CACHE" });
+      if (res && res.success) {
+        if (cacheClearMsg) {
+          cacheClearMsg.innerText = "✅ লোকাল মেমরি ক্যাশ সফলভাবে ক্লিয়ার করা হয়েছে!";
+          cacheClearMsg.className = "personal-info-msg success";
+          setTimeout(() => { if (cacheClearMsg) cacheClearMsg.innerText = ""; }, 3000);
+        }
+        updateStatus("success", "🧹 Local Memory Cache cleared! Ready for fresh survey type.");
+        await loadMemoryStatsAndFiles();
+      }
+    } catch (e) {
+      updateStatus("error", "Failed to clear memory cache: " + e.message);
+    }
+  }
+
+  async function handleClearAllFilesAction() {
+    try {
+      const res = await chrome.runtime.sendMessage({ action: "MEMORY_CLEAR_ALL_FILES" });
+      if (res && res.success) {
+        showUploadStatus("success", "🗑️ সব সার্ভে নলেজ ফাইল মুছে ফেলা হয়েছে।");
+        await loadMemoryStatsAndFiles();
+      }
+    } catch (e) {
+      showUploadStatus("error", e.message);
+    }
+  }
+
+  async function handleSaveMemorySettingsAction() {
+    const key = (inputMemoryApiKey?.value || inputSettingsMemKey?.value || "").trim();
+    const provider = selectMemoryProvider?.value || "local_offline";
+
+    try {
+      await chrome.runtime.sendMessage({
+        action: "SAVE_MEMORY_SETTINGS",
+        memoryApiKey: key,
+        memoryProvider: provider
+      });
+
+      if (memorySettingsMsg) {
+        memorySettingsMsg.innerText = "✅ Memory Settings Saved!";
+        memorySettingsMsg.className = "personal-info-msg success";
+        setTimeout(() => { if (memorySettingsMsg) memorySettingsMsg.innerText = ""; }, 3000);
+      }
+      updateStatus("success", "✅ Memory & Embedding settings saved!");
+    } catch (e) {
+      if (memorySettingsMsg) {
+        memorySettingsMsg.innerText = "❌ " + e.message;
+        memorySettingsMsg.className = "personal-info-msg error";
+      }
+    }
+  }
+
+  // Connect Button & File Event Listeners
+  if (btnQuickClearCache) btnQuickClearCache.addEventListener("click", handleClearMemoryCacheAction);
+  if (btnClearMemoryCache) btnClearMemoryCache.addEventListener("click", handleClearMemoryCacheAction);
+
+  if (btnQuickUploadFile && quickFileInput) {
+    btnQuickUploadFile.addEventListener("click", () => quickFileInput.click());
+    quickFileInput.addEventListener("change", (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        handleSurveyFileUpload(e.target.files[0]);
+        quickFileInput.value = "";
+      }
+    });
+  }
+
+  if (kbDropZone && kbFileInput) {
+    kbDropZone.addEventListener("click", () => kbFileInput.click());
+    kbFileInput.addEventListener("change", (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        handleSurveyFileUpload(e.target.files[0]);
+        kbFileInput.value = "";
+      }
+    });
+
+    kbDropZone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      kbDropZone.classList.add("drag-over");
+    });
+    kbDropZone.addEventListener("dragleave", () => {
+      kbDropZone.classList.remove("drag-over");
+    });
+    kbDropZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      kbDropZone.classList.remove("drag-over");
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        handleSurveyFileUpload(e.dataTransfer.files[0]);
+      }
+    });
+  }
+
+  if (btnClearAllFiles) btnClearAllFiles.addEventListener("click", handleClearAllFilesAction);
+  if (btnSaveMemorySettings) btnSaveMemorySettings.addEventListener("click", handleSaveMemorySettingsAction);
 
   // Helper: Show/hide OpenRouter settings fields based on checkbox state
   function toggleOpenRouterSectionVisibility(useOpenRouter) {

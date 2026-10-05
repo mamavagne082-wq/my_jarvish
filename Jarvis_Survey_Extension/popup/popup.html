@@ -29,6 +29,7 @@
     <!-- Navigation Tabs -->
     <nav class="nav-tabs">
       <button class="tab-btn active" data-tab="tab-copilot">⚡ Copilot</button>
+      <button class="tab-btn" data-tab="tab-memory">🧠 Memory & KB</button>
       <button class="tab-btn" data-tab="tab-persona">👤 Persona</button>
       <button class="tab-btn" data-tab="tab-settings">⚙️ Settings</button>
     </nav>
@@ -45,6 +46,36 @@
           <span class="info-label">Respondent:</span>
           <span class="info-val highlight-val" id="persona-summary-badge">Al Amin Miah (50y, IT Software)</span>
           <button type="button" id="btn-edit-personal-info" class="btn-xs-link" title="Open My Personal Info form">✏️ Edit My Info</button>
+        </div>
+      </div>
+
+      <!-- Memory & Knowledge Base Hub -->
+      <div class="memory-hub-card">
+        <div class="memory-hub-header">
+          <div class="memory-hub-title">
+            <span class="memory-icon">🧠</span>
+            <strong>Memory Cache & Datasets</strong>
+          </div>
+          <span class="memory-saved-badge" id="badge-saved-calls" title="Total API calls saved by Memory Cache and Knowledge Base">⚡ 0 API Saved</span>
+        </div>
+        <div class="memory-stats-row">
+          <div class="mem-stat-pill" title="Cached Survey Questions in Local Memory">
+            <span class="pill-dot dot-cache"></span>
+            <span>Cache: <strong id="copilot-cache-count">0</strong></span>
+          </div>
+          <div class="mem-stat-pill" title="Attached Survey Knowledge Base Entries">
+            <span class="pill-dot dot-kb"></span>
+            <span>Dataset: <strong id="copilot-kb-count">0</strong></span>
+          </div>
+        </div>
+        <div class="memory-btn-row">
+          <button type="button" id="btn-quick-upload-file" class="btn-xs-pill" title="Upload a survey file (JSON, CSV, TXT, PDF)">
+            <span>📁</span> Upload Survey File
+          </button>
+          <input type="file" id="quick-file-input" accept=".json,.csv,.txt,.pdf" style="display:none">
+          <button type="button" id="btn-quick-clear-cache" class="btn-xs-pill btn-pill-danger" title="Clear all stored questions history">
+            <span>🧹</span> Clear Local Cache
+          </button>
         </div>
       </div>
 
@@ -125,7 +156,108 @@
       </div>
     </main>
 
-    <!-- Tab 2: My Personal Info (Matching Setup Screen) -->
+    <!-- Tab 2: Local Memory & Knowledge Base -->
+    <section class="tab-content" id="tab-memory">
+      <div class="personal-info-header">
+        <h2 class="personal-info-title">🧠 Local Memory & Knowledge Base</h2>
+        <p class="personal-info-subtitle">Optimize API key usage and accelerate survey solving with 100% offline Q&A caching and attached dataset matching.</p>
+      </div>
+
+      <!-- Card 1: Local Memory Cache (Question-Answer Database) -->
+      <div class="settings-group memory-box-card">
+        <div class="memory-card-header">
+          <div>
+            <strong style="color:#00ff88; font-size:13px;">⚡ Local Memory Cache (Q&A Database)</strong>
+            <p class="helper-text" style="margin-top:2px;">আগের সমাধান করা সার্ভের প্রশ্ন ও উত্তর স্বয়ংক্রিয়ভাবে লোকাল ডাটাবেসে সেভ থাকে। নতুন সার্ভেতে একই প্রশ্ন আসলে ০ API খরচে উত্তর সম্পন্ন হবে।</p>
+          </div>
+        </div>
+
+        <div class="memory-stats-grid">
+          <div class="memory-stat-box">
+            <span class="stat-number" id="mem-qa-count">0</span>
+            <span class="stat-label">Cached Questions</span>
+          </div>
+          <div class="memory-stat-box">
+            <span class="stat-number text-accent" id="mem-hit-count">0</span>
+            <span class="stat-label">Cache Hits (Saved API)</span>
+          </div>
+        </div>
+
+        <div style="margin-top:10px;">
+          <button type="button" id="btn-clear-memory-cache" class="btn btn-action-danger" title="Reset stored QA history when starting a fresh survey type">
+            🧹 Clear Local Memory Cache
+          </button>
+        </div>
+        <div id="cache-clear-msg" class="personal-info-msg" style="margin-top:6px;"></div>
+      </div>
+
+      <!-- Card 2: Survey Knowledge Files (Dataset Matching) -->
+      <div class="settings-group memory-box-card" style="margin-top:14px;">
+        <div class="memory-card-header">
+          <div>
+            <strong style="color:#00f0ff; font-size:13px;">📄 Survey Knowledge Files (Dataset Matching)</strong>
+            <p class="helper-text" style="margin-top:2px;">সার্ভে ফাইল (JSON, CSV, TXT, PDF) আপলোড করে রাখুন। পেজে প্রশ্ন আসলেই এক্সটেনশন প্রথমে ফাইল থেকে নিখুঁত উত্তর মিলিয়ে পূরণ করবে।</p>
+          </div>
+        </div>
+
+        <!-- File Upload Drop Zone -->
+        <div id="kb-drop-zone" class="file-drop-zone">
+          <div class="drop-icon">📁</div>
+          <div class="drop-title">Click or Drag & Drop Survey File</div>
+          <div class="drop-sub">Supported formats: <strong>JSON, CSV, TXT, PDF</strong></div>
+          <small class="drop-tag">100% Offline & Local Processing • No Cloud Costs</small>
+          <input type="file" id="kb-file-input" accept=".json,.csv,.txt,.pdf" style="display:none">
+        </div>
+        <div id="kb-upload-status" class="personal-info-msg" style="margin-top:6px;"></div>
+
+        <!-- Attached Files List -->
+        <div class="kb-files-section">
+          <div class="kb-files-header">
+            <span>Attached Datasets (<span id="kb-files-count">0</span>)</span>
+            <button type="button" id="btn-clear-all-files" class="btn-xs-link" style="color:#ff5577;">🗑️ Clear All Files</button>
+          </div>
+          <div id="kb-files-list" class="kb-files-container">
+            <div class="empty-state">No survey files attached yet. Upload a JSON, CSV, TXT, or PDF file.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 3: Memory & Embedding API Settings -->
+      <div class="settings-group memory-box-card" style="margin-top:14px;">
+        <div class="memory-card-header">
+          <div>
+            <strong style="color:#ffb700; font-size:13px;">🔑 Memory / Embedding API Settings</strong>
+            <p class="helper-text" style="margin-top:2px;">External vector or embedding database API support (Optional).</p>
+          </div>
+        </div>
+
+        <div style="margin-top:8px;">
+          <label for="input-memory-api-key">Memory / Embedding API Key</label>
+          <div class="api-key-row">
+            <input type="password" id="input-memory-api-key" placeholder="Optional: OpenAI, Pinecone, or Memory API Key">
+            <button id="btn-toggle-memory-key" class="btn-small" type="button">👁️</button>
+          </div>
+          <small class="helper-text">★ Pure text-matching and local keyword hashing work 100% offline and locally without needing additional API costs.</small>
+        </div>
+
+        <div style="margin-top:8px;">
+          <label for="select-memory-provider">Matching Provider</label>
+          <select id="select-memory-provider">
+            <option value="local_offline" selected>⚡ Local Offline Matcher (Zero Cost / Instant - ডিফল্ট)</option>
+            <option value="openai_embeddings">🌐 OpenAI Embeddings (text-embedding-3-small)</option>
+            <option value="pinecone">🌲 Pinecone Vector DB</option>
+            <option value="custom_memory">⚙️ Custom Memory API / Mem0</option>
+          </select>
+        </div>
+
+        <button type="button" id="btn-save-memory-settings" class="btn btn-action-primary" style="margin-top:10px;">
+          💾 Save Memory Settings
+        </button>
+        <div id="memory-settings-msg" class="personal-info-msg" style="margin-top:6px;"></div>
+      </div>
+    </section>
+
+    <!-- Tab 3: My Personal Info (Matching Setup Screen) -->
     <section class="tab-content" id="tab-persona">
       <div class="personal-info-header">
         <h2 class="personal-info-title">My Personal Info</h2>
@@ -384,6 +516,17 @@
             <option value="meta-llama/llama-3.1-8b-instruct:free">Llama 3.1 8B (Free)</option>
           </optgroup>
         </select>
+      </div>
+
+      <!-- Memory & Embedding Settings -->
+      <div class="settings-section-title" style="margin-top:12px;">🧠 Memory & Embedding API Key</div>
+      <div class="settings-group">
+        <label for="input-settings-mem-key">Memory / Embedding API Key <span class="badge-backup">Optional</span></label>
+        <div class="api-key-row">
+          <input type="password" id="input-settings-mem-key" placeholder="OpenAI, Pinecone, or Memory API Key">
+          <button id="btn-toggle-settings-mem-key" class="btn-small" type="button">👁️</button>
+        </div>
+        <small class="helper-text">★ Pure text-matching and local keyword hashing work 100% offline and locally without needing additional API costs.</small>
       </div>
 
       <!-- Other Settings -->

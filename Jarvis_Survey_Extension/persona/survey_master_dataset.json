@@ -1,0 +1,1090 @@
+[
+  {
+    "question": "What is your date of birth?",
+    "aliases": ["Date of birth", "Birth date", "When were you born?", "What is your birthday?"],
+    "selected_labels": ["03/08/1976", "March 8, 1976", "1976-03-08"],
+    "text_input_value": "03/08/1976",
+    "recommended_action": "type_text"
+  },
+  {
+    "question": "What is your birth in year?",
+    "aliases": ["Birth year", "What year were you born?", "In what year were you born?", "Year of birth"],
+    "selected_labels": ["1976"],
+    "text_input_value": "1976",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "What is your age?",
+    "aliases": ["Age", "How old are you?", "Please enter your age", "Please indicate your age"],
+    "selected_labels": ["50", "45-54", "45 to 54", "50 years old", "50-54"],
+    "text_input_value": "50",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Please choose the answer from this category what age best describe to you?",
+    "aliases": ["What age category best describes you?", "Which age group do you belong to?", "Age category"],
+    "selected_labels": ["45-54", "45 to 54", "50", "SSN", "50-54"],
+    "text_input_value": "50",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "What is your zip/Postal code?",
+    "aliases": ["What is your postal code?", "Zip code", "Postal code", "Enter your zip code", "Please enter your 5-digit ZIP code"],
+    "selected_labels": ["10001"],
+    "text_input_value": "10001",
+    "recommended_action": "type_text"
+  },
+  {
+    "question": "What is your gender?",
+    "aliases": ["Gender", "What is your sex?", "Please specify your gender", "Which gender do you identify with?"],
+    "selected_labels": ["Male", "Male ( Heterosexual / straight )", "Male (Heterosexual)", "Man"],
+    "text_input_value": "Male",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "What is your current marital status?",
+    "aliases": ["Marital status", "What is your marital status?", "Are you married?", "Relationship status"],
+    "selected_labels": ["Married", "Married / Living with partner", "Currently married"],
+    "text_input_value": "Married",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "How many children do you have under the age of 18?",
+    "aliases": ["Children under 18", "How many children live in your household?", "Number of children under 18", "Do you have children under 18?"],
+    "selected_labels": ["Two", "2", "Two (2)", "2 children"],
+    "text_input_value": "2",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which of the following best describes your race?",
+    "aliases": ["What is your race?", "Race / Ethnicity", "Ethnic background", "Which race do you identify as?"],
+    "selected_labels": ["White", "Caucasian", "White / Caucasian"],
+    "text_input_value": "White",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "If you are Hispanic / Latino what best describes your heritage?",
+    "aliases": ["Are you Hispanic or Latino?", "Hispanic or Latino origin", "Are you of Hispanic, Latino, or Spanish origin?"],
+    "selected_labels": ["No Hispanic/Not Hispanic", "Not Hispanic", "No, not of Hispanic, Latino, or Spanish origin", "Non-Hispanic"],
+    "text_input_value": "No Hispanic/Not Hispanic",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "What is the highest level of education you have completed?",
+    "aliases": ["Highest level of education", "Education level", "What is your highest degree?", "Highest education completed"],
+    "selected_labels": ["Master's or Professional Degree / graduate /post-gradute", "Master's degree", "Graduate or professional degree", "Master Degree / Bachelor Degree", "Post-graduate degree", "Master's"],
+    "text_input_value": "Master's Degree",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "What best describes your current employment status?",
+    "aliases": ["Employment status", "Are you currently employed?", "What is your working status?", "Which best describes your employment?"],
+    "selected_labels": ["Employed full-time (35/40+ hours)", "Employed full-time", "Full-time (35+ hours)", "Employed full time"],
+    "text_input_value": "Employed full-time",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "What is your job title, level, or responsibility?",
+    "aliases": ["Job title", "What is your job title?", "Job level", "Professional responsibility"],
+    "selected_labels": ["information technology, computer software", "Manager / Director", "Manager", "Director", "Senior Management"],
+    "text_input_value": "Information Technology Manager",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which department do you primarily work within at your organization?",
+    "aliases": ["Department", "What department do you work in?", "Primary department", "Which department do you belong to?"],
+    "selected_labels": ["Information technology, computer software", "Information Technology", "IT", "Computer Software", "IT / IS"],
+    "text_input_value": "Information Technology",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which departments/products do you have influence or decisionmaking authority for spending/purchasing?",
+    "aliases": ["Spending authority", "Purchasing influence", "Which of the following products/services do you influence?", "Decision-making authority"],
+    "selected_labels": ["Marketing", "Seals", "Sales", "Advertising", "financial services", "IT hardware", "IT software"],
+    "text_input_value": "IT software, IT hardware",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which of the following categories best describes your organization's primary industry?",
+    "aliases": ["Primary industry", "Company industry", "What industry does your company operate in?", "Organization's primary industry"],
+    "selected_labels": ["information technology, computer software", "Information Technology", "Technology", "Software", "Computers / Software"],
+    "text_input_value": "Information Technology",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Approximately what is the annual revenue for your organization/?",
+    "aliases": ["Company revenue", "Annual revenue", "What is your company's annual revenue?", "Organization revenue"],
+    "selected_labels": ["50-99 million", "$50 million to $99.9 million", "$50M - $99M", "50M - 100M", "50 to 99 million"],
+    "text_input_value": "50-99 million",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Approximately how many employees work at your organization? / all location",
+    "aliases": ["Number of employees", "Company size", "How many people work at your organization?", "Employee count"],
+    "selected_labels": ["2500-5000", "2,500 to 4,999", "2,500 - 5,000 employees", "2500 - 5000"],
+    "text_input_value": "2500-5000",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "What industries do members of your household, including yourself, work in?",
+    "aliases": ["Household industries", "What industry do you or your household work in?", "Do you or anyone in your household work in:"],
+    "selected_labels": ["information technology, computer software", "Information Technology", "Computers", "Software"],
+    "text_input_value": "Information Technology",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "What is your annual household income before taxes?",
+    "aliases": ["Household income", "Annual income", "What is your total annual household income?", "Income before taxes"],
+    "selected_labels": ["125000-149999", "$125,000 - $149,999", "$125,000 to $149,999", "$100,000 - $149,999"],
+    "text_input_value": "125000-149999",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Do you smoke?",
+    "aliases": ["Do you smoke cigarettes?", "Are you a smoker?", "Tobacco use", "Do you currently smoke?"],
+    "selected_labels": ["Yes, I smoke", "Yes", "Current smoker", "I smoke regularly"],
+    "text_input_value": "Yes, I smoke",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "What best describes your current household?",
+    "aliases": ["Current household", "Housing status", "Do you own or rent your home?", "Type of residence"],
+    "selected_labels": ["Own house / single family house", "Own a single-family home", "Own house", "Single family home"],
+    "text_input_value": "Own house",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Have you been diagnosed with any of the following illnesses/conditions?",
+    "aliases": ["Medical conditions", "Health conditions", "Diagnosed illnesses", "Which of the following conditions have you been diagnosed with?"],
+    "selected_labels": [
+      "Allergies (not associated with Hay Fever)",
+      "Back Pain",
+      "Dental Problem",
+      "Depression",
+      "Diabetes ( type 1)",
+      "Diabetes (type 1)",
+      "Smoking Addiction"
+    ],
+    "text_input_value": "Back Pain, Allergies",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Are you registered to vote?",
+    "aliases": ["Voter registration", "Are you a registered voter?", "Registered to vote"],
+    "selected_labels": ["Yes", "Yes, registered to vote"],
+    "text_input_value": "Yes",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which of the following electronic products do you own?",
+    "aliases": ["Electronics owned", "Which electronic devices do you own?", "Consumer electronics owned"],
+    "selected_labels": [
+      "Blu-ray/DVD player",
+      "Portable game console (e.g. Sony PSP GO)",
+      "Digital Camera",
+      "PC/Mac laptop or portable",
+      "Cell Phone",
+      "Cable TV/Satellite TV",
+      "Printer",
+      "3D TV",
+      "Home Internet",
+      "Digital Media",
+      "Tablet"
+    ],
+    "text_input_value": "PC laptop, Cell Phone, Tablet",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "In your household, are you the person who makes most of the daily purchasing decisions?",
+    "aliases": ["Daily purchasing decisions", "Primary shopper", "Are you the primary decision maker for household purchases?"],
+    "selected_labels": ["Yes / Sole decision maker", "Yes", "Sole decision maker", "Primary decision maker"],
+    "text_input_value": "Yes",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which of the following pets are present in your household?",
+    "aliases": ["Pets", "Do you own any pets?", "Which pets do you have?"],
+    "selected_labels": ["Cat(1)", "Dog(1)", "Cat", "Dog", "Dog and Cat"],
+    "text_input_value": "Dog, Cat",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which, if any, of these drinks have you consumed in the past four weeks?",
+    "aliases": ["Drinks consumed", "Beverages consumed in past month", "Which drinks have you had in the past 4 weeks?"],
+    "selected_labels": [
+      "Beer",
+      "Wine",
+      "Energy drinks",
+      "Coffee",
+      "Tea",
+      "carbonated soft drinks",
+      "Fruit drinks/Juices",
+      "Bottled Water",
+      "Pre-mixed packaged spirits"
+    ],
+    "text_input_value": "Coffee, Tea, Water, Beer",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Do you drive a car regularly?",
+    "aliases": ["Do you drive?", "Do you drive regularly?", "Do you operate a vehicle?"],
+    "selected_labels": ["Yes, I have a car", "Yes", "I drive regularly"],
+    "text_input_value": "Yes, I have a car",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Do you possess a driver's license?",
+    "aliases": ["Driver's license", "Do you have a driver's license?", "Valid driver's license"],
+    "selected_labels": ["Yes", "Yes, valid driver's license"],
+    "text_input_value": "Yes",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "When do you estimate that you will purchase/lease your next car?",
+    "aliases": ["Next car purchase", "When will you buy your next vehicle?", "Next vehicle purchase estimate"],
+    "selected_labels": ["Two years from now", "within 3-6 month", "In 1 to 2 years", "Within 6 months"],
+    "text_input_value": "Two years from now",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Are you the primary decision maker in your household for automotive-related purchases?",
+    "aliases": ["Automotive decision maker", "Car purchasing decision maker", "Vehicle decision maker"],
+    "selected_labels": ["Yes", "Primary decision maker", "Sole decision maker"],
+    "text_input_value": "Yes",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "If you own/lease a car(s), which brand(s) are they?",
+    "aliases": ["Car brands", "What brand of car do you drive?", "Vehicle make", "Which car brands do you own?"],
+    "selected_labels": ["Audi/Nissan (Select Only 2)", "Audi", "Nissan"],
+    "text_input_value": "Audi, Nissan",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "How would you describe the vehicle(s) you own/lease?",
+    "aliases": ["Vehicle type", "Car type", "What kind of vehicle do you own?"],
+    "selected_labels": ["Full Size, Mid-Size", "Full Size", "Mid-Size", "Sedan"],
+    "text_input_value": "Full Size, Mid-Size",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "In which year did you purchase/lease your main vehicle?",
+    "aliases": ["Year purchased vehicle", "When did you buy your car?", "Vehicle purchase year"],
+    "selected_labels": ["2023"],
+    "text_input_value": "2023",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "What year was your main vehicle (owned or leased) manufactured?",
+    "aliases": ["Vehicle model year", "Car manufacture year", "What year is your car?"],
+    "selected_labels": ["2022"],
+    "text_input_value": "2022",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Did you purchase/lease your primary vehicle new or used?",
+    "aliases": ["New or used car", "Did you buy your vehicle new or used?"],
+    "selected_labels": ["New", "Brand new"],
+    "text_input_value": "New",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Do you own a motorcycle?",
+    "aliases": ["Motorcycle ownership", "Do you have a motorbike?"],
+    "selected_labels": ["“Yes”", "Yes"],
+    "text_input_value": "Yes",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "What is your primary role in your organization?",
+    "aliases": ["Primary role", "Role in organization", "Position in company"],
+    "selected_labels": ["manager / director", "Manager", "Director", "Senior Manager"],
+    "text_input_value": "Manager / Director",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "What is your professional position in the organization you work for?",
+    "aliases": ["Professional position", "Job level in organization", "Management level"],
+    "selected_labels": ["manager / director", "Manager", "Director", "Middle management", "Senior management"],
+    "text_input_value": "Manager / Director",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which of the following best describes your current profession?",
+    "aliases": ["Current profession", "Profession description", "Field of work"],
+    "selected_labels": [
+      "A. I don't work in the construction industry. B. I don't work in the education industry. C. I don't work in the healthcare industry.",
+      "Information Technology",
+      "None of the above"
+    ],
+    "text_input_value": "Information Technology",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which IT role(s)/function(s) do you operate within?",
+    "aliases": ["IT role", "IT function", "Which IT department or function do you work in?"],
+    "selected_labels": ["computer software", "Software Development", "Software Engineering", "IT Management"],
+    "text_input_value": "computer software",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "In the last year, have you engaged in any of the following job-related activities?",
+    "aliases": ["Job-related activities", "Career activities past year"],
+    "selected_labels": [
+      "Asked for/provided career advice",
+      "used an online social network to advance your career.",
+      "Used an online social network to advance your career"
+    ],
+    "text_input_value": "Career advice, Online social network",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which of the following best describes your primary role at work?",
+    "aliases": ["Primary role at work", "Work role description"],
+    "selected_labels": ["information technology, computer software", "Information Technology", "Computer Software"],
+    "text_input_value": "information technology, computer software",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Please indicate your title. Select one response.",
+    "aliases": ["Indicate your title", "Select your job title"],
+    "selected_labels": ["information technology, computer software", "Manager", "Director", "IT Manager"],
+    "text_input_value": "information technology, computer software",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "If you stated that you have been diagnosed with diabetes, can you define the type of diabetes?",
+    "aliases": ["Diabetes type", "Type of diabetes diagnosed", "Which type of diabetes?"],
+    "selected_labels": ["Diabetes 1", "Type 1 Diabetes", "Type 1", "Diabetes (type 1)"],
+    "text_input_value": "Diabetes 1",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "If you stated that you have been diagnosed with cancer, can you define the type of cancer?",
+    "aliases": ["Cancer diagnosis", "Type of cancer", "Have you been diagnosed with cancer?"],
+    "selected_labels": ["I don't have cancer", "None / I have not been diagnosed with cancer", "Not applicable", "No cancer"],
+    "text_input_value": "I don't have cancer",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "On average, how many cigarettes do you smoke in a day?",
+    "aliases": ["Cigarettes per day", "Daily cigarette consumption", "How many cigarettes daily?"],
+    "selected_labels": ["4 to 7 cigarettes", "4-7", "4 to 7", "5-10 cigarettes"],
+    "text_input_value": "4 to 7 cigarettes",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "What are your household investable assets (not including homeownership)?",
+    "aliases": ["Investable assets", "Household assets excluding home", "Total investable assets"],
+    "selected_labels": ["$500,000 - $999,999", "500000-999999", "$500,000 to $999,999"],
+    "text_input_value": "$500,000 - $999,999",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Are you the primary decision maker in your household for grocery purchases?",
+    "aliases": ["Grocery decision maker", "Primary grocery shopper", "Do you buy the groceries?"],
+    "selected_labels": ["Yes", "Sole decision maker", "Primary decision maker"],
+    "text_input_value": "Yes",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Are you and your partner/spouse currently expecting a baby?",
+    "aliases": ["Expecting a baby", "Are you pregnant or expecting?", "Is your partner expecting?"],
+    "selected_labels": ["No"],
+    "text_input_value": "No",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Would you say that in your household you speak...?",
+    "aliases": ["Language spoken at home", "What language do you speak at home?", "Household language"],
+    "selected_labels": ["English all the time", "Only English", "English primarily"],
+    "text_input_value": "English all the time",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Please choose the options that best describe your household.",
+    "aliases": ["Household description", "Household members description"],
+    "selected_labels": ["I have one or more children under the age of 18 living in my household", "Children under 18 living at home"],
+    "text_input_value": "I have one or more children under the age of 18 living in my household",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "In your household, which of the following things are you responsible or partially responsible for making decisions about?",
+    "aliases": ["Household responsibilities", "Decision making responsibilities", "Decisions you are responsible for"],
+    "selected_labels": ["Internet", "Television", "Banking", "Automobile", "Finance", "Mortgage"],
+    "text_input_value": "Internet, Television, Banking, Automobile, Finance, Mortgage",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "How many people live in your household including yourself?",
+    "aliases": ["Household size", "People living in household", "How many people in your home?"],
+    "selected_labels": ["4 persons", "4", "Four (4)", "Four"],
+    "text_input_value": "4",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Are you the primary decision maker of purchases of electronic products in your household?",
+    "aliases": ["Electronics decision maker", "Who purchases electronics in your home?"],
+    "selected_labels": ["Yes", "Primary decision maker"],
+    "text_input_value": "Yes",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Where do you do your main grocery shopping?",
+    "aliases": ["Grocery stores", "Where do you buy groceries?", "Main supermarket"],
+    "selected_labels": ["Walmart", "Target", "Aldi", "costco", "Costco"],
+    "text_input_value": "Walmart, Target, Aldi, Costco",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "What are your hobbies and interests?",
+    "aliases": ["Hobbies", "Interests", "What do you like to do in your free time?"],
+    "selected_labels": [
+      "Cooking",
+      "Fishing",
+      "playing music",
+      "playing video/computer games",
+      "Travel",
+      "Watch Sports on TV",
+      "Swimming",
+      "Hunting",
+      "Motorcycling",
+      "Biking"
+    ],
+    "text_input_value": "Cooking, Fishing, Video games, Travel",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "What are you like to do as hobby?",
+    "aliases": ["Hobby activities", "Things you like to do as a hobby"],
+    "selected_labels": ["Swimming", "Fishing", "Hunting", "Motorcycling", "Biking."],
+    "text_input_value": "Swimming, Fishing, Motorcycling",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "How many hours a week do you exercise/participate in sports?",
+    "aliases": ["Exercise hours per week", "How often do you exercise weekly?", "Weekly sports participation"],
+    "selected_labels": ["05 to 07 hours", "5 to 7 hours", "5-7 hours", "4 to 6 hours"],
+    "text_input_value": "05 to 07 hours",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "How often do you go to the movie theatre?",
+    "aliases": ["Movie theatre frequency", "How often do you visit cinema?", "Movie theater visits"],
+    "selected_labels": ["Four or more times per month", "4+ times a month", "4 or more times a month", "Weekly"],
+    "text_input_value": "Four or more times per month",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which of the following beverages do you regularly consume?",
+    "aliases": ["Beverages consumed regularly", "Drinks regularly consumed"],
+    "selected_labels": [
+      "Coffee",
+      "Energy Drinks",
+      "Imported beer",
+      "Red Wine",
+      "White Wine",
+      "Champagne",
+      "Vodka",
+      "Flavoured liquor"
+    ],
+    "text_input_value": "Coffee, Energy Drinks, Beer, Wine",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "On average, how many hours of radio do you listen to per week?",
+    "aliases": ["Radio hours per week", "How much radio do you listen to?"],
+    "selected_labels": ["6 to 7", "6-7 hours", "5 to 10 hours", "6 to 7 hours"],
+    "text_input_value": "6 to 7",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "What sports do you regularly participate in?",
+    "aliases": ["Sports participated in", "Which sports do you play?"],
+    "selected_labels": ["Cricket", "Basketball"],
+    "text_input_value": "Cricket, Basketball",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "How many hours per week do you spend playing video/computer games?",
+    "aliases": ["Gaming hours per week", "Hours playing games", "Video game weekly hours"],
+    "selected_labels": ["7 to 13 / or more hours", "7 to 13 hours", "7-13 hours", "10+ hours"],
+    "text_input_value": "7 to 13 hours",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which of the following devices do you use to play games?",
+    "aliases": ["Gaming devices", "What do you play games on?", "Platforms used for gaming"],
+    "selected_labels": ["Played offline video games on Mobile", "Gaming console", "Mobile phone", "Console"],
+    "text_input_value": "Gaming console, Mobile phone",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "How do you play video/computer games?",
+    "aliases": ["How games are played", "Gaming style"],
+    "selected_labels": ["With others in the same room", "with others through an internet connection"],
+    "text_input_value": "Online and with others in person",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "What Kind of video/computer games do you play?",
+    "aliases": ["Game genres", "What types of games do you play?"],
+    "selected_labels": [
+      "1st Person Shooter/Acton Call of Duty",
+      "3rd Person Adventure",
+      "Point & Click Adventure",
+      "Sports/FIFA",
+      "Role playing Game",
+      "Massively Multiplayer online/Warcraft",
+      "Fighting/Street Fighter",
+      "Party Games/Casual Facebook Games"
+    ],
+    "text_input_value": "Action, Shooter, Sports, RPG",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "How many computer/video Games a month do you purchase?",
+    "aliases": ["Games purchased per month", "Monthly game purchases"],
+    "selected_labels": ["1", "1 game", "1 to 2"],
+    "text_input_value": "1",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "How many DVDs/Blu-rays do you purchase on a monthly basis?",
+    "aliases": ["DVDs purchased monthly", "Blu-rays purchased a month"],
+    "selected_labels": ["4 to 6", "4-6", "4 to 6 DVDs"],
+    "text_input_value": "4 to 6",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "On average, how many hours of television do you watch per week?",
+    "aliases": ["TV hours per week", "How much television do you watch?"],
+    "selected_labels": ["More than 10 hours", "10+ hours", "10 to 20 hours"],
+    "text_input_value": "More than 10 hours",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "On average, how many alcoholic drinks do you consume in a week?",
+    "aliases": ["Alcoholic drinks per week", "Weekly alcohol consumption"],
+    "selected_labels": ["1 to 2", "1-2 drinks", "1 to 2 drinks"],
+    "text_input_value": "1 to 2",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which of the following outlet/discount chains have you purchased from in the last 12 months?",
+    "aliases": ["Discount chains purchased from", "Outlet stores visited"],
+    "selected_labels": ["Walmart", "Target", "Aldi"],
+    "text_input_value": "Walmart, Target, Aldi",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which of the following types of vacation/holidays do you usually go on?",
+    "aliases": ["Vacation types", "What kind of holidays do you take?"],
+    "selected_labels": ["Visiting Friends & Family", "Boating/Fishing", "Family vacation"],
+    "text_input_value": "Visiting Friends & Family, Boating/Fishing",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Would you consider yourself to be an early adopter of new technology (the first to buy new gadgets/electronics/etc)?",
+    "aliases": ["Early adopter of technology", "Are you an early adopter?", "First to buy tech"],
+    "selected_labels": ["Yes", "I am usually one of the first"],
+    "text_input_value": "Yes",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Do you have a webcam and are you willing to use it for an online research opportunity?",
+    "aliases": ["Webcam research", "Do you have a webcam?", "Willing to use webcam?"],
+    "selected_labels": ["Yes, I have a webcam.", "Yes", "Yes, I am willing"],
+    "text_input_value": "Yes, I have a webcam.",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "In politics today, do you consider yourself a Democrat, Republican, or Independent?",
+    "aliases": ["Political affiliation", "Political views", "Democrat or Republican?"],
+    "selected_labels": ["Republican/ strong Republican", "Republican", "Strong Republican"],
+    "text_input_value": "Republican/ strong Republican",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which of the following religions do you most closely identify with?",
+    "aliases": ["Religion", "Religious identification", "What is your religion?"],
+    "selected_labels": ["Christian/Protestant/Roman catholic", "Christian", "Protestant", "Roman Catholic"],
+    "text_input_value": "Christian/Protestant/Roman catholic",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "What type of smartphone do you primarily use?",
+    "aliases": ["Smartphone brand", "What phone do you use?", "Primary mobile device"],
+    "selected_labels": ["Samsung", "Android (Samsung)"],
+    "text_input_value": "Samsung",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Do you use a smart phone?",
+    "aliases": ["Do you use a smartphone?", "Smartphone user"],
+    "selected_labels": ["Yes"],
+    "text_input_value": "Yes",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which of these is your carrier for your primary mobile / cell phone?",
+    "aliases": ["Mobile carrier", "Cell phone provider", "Wireless carrier"],
+    "selected_labels": ["Verizon Wireless.", "Verizon", "AT&T", "Verizon Wireless"],
+    "text_input_value": "Verizon Wireless",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "What type of mobile phone plan do you have?",
+    "aliases": ["Mobile phone plan", "Cell phone plan type"],
+    "selected_labels": ["Pre-paid", "Prepaid plan", "Prepaid"],
+    "text_input_value": "Pre-paid",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which of the following is your primary home internet service provider?",
+    "aliases": ["Home internet provider", "ISP", "Internet service provider at home"],
+    "selected_labels": ["Verizon", "Verizon Fios"],
+    "text_input_value": "Verizon",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "What kind of internet connection do you use at home?",
+    "aliases": ["Internet connection type", "Home broadband type"],
+    "selected_labels": ["Satellite, Wireless", "Wireless", "Broadband", "Fiber / Cable"],
+    "text_input_value": "Satellite, Wireless",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which of the following TV providers do you subscribe at your primary residence?",
+    "aliases": ["TV provider", "Cable provider at home"],
+    "selected_labels": ["AT&T U-verse", "AT&T", "Xfinity"],
+    "text_input_value": "AT&T U-verse",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which of the following financial products do you own?",
+    "aliases": ["Financial products owned", "Banking products"],
+    "selected_labels": [
+      "Personal loan",
+      "Mortgage",
+      "Credit Card",
+      "Checking account",
+      "Savings account"
+    ],
+    "text_input_value": "Mortgage, Credit Card, Checking account, Savings account",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which of the following lending products have you obtained in th past 24 months?",
+    "aliases": ["Lending products past 24 months", "Loans obtained recently"],
+    "selected_labels": ["Personal Loan", "Home Equity loan", "Student Loan."],
+    "text_input_value": "Personal Loan, Home Equity loan",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "When did you obtain your mortgage?",
+    "aliases": ["Mortgage date", "When was mortgage taken?"],
+    "selected_labels": ["3 to 6 months ago", "Within the last 6 months"],
+    "text_input_value": "3 to 6 months ago",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which of the following bank do you currently have a banking relationship with?",
+    "aliases": ["Banks used", "Banking relationships", "Where do you bank?"],
+    "selected_labels": ["Bank of America", "American Express"],
+    "text_input_value": "Bank of America, American Express",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which of the following credit cards do you use?",
+    "aliases": ["Credit cards owned", "Which credit cards do you have?"],
+    "selected_labels": ["American Express", "Discover", "Master Card", "Visa"],
+    "text_input_value": "American Express, Visa, Master Card",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which of the following credit cards do you use mostly?",
+    "aliases": ["Primary credit card", "Most used credit card"],
+    "selected_labels": ["American Express"],
+    "text_input_value": "American Express",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "To the best of your knowledge, what is your credit score (also known as your FICO score)?",
+    "aliases": ["Credit score", "FICO score", "What is your credit score?"],
+    "selected_labels": ["750-800", "750 to 799", "750 - 800 (Excellent)"],
+    "text_input_value": "750-800",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which social media do you actively use?",
+    "aliases": ["Social media platforms", "Which social networks do you use?"],
+    "selected_labels": [
+      "Facebook",
+      "Social Media",
+      "Pinterest",
+      "Instagram",
+      "YouTube",
+      "Snap Chat.",
+      "WhatsApp."
+    ],
+    "text_input_value": "Facebook, YouTube, Instagram, WhatsApp",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "About how often do you access social media service?",
+    "aliases": ["Social media frequency", "How often do you check social media?"],
+    "selected_labels": ["Several times a day", "Daily", "Multiple times per day"],
+    "text_input_value": "Several times a day",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "How often do you go online on a computer?",
+    "aliases": ["Computer usage frequency", "How often do you use PC/computer?"],
+    "selected_labels": ["Several times a day", "Daily", "Constantly"],
+    "text_input_value": "Several times a day",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which gaming platforms do you regularly use?",
+    "aliases": ["Gaming platforms used", "Streaming and gaming platforms"],
+    "selected_labels": ["Netflix", "Amazon", "Hulu Etc"],
+    "text_input_value": "Netflix, Amazon, Hulu",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "In which type of accommodation have you stayed in the past year?",
+    "aliases": ["Hotel accommodation", "What type of hotels do you stay at?"],
+    "selected_labels": ["4-star Hotel, 5-star hotel", "4-star Hotel", "5-star hotel", "Upscale / Luxury Hotel"],
+    "text_input_value": "4-star Hotel, 5-star hotel",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which Of these hotel chains, which one(s) have you stayed at during the last 12 months?",
+    "aliases": ["Hotel chains stayed at", "Hotels in last 12 months"],
+    "selected_labels": ["4-star Hotel, 5-star hotel", "Marriott", "Hilton", "Hyatt", "4-star Hotel"],
+    "text_input_value": "4-star Hotel, 5-star hotel",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "How often do you fly for business?",
+    "aliases": ["Business flights frequency", "How often do you travel for work by air?"],
+    "selected_labels": ["Once every 2-4 months", "Every 2 to 4 months", "3-4 times a year"],
+    "text_input_value": "Once every 2-4 months",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which of the following best describes what role you play when making traveling decisions for you and your household?",
+    "aliases": ["Travel decision maker", "Who makes travel plans?"],
+    "selected_labels": ["I am the sole decision-maker in airline and travel choices", "Sole decision maker"],
+    "text_input_value": "I am the sole decision-maker in airline and travel choices",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "For which purposes do you travel by plane?",
+    "aliases": ["Flight purposes", "Why do you fly?", "For which purposes do you travel?"],
+    "selected_labels": ["Both, Leisure and Business", "Both business and leisure", "Business and Personal"],
+    "text_input_value": "Both, Leisure and Business",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "How many flights did you book online in the past year?",
+    "aliases": ["Flights booked online", "Online flight bookings past year"],
+    "selected_labels": ["7to 9", "7 to 9", "7-9 flights", "6-10"],
+    "text_input_value": "7to 9",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which airlines have you flown with during the last 12 months?",
+    "aliases": ["Airlines flown", "Which carriers have you flown past year?"],
+    "selected_labels": ["United Airlines", "Delta Air Lines", "jet Blue", "Virgin Atlantic"],
+    "text_input_value": "United Airlines, Delta Air Lines, JetBlue",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which international airlines have you flown with during the last 12 months?",
+    "aliases": ["International airlines", "Foreign airlines flown past year"],
+    "selected_labels": ["Singapore Airlines", "EgyptAir", "Emirates", "Air Canada"],
+    "text_input_value": "Emirates, Singapore Airlines, Air Canada",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which of the following countries/regions have you travelled to in the last 12 months?",
+    "aliases": ["Countries visited", "Travel destinations past year"],
+    "selected_labels": ["Australia", "Japan", "North America"],
+    "text_input_value": "Australia, Japan, North America",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "When you fly, which types of flights do you take?",
+    "aliases": ["Flight types", "Domestic or international flights?"],
+    "selected_labels": ["Both domestic and international", "Domestic and international"],
+    "text_input_value": "Both domestic and international",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "How often do you eat fast food in any given week?",
+    "aliases": ["Fast food frequency", "How often do you visit fast food restaurants?"],
+    "selected_labels": ["1 to 3 times", "1-3 times a week", "1 to 3 times per week"],
+    "text_input_value": "1 to 3 times",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which fast food restaurants have you visited ever?",
+    "aliases": ["Fast food visited ever", "Fast food chains visited"],
+    "selected_labels": [
+      "A&W Restaurants",
+      "Arby’s",
+      "Burger King",
+      "Charley’s Grilled Subs",
+      "Hungry Jacks",
+      "KFC",
+      "McDonald’s",
+      "Panda express",
+      "Pizza Hut",
+      "Subway",
+      "Taco Bell",
+      "Wendy’s"
+    ],
+    "text_input_value": "McDonald's, Burger King, Subway, KFC, Taco Bell",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which of the following fast casual restaurants do you visit at least once every 3 months?",
+    "aliases": ["Fast casual restaurants", "Restaurants visited quarterly"],
+    "selected_labels": [
+      "Boston Market",
+      "Chipotle Mexican Grill",
+      "Five Guys Burgers & Fries",
+      "Firebirds",
+      "Friendly’s",
+      "Jerry’s Subs & Pizza",
+      "Jason’s Deli",
+      "Panda express",
+      "Skyline Chili",
+      "Smashburger",
+      "WinG stop",
+      "Baxby’s",
+      "Tim Horton’s."
+    ],
+    "text_input_value": "Chipotle, Five Guys, Panda Express, Tim Hortons",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which of the following TV Show do you currently watch?",
+    "aliases": ["TV shows watched", "Which television shows do you watch?"],
+    "selected_labels": [
+      "The Dr Oz Show",
+      "Crossing Swords (On Hulu)",
+      "Cobra Kale",
+      "The Chi (Season 3 on Showtime)",
+      "The Boys (Prime Video)",
+      "Coyote (Season 1)",
+      "S.W.A.T",
+      "The Crown on Netflix."
+    ],
+    "text_input_value": "The Boys, Cobra Kai, The Crown, S.W.A.T",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which types of publications do you read?",
+    "aliases": ["Publications read", "Magazines and publications genres"],
+    "selected_labels": [
+      "Computers & Electronics magazines",
+      "Cooking & food magazines",
+      "Entertainments",
+      "Fashion",
+      "Health & Fitness",
+      "Music",
+      "Science",
+      "technology",
+      "Travel"
+    ],
+    "text_input_value": "Technology, Science, Cooking, Health & Fitness",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which of the following do you currently subscribe to/own?",
+    "aliases": ["Subscriptions owned", "Media subscriptions"],
+    "selected_labels": [
+      "Connected Device for the TV Set (Chromecast)",
+      "Premium channels Through your paid TV Service (HBO)",
+      "Tablet computer(iPad)",
+      "Smart phone (iPhone, Android)",
+      "Video Strimming (Netflix)",
+      "Video Games",
+      "Paid music (Spotify, Apple Music)",
+      "Smart home system (Google Home, Alexa)",
+      "Cable (Xfinity)"
+    ],
+    "text_input_value": "Netflix, Spotify, HBO, Chromecast",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which types/genres of podcasts do you usually listen to?",
+    "aliases": ["Podcast genres", "Podcasts listened to"],
+    "selected_labels": [
+      "Society & Culture",
+      "Music",
+      "Educations",
+      "Government & Organizations",
+      "TV & Film",
+      "Health",
+      "Science & Medicine",
+      "Technology",
+      "Sports & recreation",
+      "Kids & Family."
+    ],
+    "text_input_value": "Technology, Science, Education, News",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "how frequently do you listen to podcasts?",
+    "aliases": ["Podcast listening frequency", "How often do you listen to podcasts?"],
+    "selected_labels": ["Every day or most days", "Daily", "Most days"],
+    "text_input_value": "Every day or most days",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Have you shopped for any of the following insurance products & services in the past 12 months?",
+    "aliases": ["Insurance products shopped", "Insurance bought in past year"],
+    "selected_labels": ["health insurance", "Homeowners insurance"],
+    "text_input_value": "health insurance, Homeowners insurance",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which of the following online retailers have you shopped at in the past 30 days?",
+    "aliases": ["Online retailers past 30 days", "E-commerce sites shopped"],
+    "selected_labels": ["Amazon", "Best Buy", "eBay", "Target.com", "Walmart.com"],
+    "text_input_value": "Amazon, Walmart.com, Best Buy",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Do you use hearing aid?",
+    "aliases": ["Hearing aid", "Do you wear a hearing aid?"],
+    "selected_labels": ["No"],
+    "text_input_value": "No",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Do You Use Glasses or contact lenses?",
+    "aliases": ["Glasses or contacts", "Vision correction", "Do you wear glasses?"],
+    "selected_labels": ["Yes.", "Yes", "Glasses", "Contact lenses"],
+    "text_input_value": "Yes.",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Have you tried to quit smoking using any of these products/methods?",
+    "aliases": ["Smoking cessation methods", "Quit smoking products"],
+    "selected_labels": ["Cold Turkey", "Veep", "Vaping / E-cigarettes"],
+    "text_input_value": "Cold Turkey, Veep",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which of these devices do you regularly use with an internet connection?",
+    "aliases": ["Connected devices used regularly", "Internet connected devices"],
+    "selected_labels": ["Desktop Pc", "Apple Tv", "Smart Phone", "Tablet", "Speaker"],
+    "text_input_value": "Desktop Pc, Smart Phone, Tablet",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which of the following healthcare-related things have you done in the last 3 months?",
+    "aliases": ["Healthcare actions past 3 months", "Doctor visits past 3 months"],
+    "selected_labels": ["Video call phone call of text with a doctor", "Telehealth visit", "Spoke with doctor"],
+    "text_input_value": "Video call phone call of text with a doctor",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "how Frequently do you rent or download movies for home viewing?",
+    "aliases": ["Movie rental frequency", "How often do you rent movies?"],
+    "selected_labels": ["Three times per month", "3 times a month", "2-3 times per month"],
+    "text_input_value": "Three times per month",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which of the following brands of jeans if any have you brought within past 6 months?",
+    "aliases": ["Jeans brands bought", "Jeans purchased recently"],
+    "selected_labels": ["Levi’s", "Old Navy", "American Eagle"],
+    "text_input_value": "Levi's, Old Navy, American Eagle",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which of the following services do you utilize on a regular basis?",
+    "aliases": ["Services utilized regularly", "Apps and services used regularly"],
+    "selected_labels": ["Lyft", "Grub hub", "Airbnb", "UberEATS", "Uber", "Door Dash"],
+    "text_input_value": "Uber, DoorDash, Lyft",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which of the following activities have you done in past month?",
+    "aliases": ["Activities done past month", "Recent monthly activities"],
+    "selected_labels": ["Ranted a car", "Stayed in a hotel", "Rented a car"],
+    "text_input_value": "Rented a car, Stayed in a hotel",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Which of the following magazines do you read at least once every 1-2 months?",
+    "aliases": ["Magazines read regularly", "Magazines read every 1-2 months"],
+    "selected_labels": [
+      "Time",
+      "Vogue",
+      "Men’s health",
+      "Food & wine",
+      "ESPN the Magazine",
+      "Entertainment weekly",
+      "Allure",
+      "Bloomberg BusinessWeek."
+    ],
+    "text_input_value": "Time, Men's Health, Bloomberg BusinessWeek",
+    "recommended_action": "select_checkbox"
+  },
+  {
+    "question": "Please select your car model!",
+    "aliases": ["Car model", "What is your car model?", "Vehicle model"],
+    "selected_labels": ["Audi A 8 Sedan", "Audi A8", "A8 Sedan", "Audi A8 Sedan"],
+    "text_input_value": "Audi A 8 Sedan",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Have you suffered from any of the following employment-related issues due to covid-19?",
+    "aliases": ["COVID employment impact", "Employment issues COVID-19"],
+    "selected_labels": ["No, my employment has not been affected by those policies.", "No impact"],
+    "text_input_value": "No, my employment has not been affected by those policies.",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "What if any kind of health insurance do you have?",
+    "aliases": ["Health insurance type", "Health coverage"],
+    "selected_labels": ["Self-insured", "Employer-provided", "Private insurance"],
+    "text_input_value": "Self-insured",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Have you done any online research in last week / last month?",
+    "aliases": ["Online research screener", "Market research participation"],
+    "selected_labels": ["No"],
+    "text_input_value": "No",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Do you or dose anyone in your household work in any of the following industries?",
+    "aliases": ["Screener: Household work industries", "Excluded industries screener"],
+    "selected_labels": ["None of the above ( IT - only for samplicio )", "None of the above", "None of these"],
+    "text_input_value": "None of the above",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Have you participated in a market research study within the past 2 weeks, on any of the following topics?",
+    "aliases": ["Market research past 2 weeks", "Recent survey participation"],
+    "selected_labels": ["No"],
+    "text_input_value": "No",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Do you, or does anyone in your immediate family work for any of the following industries?",
+    "aliases": ["Immediate family industry screener", "Family employment screener"],
+    "selected_labels": ["None of the above", "None of these"],
+    "text_input_value": "None of the above",
+    "recommended_action": "select_radio"
+  }
+]

@@ -846,3 +846,334 @@ input:focus, select:focus {
 .helper-text a:hover {
   text-decoration: underline;
 }
+
+/* =========================================================================
+   Memory & Knowledge Base UI Styles
+   ========================================================================= */
+
+/* Copilot Tab Memory Hub Card */
+.memory-hub-card {
+  background: linear-gradient(135deg, rgba(11, 25, 44, 0.7) 0%, rgba(6, 18, 33, 0.9) 100%);
+  border: 1px solid rgba(0, 240, 255, 0.25);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3), inset 0 0 10px rgba(0, 240, 255, 0.05);
+}
+
+.memory-hub-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.memory-hub-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #e2e8f0;
+}
+
+.memory-saved-badge {
+  background: rgba(0, 255, 136, 0.15);
+  border: 1px solid #00ff88;
+  color: #00ff88;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  letter-spacing: 0.5px;
+}
+
+.memory-stats-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.mem-stat-pill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 10px;
+  color: #cbd5e1;
+}
+
+.pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.dot-cache {
+  background: #00ff88;
+  box-shadow: 0 0 5px #00ff88;
+}
+
+.dot-kb {
+  background: #38bdf8;
+  box-shadow: 0 0 5px #38bdf8;
+}
+
+.memory-btn-row {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-xs-pill {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: rgba(0, 240, 255, 0.1);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  color: #00f0ff;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-xs-pill:hover {
+  background: rgba(0, 240, 255, 0.25);
+  border-color: #00f0ff;
+  color: #fff;
+}
+
+.btn-xs-pill.btn-pill-danger {
+  background: rgba(255, 68, 102, 0.1);
+  border-color: rgba(255, 68, 102, 0.3);
+  color: #ff6688;
+}
+
+.btn-xs-pill.btn-pill-danger:hover {
+  background: rgba(255, 68, 102, 0.25);
+  border-color: #ff4466;
+  color: #fff;
+}
+
+/* Tab Memory Details */
+.memory-box-card {
+  background: rgba(11, 25, 44, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.memory-card-header {
+  margin-bottom: 10px;
+}
+
+.memory-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.memory-stat-box {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 10px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.stat-number {
+  font-size: 20px;
+  font-weight: 800;
+  color: #00f0ff;
+  line-height: 1.1;
+}
+
+.stat-number.text-accent {
+  color: #00ff88;
+}
+
+.stat-label {
+  font-size: 9.5px;
+  color: #94a3b8;
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.btn-action-danger {
+  width: 100%;
+  background: linear-gradient(135deg, rgba(255, 68, 102, 0.2) 0%, rgba(180, 20, 50, 0.3) 100%);
+  border: 1px solid #ff4466;
+  color: #ff8899;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-action-danger:hover {
+  background: #ff4466;
+  color: #fff;
+  box-shadow: 0 0 12px rgba(255, 68, 102, 0.5);
+}
+
+/* File Drop Zone */
+.file-drop-zone {
+  border: 2px dashed rgba(0, 240, 255, 0.35);
+  border-radius: 8px;
+  background: rgba(0, 240, 255, 0.03);
+  padding: 18px 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.file-drop-zone:hover, .file-drop-zone.drag-over {
+  border-color: #00f0ff;
+  background: rgba(0, 240, 255, 0.1);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+}
+
+.drop-icon {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+.drop-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #00f0ff;
+}
+
+.drop-sub {
+  font-size: 10px;
+  color: #cbd5e1;
+  margin-top: 2px;
+}
+
+.drop-tag {
+  display: inline-block;
+  font-size: 8.5px;
+  color: #00ff88;
+  background: rgba(0, 255, 136, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 6px;
+}
+
+/* Attached Files List */
+.kb-files-section {
+  margin-top: 12px;
+}
+
+.kb-files-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.kb-files-container {
+  max-height: 140px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.kb-file-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+}
+
+.kb-file-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.kb-file-name {
+  color: #f1f5f9;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+
+.kb-file-meta {
+  font-size: 9.5px;
+  color: #64748b;
+}
+
+.btn-file-delete {
+  background: transparent;
+  border: none;
+  color: #ff5577;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.btn-file-delete:hover {
+  background: rgba(255, 68, 102, 0.2);
+  color: #fff;
+}
+
+/* Source Badges on Detected Answers in Popup */
+.ans-source-badge {
+  display: inline-block;
+  font-size: 8.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ans-source-badge.tag-cache {
+  background: rgba(0, 255, 136, 0.15);
+  border: 1px solid #00ff88;
+  color: #00ff88;
+}
+
+.ans-source-badge.tag-kb {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid #38bdf8;
+  color: #38bdf8;
+}
+
+.ans-source-badge.tag-api {
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid #a855f7;
+  color: #c084fc;
+}
