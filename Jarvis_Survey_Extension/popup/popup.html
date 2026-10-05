@@ -16,13 +16,19 @@
           <div class="reactor-core"></div>
         </div>
         <div class="brand-text">
-        <h1>JARVIS 3.8 COPILOT</h1>
-          <span class="sub-text">GEMINI 3.8 FLASH • STANDALONE & AUTO-PILOT</span>
+        <h1>JARVIS 3.0 COPILOT</h1>
+          <span class="sub-text">HERMES AI 🤖 • GEMINI 3.8 • AUTO-PILOT</span>
         </div>
       </div>
-      <div class="status-indicator" id="gemini-status-badge">
-        <span class="pulse-indicator"></span>
-        <span class="status-name" id="model-name-badge">GEMINI 3.8</span>
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+        <div class="status-indicator" id="gemini-status-badge">
+          <span class="pulse-indicator"></span>
+          <span class="status-name" id="model-name-badge">GEMINI 3.8</span>
+        </div>
+        <div class="status-indicator" id="hermes-status-badge" style="background:linear-gradient(135deg,#1a0533,#2d0a5e);border:1px solid #7c3aed;">
+          <span class="pulse-indicator" style="background:#a855f7;"></span>
+          <span class="status-name" style="color:#c4b5fd;">HERMES AI 🤖</span>
+        </div>
       </div>
     </header>
 
@@ -79,7 +85,31 @@
         </div>
       </div>
 
-      <!-- MODE 1: Manual Mode (User Controlled) -->
+      <!-- HERMES AI LOCAL AGENT STATUS CARD -->
+      <div class="memory-hub-card" id="hermes-agent-card" style="background:linear-gradient(135deg,#0f0020 0%,#1a0040 50%,#0d0025 100%);border:1px solid #7c3aed;margin-bottom:8px;">
+        <div class="memory-hub-header">
+          <div class="memory-hub-title">
+            <span class="memory-icon">🤖</span>
+            <strong style="color:#c4b5fd;">Hermes AI Local Agent</strong>
+          </div>
+          <span class="memory-saved-badge" id="hermes-saved-badge" style="background:linear-gradient(135deg,#5b21b6,#7c3aed);" title="API calls saved by Hermes AI offline engine">🤖 0 Offline Ans</span>
+        </div>
+        <div class="memory-stats-row">
+          <div class="mem-stat-pill" title="Hermes AI rule patterns loaded" style="background:rgba(124,58,237,0.15);border-color:rgba(124,58,237,0.3);">
+            <span class="pill-dot" style="background:#a855f7;"></span>
+            <span style="color:#c4b5fd;">Rules: <strong id="hermes-rules-count">85+</strong></span>
+          </div>
+          <div class="mem-stat-pill" title="Questions answered by Hermes AI this session" style="background:rgba(124,58,237,0.15);border-color:rgba(124,58,237,0.3);">
+            <span class="pill-dot" style="background:#8b5cf6;"></span>
+            <span style="color:#c4b5fd;">Answered: <strong id="hermes-hit-count">0</strong></span>
+          </div>
+        </div>
+        <div style="padding:6px 2px 0;">
+          <p style="font-size:10px;color:#8b7aaa;margin:0;line-height:1.4;">
+            🤖 Hermes উত্তর দেয় <strong style="color:#c4b5fd;">API Key খরচ ছাড়াই</strong> — profile data থেকে সরাসরি। API শুধু যখন Hermes পারে না।
+          </p>
+        </div>
+      </div>
       <div class="manual-mode-card">
         <div class="mode-header">
           <span class="mode-icon">🎯</span>

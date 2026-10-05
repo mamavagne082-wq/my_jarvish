@@ -639,7 +639,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (resultsCount) resultsCount.innerText = answers.length;
 
     // Visual indicator based on answer source
-    if (data.is_from_cache || data.source === "memory_cache") {
+    if (data.source === "hermes" || (data.model_used && data.model_used.includes("Hermes")) || (data.provider_used && data.provider_used.includes("Hermes"))) {
+      const banner = document.createElement("div");
+      banner.style.cssText = "background: rgba(124, 58, 237, 0.16); border: 1px solid #7c3aed; border-radius: 6px; padding: 6px 10px; font-size: 11px; margin-bottom: 8px; color: #c4b5fd;";
+      banner.innerHTML = "🤖 <strong>Answered by Hermes AI Local Agent 🤖</strong><br><span style='color: #cbd5e1; font-size: 10px;'>100% অফলাইন এবং Zero API Cost এ প্রোফাইল ডাটাবেস থেকে নির্ভুল উত্তর নির্বাচিত (0 API Calls)।</span>";
+      resultsList.appendChild(banner);
+    } else if (data.is_from_cache || data.source === "memory_cache") {
       const banner = document.createElement("div");
       banner.style.cssText = "background: rgba(0, 255, 136, 0.12); border: 1px solid #00ff88; border-radius: 6px; padding: 6px 10px; font-size: 11px; margin-bottom: 8px; color: #00ff88;";
       banner.innerHTML = "⚡ <strong>Answered from Memory Cache ⚡</strong><br><span style='color: #cbd5e1; font-size: 10px;'>পূর্ববর্তী সার্ভে ইতিহাস থেকে 100% অফলাইনে উত্তর সম্পন্ন (0 API Calls / Zero Cost)।</span>";
@@ -652,7 +657,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     } else if (data.source === "mixed_api") {
       const banner = document.createElement("div");
       banner.style.cssText = "background: rgba(168, 85, 247, 0.12); border: 1px solid #a855f7; border-radius: 6px; padding: 6px 10px; font-size: 11px; margin-bottom: 8px; color: #c084fc;";
-      banner.innerHTML = "⚡🤖 <strong>Answered via Hybrid (Memory Cache + API)</strong><br><span style='color: #cbd5e1; font-size: 10px;'>কিছু উত্তর মেমরি ক্যাশ থেকে এবং বাকিগুলো AI API দিয়ে প্রস্তুত করা হয়েছে।</span>";
+      banner.innerHTML = "⚡🤖 <strong>Answered via Hybrid (Hermes/Memory + API)</strong><br><span style='color: #cbd5e1; font-size: 10px;'>পরিচিত প্রশ্নগুলো Hermes/মেমরি থেকে এবং বাকিগুলো AI API দিয়ে প্রস্তুত (API খরচ সর্বনিম্ন)।</span>";
       resultsList.appendChild(banner);
     } else if (data.is_screenshot_analysis) {
       const banner = document.createElement("div");
@@ -672,7 +677,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       const choice = (ans.selected_labels || []).join(", ") || ans.text_input_value || "Option Chosen";
 
       let sourceBadge = "";
-      if (ans.source === "memory_cache") {
+      if (ans.source === "hermes") {
+        sourceBadge = `<span class="ans-source-badge tag-hermes" style="background:rgba(124,58,237,0.3); color:#c4b5fd; border:1px solid #7c3aed; padding:1px 5px; border-radius:4px; font-size:9px; font-weight:600;">🤖 Hermes</span>`;
+      } else if (ans.source === "memory_cache") {
         sourceBadge = `<span class="ans-source-badge tag-cache">⚡ Cache</span>`;
       } else if (ans.source === "knowledge_base") {
         const fn = ans.fileName ? ` (${ans.fileName.slice(0, 14)})` : "";
@@ -958,6 +965,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (copilotCacheCount) copilotCacheCount.innerText = stats.cacheCount || 0;
         if (copilotKbCount) copilotKbCount.innerText = stats.kbEntriesCount || 0;
         if (badgeSavedCalls) badgeSavedCalls.innerText = `⚡ ${stats.savedApiCalls || 0} API Saved`;
+
+        const hermesHitCount = document.getElementById("hermes-hit-count");
+        const hermesSavedBadge = document.getElementById("hermes-saved-badge");
+        if (hermesHitCount) hermesHitCount.innerText = stats.hermesHits || 0;
+        if (hermesSavedBadge) hermesSavedBadge.innerText = `🤖 ${stats.hermesHits || 0} Offline Ans`;
 
         if (memQaCount) memQaCount.innerText = stats.cacheCount || 0;
         if (memHitCount) memHitCount.innerText = stats.savedApiCalls || 0;

@@ -1170,8 +1170,9 @@
       kbEntriesCount: kbEntriesCount,
       cacheHits: persistedStats.cacheHits || 0,
       kbHits: persistedStats.kbHits || 0,
+      hermesHits: persistedStats.hermesHits || 0,
       apiCalls: persistedStats.apiCalls || 0,
-      savedApiCalls: (persistedStats.cacheHits || 0) + (persistedStats.kbHits || 0),
+      savedApiCalls: (persistedStats.cacheHits || 0) + (persistedStats.kbHits || 0) + (persistedStats.hermesHits || 0),
       memoryApiKey: storage.memoryApiKey || "",
       memoryProvider: storage.memoryProvider || "local_offline"
     };
@@ -1203,11 +1204,13 @@
       stats.cacheHits = (stats.cacheHits || 0) + 1;
     } else if (type === "kb") {
       stats.kbHits = (stats.kbHits || 0) + 1;
+    } else if (type === "hermes") {
+      stats.hermesHits = (stats.hermesHits || 0) + 1;
     } else if (type === "api") {
       stats.apiCalls = (stats.apiCalls || 0) + 1;
     }
 
-    stats.savedApiCalls = (stats.cacheHits || 0) + (stats.kbHits || 0);
+    stats.savedApiCalls = (stats.cacheHits || 0) + (stats.kbHits || 0) + (stats.hermesHits || 0);
     await chrome.storage.local.set({ jarvis_memory_stats: stats });
   }
 

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Jarvis AI Survey Copilot",
-  "version": "2.0.0",
-  "description": "Real-time AI survey page analyzer & smart answer assistant. Gemini 2.5 Flash + OpenRouter support.",
+  "version": "3.0.0",
+  "description": "Hermes AI Local Agent + Gemini 3.8 Flash + OpenRouter. Zero-cost offline answering from profile. Instant, API-saving smart survey copilot.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

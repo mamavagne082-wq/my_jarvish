@@ -13,6 +13,16 @@ if (typeof importScripts !== "undefined") {
   }
 }
 
+// Import Hermes AI Local Agent (Zero-Cost Offline AI)
+if (typeof importScripts !== "undefined") {
+  try {
+    importScripts("hermes_agent.js");
+    console.log("[Jarvis] ✅ Hermes AI Local Agent loaded — Zero API cost mode active!");
+  } catch (e) {
+    console.error("[Jarvis ServiceWorker] Error importing hermes_agent.js:", e);
+  }
+}
+
 // === ALL REAL, VERIFIED GEMINI MODELS (Latest & Fastest First) ===
 const GEMINI_MODEL_CHAIN = [
   "gemini-3.8-flash",
@@ -129,7 +139,7 @@ chrome.runtime.onInstalled.addListener(async () => {
     }
   }
 
-  console.log("[Jarvis v2.0] Service worker ready. Gemini 3.8 Flash + Multi-Key Failover Chain loaded.");
+  console.log("[Jarvis v3.0] Service worker ready. Hermes AI + Gemini 3.8 Flash + OpenRouter Multi-Key Failover Chain loaded.");
 });
 
 // Listener for messages from Popup and Content Scripts
@@ -639,7 +649,7 @@ async function handleSurveyAnalysis(payload, tabId) {
   const questions = payload?.questions || [];
 
   // =========================================================================
-  // STEP 1: CHECK KNOWLEDGE BASE & LOCAL MEMORY CACHE BEFORE ANY API CALL
+  // STEP 1A: CHECK KNOWLEDGE BASE & LOCAL MEMORY CACHE BEFORE ANY API CALL
   // =========================================================================
   let memoryResolution = null;
   if (!isScreenshot && questions.length > 0 && typeof JarvisMemoryManager !== "undefined") {
@@ -651,8 +661,113 @@ async function handleSurveyAnalysis(payload, tabId) {
     }
   }
 
-  // 1A. COMPLETE CACHE / KB HIT: All questions answered without any API call!
-  if (memoryResolution && memoryResolution.allHit && memoryResolution.resolvedAnswers.length > 0) {
+  // =========================================================================
+  // STEP 1B: HERMES AI LOCAL AGENT — Zero-cost offline rule-based answering
+  //          Runs on questions NOT already resolved by Memory Cache / KB
+  //          Priority: Memory/KB → Hermes → Gemini/OpenRouter API
+  // =========================================================================
+  let hermesResolution = null;
+  const questionsAfterMemory = (!isScreenshot && memoryResolution)
+    ? memoryResolution.missingQuestions
+    : (!isScreenshot ? questions : []);
+
+  if (!isScreenshot && questionsAfterMemory.length > 0 && typeof HermesAgent !== "undefined") {
+    try {
+      hermesResolution = HermesAgent.resolveQuestions(questionsAfterMemory);
+      console.log(`[Hermes AI] Resolved ${hermesResolution.hitCount}/${questionsAfterMemory.length} questions offline (${hermesResolution.missCount} need API)`);
+    } catch (e) {
+      console.warn("[Jarvis ServiceWorker] Hermes resolution error:", e);
+    }
+  }
+
+  // =========================================================================
+  // CHECK FULL OFFLINE HIT: Memory + Hermes covered everything → 0 API calls
+  // =========================================================================
+  const memAnswers = (memoryResolution && memoryResolution.resolvedAnswers) ? memoryResolution.resolvedAnswers : [];
+  const hermesAnswers = (hermesResolution && hermesResolution.resolvedAnswers) ? hermesResolution.resolvedAnswers : [];
+  const allOfflineAnswers = [...memAnswers, ...hermesAnswers];
+
+  // Sort by original question index
+  allOfflineAnswers.sort((a, b) => (a.question_index || 0) - (b.question_index || 0));
+
+  const hermesFullCover = hermesResolution && hermesResolution.allHit;
+  const memFullCover = memoryResolution && memoryResolution.allHit;
+
+  // 1C. COMPLETE OFFLINE HIT: All questions answered without any API call!
+  if (!isScreenshot && allOfflineAnswers.length === questions.length && questions.length > 0) {
+    // Record cache/KB hits
+    if (memoryResolution && memoryResolution.cacheHitCount > 0) {
+      for (let c = 0; c < memoryResolution.cacheHitCount; c++) await JarvisMemoryManager.recordHit("cache");
+    }
+    if (memoryResolution && memoryResolution.kbHitCount > 0) {
+      for (let k = 0; k < memoryResolution.kbHitCount; k++) await JarvisMemoryManager.recordHit("kb");
+    }
+    if (hermesAnswers.length > 0 && typeof JarvisMemoryManager !== "undefined") {
+      for (let h = 0; h < hermesAnswers.length; h++) await JarvisMemoryManager.recordHit("hermes");
+    }
+
+    // Determine label
+    let providerLabel, summaryText;
+    if (hermesAnswers.length > 0 && memAnswers.length > 0) {
+      providerLabel = "Hermes AI + Memory Cache ⚡🤖";
+      summaryText = "Answered by Hermes AI + Memory Cache ⚡🤖";
+    } else if (hermesAnswers.length > 0) {
+      providerLabel = "Hermes AI Local Agent 🤖";
+      summaryText = "Answered by Hermes AI Local Agent 🤖";
+    } else {
+      const dominantSource = memoryResolution.dominantSource;
+      if (dominantSource === "knowledge_base") {
+        providerLabel = "Knowledge Base 📄";
+        summaryText = "Answered from Knowledge Base 📄";
+      } else if (dominantSource === "mixed_cache") {
+        providerLabel = "Memory & KB ⚡📄";
+        summaryText = "Answered from Memory Cache & Knowledge Base ⚡📄";
+      } else {
+        providerLabel = "Memory Cache ⚡";
+        summaryText = "Answered from Memory Cache ⚡";
+      }
+    }
+
+    const synthesizedData = {
+      page_summary: `${summaryText} (0 API Calls, 100% Offline Instant)`,
+      trap_detected: false,
+      trap_alert_message: "",
+      is_last_page: false,
+      estimated_human_reading_seconds: 1,
+      answers: allOfflineAnswers,
+      is_screenshot_analysis: false,
+      analyzed_at: Date.now(),
+      page_title: payload.title || "",
+      page_url: payload.url || "",
+      model_used: hermesAnswers.length > 0 ? "Hermes Local Agent" : "Offline Local Matcher",
+      provider_used: providerLabel,
+      source: hermesAnswers.length > 0 ? "hermes" : (memoryResolution ? memoryResolution.dominantSource : "cache"),
+      is_from_cache: true,
+      hermes_hit_count: hermesAnswers.length,
+      memory_hit_count: memAnswers.length
+    };
+
+    await chrome.storage.local.set({ lastAnalysisResult: synthesizedData });
+
+    try {
+      chrome.runtime.sendMessage({
+        action: "SURVEY_ANALYSIS_UPDATED",
+        data: synthesizedData
+      }).catch(() => {});
+    } catch (e) {}
+
+    return {
+      success: true,
+      providerUsed: providerLabel,
+      modelUsed: synthesizedData.model_used,
+      source: synthesizedData.source,
+      savedApiCall: true,
+      data: synthesizedData
+    };
+  }
+
+  // 1A (legacy). COMPLETE CACHE / KB HIT (no Hermes needed)
+  if (memoryResolution && memoryResolution.allHit && memoryResolution.resolvedAnswers.length > 0 && hermesAnswers.length === 0) {
     const dominantSource = memoryResolution.dominantSource;
     let providerLabel = "Memory Cache ⚡";
     let summaryText = "Answered from Memory Cache ⚡";
@@ -785,12 +900,24 @@ async function handleSurveyAnalysis(payload, tabId) {
     base64Image = payload.screenshot.replace(/^data:image\/[a-zA-Z+]+;base64,/, "");
   }
 
-  // If partial cache hit: send only missing questions to AI API to save tokens & latency
+  // If partial offline hit: send ONLY remaining missing questions to AI API
+  // This dramatically reduces API usage — only truly unknown questions go to API
   const originalQuestions = payload.questions || [];
   let apiPayload = payload;
-  if (!isScreenshot && memoryResolution && memoryResolution.missingQuestions.length > 0 && memoryResolution.resolvedAnswers.length > 0) {
+
+  // Determine remaining questions after Memory + Hermes
+  const remainingAfterHermes = hermesResolution ? hermesResolution.missingQuestions : questionsAfterMemory;
+  const allOfflineResolvedSoFar = [...memAnswers, ...hermesAnswers];
+
+  if (!isScreenshot && remainingAfterHermes.length > 0 && allOfflineResolvedSoFar.length > 0) {
     apiPayload = Object.assign({}, payload, {
-      questions: memoryResolution.missingQuestions
+      questions: remainingAfterHermes
+    });
+    console.log(`[Jarvis API] Sending only ${remainingAfterHermes.length}/${originalQuestions.length} questions to API (${allOfflineResolvedSoFar.length} answered offline by Hermes/Memory)`);
+  } else if (!isScreenshot && hermesResolution && hermesResolution.missingQuestions.length > 0 && memAnswers.length === 0) {
+    // Hermes missed some and no memory hits either
+    apiPayload = Object.assign({}, payload, {
+      questions: hermesResolution.missingQuestions
     });
   }
 
@@ -872,10 +999,31 @@ async function handleSurveyAnalysis(payload, tabId) {
     await JarvisMemoryManager.recordHit("api");
   }
 
-  // Merge with previously cached answers if partial hit occurred
-  if (!isScreenshot && memoryResolution && memoryResolution.resolvedAnswers.length > 0) {
-    const combinedAnswers = [...memoryResolution.resolvedAnswers, ...rawApiAnswers];
+  // Merge with offline answers (Memory + Hermes) if partial offline hit occurred
+  if (!isScreenshot && allOfflineResolvedSoFar.length > 0) {
+    if (typeof JarvisMemoryManager !== "undefined") {
+      if (hermesAnswers.length > 0) {
+        for (let h = 0; h < hermesAnswers.length; h++) await JarvisMemoryManager.recordHit("hermes");
+      }
+      if (memoryResolution && memoryResolution.cacheHitCount > 0) {
+        for (let c = 0; c < memoryResolution.cacheHitCount; c++) await JarvisMemoryManager.recordHit("cache");
+      }
+      if (memoryResolution && memoryResolution.kbHitCount > 0) {
+        for (let k = 0; k < memoryResolution.kbHitCount; k++) await JarvisMemoryManager.recordHit("kb");
+      }
+    }
+    const combinedAnswers = [...allOfflineResolvedSoFar, ...rawApiAnswers];
     // Re-sort by original question index
+    combinedAnswers.sort((a, b) => (a.question_index !== undefined ? a.question_index : 0) - (b.question_index !== undefined ? b.question_index : 0));
+    result.data.answers = combinedAnswers;
+    result.data.source = "mixed_api";
+    const offlineLabel = hermesAnswers.length > 0 ? "Hermes AI 🤖 + Memory ⚡" : "Memory Cache ⚡";
+    result.providerUsed = `${result.providerUsed} + ${offlineLabel}`;
+    result.data.hermes_hit_count = hermesAnswers.length;
+    result.data.memory_hit_count = memAnswers.length;
+    result.data.api_question_count = rawApiAnswers.length;
+  } else if (!isScreenshot && memoryResolution && memoryResolution.resolvedAnswers.length > 0) {
+    const combinedAnswers = [...memoryResolution.resolvedAnswers, ...rawApiAnswers];
     combinedAnswers.sort((a, b) => (a.question_index !== undefined ? a.question_index : 0) - (b.question_index !== undefined ? b.question_index : 0));
     result.data.answers = combinedAnswers;
     result.data.source = "mixed_api";
