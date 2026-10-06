@@ -39,11 +39,48 @@
     document.body.appendChild(badge);
   }
 
+  // Detect active Google Account details and notify extension background
+  function detectGoogleSession() {
+    try {
+      let detectedEmail = "";
+      const profileEls = document.querySelectorAll('a[aria-label*="@"], button[aria-label*="@"], img[alt*="@"], div[aria-label*="@"]');
+      for (const el of profileEls) {
+        const txt = el.getAttribute("aria-label") || el.getAttribute("alt") || el.innerText || "";
+        const m = txt.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+        if (m) {
+          detectedEmail = m[1];
+          break;
+        }
+      }
+
+      let detectedTier = "Gemini Standard";
+      if (document.body.innerText.includes("Gemini Advanced") || document.querySelector('[aria-label*="Advanced" i]')) {
+        detectedTier = "Gemini Advanced (Pro)";
+      } else if (document.body.innerText.includes("Gemini Pro") || document.querySelector('[aria-label*="Pro" i]')) {
+        detectedTier = "Gemini Pro";
+      }
+
+      if (detectedEmail) {
+        console.log(`[Jarvis Gemini Bridge] Detected active Google session: ${detectedEmail} (${detectedTier})`);
+        chrome.runtime.sendMessage({
+          action: "GEMINI_SESSION_DETECTED",
+          email: detectedEmail,
+          tier: detectedTier
+        }).catch(() => { });
+      }
+    } catch (_) { }
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", injectStatusBadge);
+    document.addEventListener("DOMContentLoaded", () => {
+      injectStatusBadge();
+      setTimeout(detectGoogleSession, 2500);
+    });
   } else {
     injectStatusBadge();
+    setTimeout(detectGoogleSession, 2500);
   }
+
 
   // Find input field on Gemini web
   function findGeminiInput() {
@@ -51,26 +88,31 @@
       'rich-textarea div[contenteditable="true"]',
       'div.ql-editor[contenteditable="true"]',
       'div[contenteditable="true"][role="textbox"]',
-      'div[role="textbox"]',
+      'rich-textarea [contenteditable="true"]',
+      'div[contenteditable="true"]',
       'textarea[aria-label*="prompt" i]',
+      'textarea[aria-label*="message" i]',
       'textarea'
     ];
     for (const sel of selectors) {
       const el = document.querySelector(sel);
       if (el && el.offsetParent !== null) return el;
     }
-    return document.querySelector('div[contenteditable="true"]');
+    return document.querySelector('rich-textarea [contenteditable="true"]') || document.querySelector('div[contenteditable="true"]');
   }
 
   // Find send button on Gemini web
   function findSendButton() {
     const selectors = [
+      'button[aria-label*="Send message" i]',
+      'button[aria-label*="Send prompt" i]',
       'button[aria-label*="Send" i]',
       'button[aria-label*="পাঠান" i]',
       'button.send-button',
       'button[data-test-id="send-button"]',
+      'button:has(mat-icon[fonticon="send"])',
       'mat-icon[fonticon="send"]',
-      'button:has(svg[data-icon="send"])'
+      'button:has(svg)'
     ];
     for (const sel of selectors) {
       const el = document.querySelector(sel);
@@ -140,16 +182,28 @@
     // 1. If screenshot provided, paste it first
     if (screenshotDataUrl) {
       await pasteImage(screenshotDataUrl, editor);
-      await new Promise(r => setTimeout(r, 800));
+      await new Promise(r => setTimeout(r, 1000));
     }
 
-    // 2. Set text content into editor
+    // 2. Set text content into editor with full Quill / Angular event simulation
     if (editor.isContentEditable) {
-      editor.innerText = promptText;
+      editor.focus();
+      try {
+        document.execCommand("selectAll", false, null);
+        document.execCommand("delete", false, null);
+      } catch (_) { }
+
+      let inserted = false;
+      try {
+        inserted = document.execCommand("insertText", false, promptText);
+      } catch (_) { }
+
+      if (!inserted || !editor.innerText.includes(promptText.slice(0, 30))) {
+        editor.innerText = promptText;
+        editor.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: promptText }));
+      }
       editor.dispatchEvent(new Event("input", { bubbles: true }));
       editor.dispatchEvent(new Event("change", { bubbles: true }));
-      // Also try inserting text via execCommand if needed
-      document.execCommand("insertText", false, " ");
     } else {
       editor.value = promptText;
       editor.dispatchEvent(new Event("input", { bubbles: true }));
@@ -158,31 +212,34 @@
 
     await new Promise(r => setTimeout(r, 500));
 
-    // 3. Find and click send button
+    // 3. Find and click send button or trigger Enter
     const sendBtn = findSendButton();
-    if (sendBtn) {
+    if (sendBtn && !sendBtn.disabled && sendBtn.getAttribute("aria-disabled") !== "true") {
       sendBtn.click();
       console.log("[Jarvis Gemini Bridge] Clicked send button");
     } else {
-      // Fallback: send Enter keydown
-      const enterEvent = new KeyboardEvent("keydown", {
-        bubbles: true,
-        cancelable: true,
-        key: "Enter",
-        code: "Enter",
-        keyCode: 13,
-        which: 13
-      });
-      editor.dispatchEvent(enterEvent);
-      console.log("[Jarvis Gemini Bridge] Sent Enter keypress");
+      const enterDown = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Enter", code: "Enter", keyCode: 13, which: 13 });
+      const enterPress = new KeyboardEvent("keypress", { bubbles: true, cancelable: true, key: "Enter", code: "Enter", keyCode: 13, which: 13 });
+      const enterUp = new KeyboardEvent("keyup", { bubbles: true, cancelable: true, key: "Enter", code: "Enter", keyCode: 13, which: 13 });
+      editor.dispatchEvent(enterDown);
+      editor.dispatchEvent(enterPress);
+      editor.dispatchEvent(enterUp);
+      console.log("[Jarvis Gemini Bridge] Sent Enter keypress sequence");
+      if (sendBtn) {
+        setTimeout(() => { try { sendBtn.click(); } catch (_) { } }, 300);
+      }
     }
 
+    // Count existing model responses before sending
+    const modelSelectors = 'model-response, [data-message-author="model"], .response-container';
+    const initialResponseCount = document.querySelectorAll(modelSelectors).length;
+
     // 4. Wait for response generation to complete
-    return await waitForGeminiResponse();
+    return await waitForGeminiResponse(45000, initialResponseCount, promptText);
   }
 
-  // Observe and extract Gemini's response
-  function waitForGeminiResponse(timeoutMs = 45000) {
+  // Observe and extract Gemini's response (Exclusively targets model output, never user query)
+  function waitForGeminiResponse(timeoutMs = 45000, initialResponseCount = 0, sentPromptText = "") {
     return new Promise((resolve, reject) => {
       const startTime = Date.now();
       let lastText = "";
@@ -191,7 +248,7 @@
       const checkInterval = setInterval(() => {
         if (Date.now() - startTime > timeoutMs) {
           clearInterval(checkInterval);
-          if (lastText.trim().length > 10) {
+          if (lastText.trim().length > 10 && (!sentPromptText || !lastText.includes(sentPromptText.slice(0, 50)))) {
             resolve({ success: true, text: lastText });
           } else {
             reject(new Error("Gemini response timed out after " + Math.round(timeoutMs / 1000) + "s"));
@@ -199,30 +256,56 @@
           return;
         }
 
-        // Check if Stop Generating button is still visible
-        const stopButtons = Array.from(document.querySelectorAll('button[aria-label*="Stop" i], button[aria-label*="থামান" i], button.stop-button'));
+        // Check for rate limit or quota messages on page
+        const bodySnippet = document.body ? document.body.innerText.slice(-2000) : "";
+        if (/You've reached your limit|usage limit|try again later|too many requests|hourly limit|capacity reached/i.test(bodySnippet)) {
+          clearInterval(checkInterval);
+          reject(new Error("RATE_LIMIT_EXCEEDED: Gemini account message limit reached."));
+          return;
+        }
+
+        // Check if Stop Generating button or streaming progress is visible
+        const stopButtons = Array.from(document.querySelectorAll(
+          'button[aria-label*="Stop" i], button[aria-label*="থামান" i], button.stop-button, mat-progress-bar, .streaming-indicator'
+        ));
         const isStillGenerating = stopButtons.some(b => b.offsetParent !== null);
 
-        // Find candidate response elements
+        // Find candidate response elements specifically from the model (NEVER user query)
         const candidateSelectors = [
-          'message-content',
+          'model-response .markdown',
+          'model-response message-content',
           'model-response',
-          '.response-container',
-          '.markdown',
-          'div[class*="response"]'
+          '[data-message-author="model"] .markdown',
+          '[data-message-author="model"] message-content',
+          '[data-message-author="model"]',
+          '.model-response-text',
+          '.response-container .markdown',
+          '.response-container'
         ];
-        let latestElement = null;
+
+        let modelElements = [];
         for (const sel of candidateSelectors) {
-          const list = document.querySelectorAll(sel);
-          if (list && list.length > 0) {
-            latestElement = list[list.length - 1];
+          const list = Array.from(document.querySelectorAll(sel));
+          const filtered = list.filter(el => {
+            // Must not be inside user query
+            if (el.closest('user-query') || el.closest('[data-message-author="user"]')) return false;
+            return true;
+          });
+          if (filtered.length > 0) {
+            modelElements = filtered;
             break;
           }
         }
 
-        if (latestElement) {
-          const currentText = latestElement.innerText || latestElement.textContent || "";
-          if (currentText.trim().length > 0) {
+        if (modelElements.length > 0) {
+          const latestElement = modelElements[modelElements.length - 1];
+          const currentText = (latestElement.innerText || latestElement.textContent || "").trim();
+
+          // Ensure this text is not the user's prompt
+          const isUserPrompt = sentPromptText && currentText.length > 0 &&
+            (sentPromptText.includes(currentText) || currentText.includes(sentPromptText.slice(0, 60)));
+
+          if (!isUserPrompt && currentText.length > 15) {
             if (currentText === lastText) {
               stableCount++;
             } else {
@@ -230,10 +313,10 @@
               lastText = currentText;
             }
 
-            // If not actively generating and text was stable for >= 2 checks (1 sec)
-            if (!isStillGenerating && stableCount >= 2 && lastText.length > 20) {
+            // If not actively generating and text was stable for >= 3 checks (1.5 sec)
+            if (!isStillGenerating && stableCount >= 3 && lastText.length > 25) {
               clearInterval(checkInterval);
-              console.log("[Jarvis Gemini Bridge] Response captured successfully!");
+              console.log("[Jarvis Gemini Bridge] ✅ Response captured successfully (" + lastText.length + " chars)!");
               resolve({ success: true, text: lastText });
               return;
             }

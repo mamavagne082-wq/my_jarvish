@@ -129,6 +129,8 @@
       if (message.data) {
         lastAnalysisResult = message.data;
         renderAnalysisInHUD(message.data);
+        renderProminentAnswersBox(message.data);
+        attachInPageAnswerBadges(message.data);
       }
       sendResponse({ success: true });
       return true;
@@ -486,6 +488,8 @@
 
     // Render results in floating HUD
     renderAnalysisInHUD(data);
+    renderProminentAnswersBox(data);
+    attachInPageAnswerBadges(data);
     const modelTag = response.modelUsed || "Gemini 3.8 Flash";
     const providerTag = response.providerUsed ? ` (${response.providerUsed})` : "";
     updateHUDStatus("done", `✅ ${modelTag}${providerTag}: স্ক্রিনশট বিশ্লেষণ সফল!`);
@@ -503,9 +507,9 @@
     const selectCount = await autoSelectFromVisionResults(data);
 
     if (selectCount > 0) {
-      updateHUDStatus("done", `✅ স্ক্রিনশট এনালাইসিস সম্পন্ন! ${selectCount}টি উত্তর সিলেক্ট হয়েছে। নিচে সঠিক উত্তরসমূহ দেখানো হলো।`);
+      updateHUDStatus("done", `✅ স্ক্রিনশট এনালাইসিস সম্পন্ন! ${selectCount}টি উত্তর সিলেক্ট হয়েছে। নিচে সঠিক উত্তরসমূহ বোল্ড করে দেখানো হলো।`);
     } else {
-      updateHUDStatus("done", `✅ স্ক্রিনশট এনালাইসিস সম্পন্ন! সঠিক উত্তর নিচে দেখানো হলো (এইটা এইটা উত্তর হবে)।`);
+      updateHUDStatus("done", `💡 স্ক্রিনশট এনালাইসিস সম্পন্ন! পেজে অটো-সিলেক্ট বা টাইপ করা যায়নি—নিচে ও পেজে বোল্ড করে দেখানো হলো: '👉 এটা হবে সঠিক উত্তর'।`);
     }
 
     return { success: true, data: data, filledCount: selectCount, isScreenshot: true };
@@ -573,7 +577,7 @@
       if (!qs || qs.length === 0) return "";
       return qs.map(q => {
         const textPart = (q.text || "").slice(0, 80).trim().toLowerCase();
-        const optPart = (q.options || []).map(o => (o.text || "").slice(0, 30).trim().toLowerCase()).join("|");
+        const optPart = (q.options || []).map(o => (o.label || o.value || o.text || "").slice(0, 30).trim().toLowerCase()).join("|");
         return `${textPart}::${optPart}`;
       }).join("###");
     } catch (e) {
@@ -594,11 +598,16 @@
             console.log("[Jarvis AutoPilot] SPA DOM question change detected in-place! Triggering auto-pilot cycle...");
             triggerAutoPilotCycle();
           }
-        }, 1800);
+        }, 1500);
       });
 
       if (document.body) {
-        spaMutationObserver.observe(document.body, { childList: true, subtree: true, characterData: false });
+        spaMutationObserver.observe(document.body, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ["class", "style", "aria-hidden", "hidden", "data-state", "disabled"]
+        });
       }
     } catch (e) {
       console.warn("[Jarvis AutoPilot] SPA observer setup warning:", e);
@@ -726,6 +735,9 @@
             analysisData = ssRes.data;
             filledCount = ssRes.filledCount || 0;
             usedScreenshot = true;
+            renderAnalysisInHUD(analysisData);
+            renderProminentAnswersBox(analysisData);
+            attachInPageAnswerBadges(analysisData);
           } else {
             // If still no questions and not a question page, check if there is an intro/transition button
             const nextBtnFallback = findNextButton();
@@ -744,6 +756,12 @@
             autoPilotRunningCycle = false;
             return;
           }
+        }
+
+        if (filledCount === 0 && analysisData?.answers?.length > 0) {
+          updateHUDStatus("done", "💡 পেজে উত্তর অটো-সিলেক্ট বা টাইপ করা যায়নি—নিচে ও পেজে বোল্ড করে সঠিক উত্তর লেখা হয়েছে। আপনি দেখে সিলেক্ট বা টাইপ করে Next চাপুন।");
+          autoPilotRunningCycle = false;
+          return;
         }
 
         if (!isAutoPilotActive) {
@@ -833,7 +851,60 @@
           }
         } else {
           lastHandledQuestionFingerprint = initialQuestionsSig;
-          updateHUDStatus("done", "🤖 পেজের উত্তর সম্পন্ন। স্বয়ংক্রিয় পরিবর্তনের জন্য পর্যবেক্ষণ করা হচ্ছে...");
+          updateHUDStatus("analyzing", "🤖 ইন-পেজ সার্ভে: কোনো Next বাটন নেই, স্বয়ংক্রিয়ভাবে পরবর্তী প্রশ্ন আসা পর্যবেক্ষণ করা হচ্ছে...");
+
+          // Polling loop for in-place question transitions (supports 10-15+ sequential questions on same page!)
+          let detectedNextQuestion = false;
+          let detectedDelayedNextBtn = null;
+          const pollStart = Date.now();
+          const maxWaitMs = 14000; // monitor for up to 14 seconds
+
+          while (Date.now() - pollStart < maxWaitMs) {
+            await sleep(600);
+            if (!isAutoPilotActive) { autoPilotRunningCycle = false; return; }
+
+            const currentSig = getQuestionsFingerprint();
+            if (currentSig && currentSig !== initialQuestionsSig) {
+              console.log("[Jarvis AutoPilot] Next in-place question detected! Proceeding to next question in sequence...");
+              detectedNextQuestion = true;
+              break;
+            }
+
+            const delayedBtn = findNextButton();
+            if (delayedBtn && isElementVisible(delayedBtn)) {
+              detectedDelayedNextBtn = delayedBtn;
+              break;
+            }
+          }
+
+          if (detectedNextQuestion) {
+            // Human reading pause for next question (2.5s - 4.0s)
+            const humanReadMs = 2600 + Math.random() * 1200;
+            updateHUDStatus("analyzing", `🤖 পরবর্তী প্রশ্ন দৃশ্যমান হয়েছে! মানুষের মতো পর্যবেক্ষণ চলছে (${(humanReadMs / 1000).toFixed(1)}s)...`);
+            autoPilotRunningCycle = false;
+            setTimeout(() => {
+              if (isAutoPilotActive && !autoPilotRunningCycle) {
+                triggerAutoPilotCycle();
+              }
+            }, humanReadMs);
+            return;
+          }
+
+          if (detectedDelayedNextBtn) {
+            const nextWaitMs = 2800 + Math.random() * 1000;
+            updateHUDStatus("done", `🤖 সমস্ত প্রশ্ন সম্পন্ন, Next বাটনে ক্লিক করা হচ্ছে (${(nextWaitMs / 1000).toFixed(1)}s)...`);
+            await sleep(nextWaitMs);
+            if (!isAutoPilotActive) { autoPilotRunningCycle = false; return; }
+            clickElementLikeHuman(detectedDelayedNextBtn);
+            setTimeout(() => {
+              if (isAutoPilotActive && !autoPilotRunningCycle) {
+                triggerAutoPilotCycle();
+              }
+            }, 3200);
+            return;
+          }
+
+          updateHUDStatus("done", "🤖 পেজের উত্তর সম্পন্ন। স্বয়ংক্রিয় পরিবর্তনের জন্য ব্যাকগ্রাউন্ডে পর্যবেক্ষণ চলছে...");
         }
 
       } catch (e) {
@@ -911,10 +982,10 @@
 
         if (filledCount > 0) {
           updateHUDStatus("done", isScreenshot
-            ? `✅ স্ক্রিনশট থেকে ${filledCount}টি উত্তর সিলেক্ট করা হয়েছে! নিচে সঠিক উত্তরসমূহ দেখানো হলো, দেখে Next চাপুন।`
+            ? `✅ স্ক্রিনশট থেকে ${filledCount}টি উত্তর সিলেক্ট করা হয়েছে! নিচে সঠিক উত্তরসমূহ বোল্ড করে দেখানো হলো, দেখে Next চাপুন।`
             : `✅ ম্যানুয়াল মোড: ${filledCount}টি উত্তর মানুষের মতো পূরণ সম্পন্ন! আপনি দেখে নিয়ে Next চাপুন।`);
         } else {
-          updateHUDStatus("done", `💡 সঠিক উত্তর নিচে জারভিসের বক্সে ও পেজে চিহ্নিত করা হলো (এইটা এইটা উত্তর হবে)। দেখে সিলেক্ট করে Next চাপুন।`);
+          updateHUDStatus("done", `💡 পেজে উত্তর অটো-সিলেক্ট বা টাইপ করা যায়নি—নিচে ও পেজে বোল্ড করে দেখানো হলো: '👉 এটা হবে সঠিক উত্তর'। দেখে সিলেক্ট বা টাইপ করে Next চাপুন।`);
         }
 
         return { success: true, filledCount, data: analysisData, isScreenshot };
@@ -1367,6 +1438,8 @@
 
       lastAnalysisResult = response.data;
       renderAnalysisInHUD(response.data);
+      renderProminentAnswersBox(response.data);
+      attachInPageAnswerBadges(response.data);
       highlightAnswersOnPage(response.data);
       const modelTag = response.modelUsed || "AI";
       const providerTag = response.providerUsed ? ` [${response.providerUsed}]` : "";
@@ -1597,6 +1670,35 @@
         return { success: false, message: "No analyzed answers available to fill." };
       }
 
+      // Universal answer normalization (guarantees seamless matching for Gemini Web & all AI formats)
+      const normalizedAnswers = (data.answers || []).map((ans, idx) => {
+        let qIdx = (typeof ans.question_index === "number") ? ans.question_index : (typeof ans.question_number === "number" ? ans.question_number - 1 : idx);
+        let labels = Array.isArray(ans.selected_labels) ? [...ans.selected_labels] : [];
+        if (labels.length === 0) {
+          if (ans.selected_label) labels.push(String(ans.selected_label));
+          else if (ans.answer && typeof ans.answer === "string") labels.push(ans.answer);
+          else if (ans.choice) labels.push(String(ans.choice));
+          else if (ans.value) labels.push(String(ans.value));
+        }
+        let action = ans.recommended_action || "select_radio";
+        if (ans.recommended_action === "type_text" || ans.text_input_value || ans.text) {
+          action = "type_text";
+        }
+        return {
+          ...ans,
+          question_index: qIdx,
+          selected_labels: labels,
+          recommended_action: action,
+          target_element_ids: Array.isArray(ans.target_element_ids) ? ans.target_element_ids : [],
+          text_input_value: ans.text_input_value || ans.text || (action === "type_text" && labels[0] ? labels[0] : null)
+        };
+      });
+
+      if (normalizedAnswers.length > 0 && normalizedAnswers[0].question_index === 1 && !normalizedAnswers.some(a => a.question_index === 0)) {
+        normalizedAnswers.forEach(a => { a.question_index -= 1; });
+      }
+      data.answers = normalizedAnswers;
+
       const { autoFillDelay } = await chrome.storage.local.get(["autoFillDelay"]);
       const isAuto = isAutoPilotActive;
       // Human simulation: At least 3 seconds gap between questions in Auto-Pilot mode as requested
@@ -1638,13 +1740,27 @@
           }
         }
 
-        // 3. If action is type_text and not filled yet
-        if (!filledThisAnswer && (ans.recommended_action === "type_text" || ans.text_input_value)) {
+        // 3. If action is type_text, message box, or open-ended textarea
+        if (!filledThisAnswer && (ans.recommended_action === "type_text" || ans.text_input_value || (labels.length > 0 && labels[0].length > 15))) {
           const qObj = questions[ans.question_index];
-          const textOpt = qObj?.options?.find(o => o.type === "text_input") ||
-            questions.flatMap(q => q.options).find(o => o.type === "text_input" && isElementVisible(o.element));
+          let targetEl = null;
+
+          // Check options with text/textarea/input types
+          const textOpt = qObj?.options?.find(o => ["text_input", "textarea", "text", "email", "number", "search", "url"].includes(o.type)) ||
+            questions.flatMap(q => q.options).find(o => ["text_input", "textarea", "text", "email", "number"].includes(o.type) && isElementVisible(o.element));
           if (textOpt && textOpt.element) {
-            await simulateHumanAction(textOpt.element, ans);
+            targetEl = textOpt.element;
+          }
+
+          // Search in question container or document
+          if (!targetEl) {
+            const allContainers = document.querySelectorAll(".QuestionOuter, .question, .survey-question, fieldset, .form-group, .survey-card, .survey-row, tr");
+            const qContainer = allContainers[ans.question_index] || document;
+            targetEl = qContainer.querySelector('textarea, input[type="text"], input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]):not([type="submit"]):not([type="button"]), [contenteditable="true"]');
+          }
+
+          if (targetEl && isElementVisible(targetEl)) {
+            await simulateHumanAction(targetEl, ans);
             filledCount++;
             filledThisAnswer = true;
           }
@@ -1863,7 +1979,11 @@
       // 1. TEXT INPUT / TEXTAREA / CONTENTEDITABLE
       if (element.isContentEditable) {
         element.focus();
-        const textToType = answer.text_input_value || "Overall good experience and dependable service.";
+        const textToType = (answer.text_input_value && answer.text_input_value !== "null")
+          ? answer.text_input_value.trim()
+          : (answer.selected_labels && answer.selected_labels[0] && answer.selected_labels[0].length > 3
+            ? answer.selected_labels[0].trim()
+            : "Overall positive experience with reliable and responsive service.");
         element.innerText = textToType;
         element.dispatchEvent(new InputEvent("input", { bubbles: true, data: textToType }));
         element.dispatchEvent(new Event("change", { bubbles: true }));
@@ -1876,7 +1996,9 @@
         element.focus();
         const textToType = (answer.text_input_value && answer.text_input_value !== "null")
           ? answer.text_input_value.trim()
-          : "The service has been dependable and easy to use.";
+          : (answer.selected_labels && answer.selected_labels[0] && answer.selected_labels[0].length > 3
+            ? answer.selected_labels[0].trim()
+            : "Overall positive experience with reliable and responsive service.");
 
         try {
           const proto = tag === "textarea" ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
@@ -2399,7 +2521,7 @@
 
     /**
      * Prominently displays all survey answers directly inside the Jarvis HUD
-     * Ensures the user clearly sees: "এইটা এইটা উত্তর হবে"
+     * Ensures the user clearly sees: "👉 এটা হবে সঠিক উত্তর: [উত্তর]"
      */
     function renderProminentAnswersBox(data) {
       const box = document.getElementById("jarvis-prominent-answers");
@@ -2414,23 +2536,95 @@
       list.innerHTML = "";
       data.answers.forEach((ans, idx) => {
         const item = document.createElement("div");
-        item.className = "jarvis-prominent-item";
-        const answerText = (ans.selected_labels && ans.selected_labels.length > 0)
-          ? ans.selected_labels.join(", ")
-          : (ans.text_input_value || "সঠিক বিকল্প");
+        const isMsg = ans.recommended_action === "type_text" || Boolean(ans.text_input_value) || Boolean(ans.text);
+        item.className = `jarvis-prominent-item ${isMsg ? "jarvis-p-msg-item" : ""}`;
+
+        const answerText = isMsg
+          ? (ans.text_input_value || ans.text || (ans.selected_labels && ans.selected_labels[0]) || "")
+          : ((ans.selected_labels && ans.selected_labels.length > 0) ? ans.selected_labels.join(", ") : (ans.text_input_value || "সঠিক বিকল্প"));
+
         const qText = ans.question_text || `প্রশ্ন ${idx + 1}`;
-        item.innerHTML = `
-          <strong class="jarvis-p-q">Q${idx + 1}: ${qText}</strong>
-          <span class="jarvis-p-ans">👉 এইটা উত্তর হবে: <strong>${answerText}</strong></span>
-        `;
+
+        if (isMsg) {
+          item.innerHTML = `
+            <div class="jarvis-p-q-header">
+              <strong class="jarvis-p-q">Q${idx + 1}: ${escapeHtml(qText)}</strong>
+              <span class="jarvis-p-badge-msg">📝 মেসেজ বক্স / টাইপ ফিল্ড</span>
+            </div>
+            <div class="jarvis-p-ans-box">
+              <span class="jarvis-p-ans-label">👉 <strong>এটা হবে সঠিক উত্তর:</strong></span>
+              <div class="jarvis-p-bold-ans">${escapeHtml(answerText)}</div>
+            </div>
+            <div class="jarvis-p-action-bar">
+              <button class="jarvis-p-copy-btn" type="button" title="ক্লিপবোর্ডে কপি করুন">📋 কপি করুন</button>
+              <span class="jarvis-p-hint">দেখে দেখে টাইপ করুন বা পেস্ট করুন</span>
+            </div>
+          `;
+
+          const copyBtn = item.querySelector(".jarvis-p-copy-btn");
+          if (copyBtn) {
+            copyBtn.addEventListener("click", () => {
+              copyTextSafely(answerText, copyBtn);
+            });
+          }
+        } else {
+          item.innerHTML = `
+            <strong class="jarvis-p-q">Q${idx + 1}: ${escapeHtml(qText)}</strong>
+            <div class="jarvis-p-ans-box">
+              <span class="jarvis-p-ans-label">👉 <strong>এটা হবে সঠিক উত্তর:</strong></span>
+              <span class="jarvis-p-bold-ans">${escapeHtml(answerText)}</span>
+            </div>
+          `;
+        }
+
         list.appendChild(item);
       });
       box.classList.remove("jarvis-hidden");
     }
 
+    function copyTextSafely(text, btn) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          if (btn) {
+            btn.innerText = "✅ কপি হয়েছে!";
+            setTimeout(() => { btn.innerText = "📋 কপি করুন"; }, 2000);
+          }
+        }).catch(() => fallbackCopy(text, btn));
+      } else {
+        fallbackCopy(text, btn);
+      }
+    }
+
+    function fallbackCopy(text, btn) {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+        if (btn) {
+          btn.innerText = "✅ কপি হয়েছে!";
+          setTimeout(() => { btn.innerText = "📋 কপি করুন"; }, 2000);
+        }
+      } catch (_) { }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
     /**
      * Attaches prominent in-page helper badges directly under survey questions
-     * Even if elements cannot be clicked via script, user sees: "👉 জারভিস উত্তর: [Answer]"
+     * Even if elements cannot be clicked via script, user sees: "👉 এটা হবে সঠিক উত্তর: [Answer]"
      */
     function attachInPageAnswerBadges(data) {
       document.querySelectorAll(".jarvis-inline-question-callout").forEach(el => el.remove());
@@ -2439,9 +2633,10 @@
       const questions = extractSurveyQuestions();
 
       data.answers.forEach((ans, idx) => {
-        const answerText = (ans.selected_labels && ans.selected_labels.length > 0)
-          ? ans.selected_labels.join(", ")
-          : (ans.text_input_value || "সঠিক বিকল্প");
+        const isMsg = ans.recommended_action === "type_text" || Boolean(ans.text_input_value) || Boolean(ans.text);
+        const answerText = isMsg
+          ? (ans.text_input_value || ans.text || (ans.selected_labels && ans.selected_labels[0]) || "")
+          : ((ans.selected_labels && ans.selected_labels.length > 0) ? ans.selected_labels.join(", ") : (ans.text_input_value || "সঠিক বিকল্প"));
 
         let targetContainer = null;
         if (typeof ans.question_index === "number" && questions[ans.question_index]?.options?.[0]?.element) {
@@ -2467,15 +2662,31 @@
 
         if (targetContainer && !targetContainer.querySelector(`.jarvis-inline-question-callout[data-ans-idx="${idx}"]`)) {
           const callout = document.createElement("div");
-          callout.className = "jarvis-inline-question-callout";
+          callout.className = `jarvis-inline-question-callout ${isMsg ? "jarvis-callout-msg-type" : ""}`;
           callout.setAttribute("data-ans-idx", String(idx));
           callout.innerHTML = `
             <div class="jarvis-callout-text">
-              <span class="jarvis-callout-icon">👉</span>
-              <span>জারভিস উত্তর: <strong>${answerText}</strong></span>
+              <span class="jarvis-callout-icon">${isMsg ? "📝" : "👉"}</span>
+              <span><strong>এটা হবে সঠিক উত্তর:</strong> <strong>${escapeHtml(answerText)}</strong></span>
             </div>
-            <button class="jarvis-callout-pick-btn" type="button" title="এই উত্তরটি পেজে অটো-সিলেক্ট করতে চাপুন">সিলেক্ট করুন 🎯</button>
+            <div class="jarvis-callout-btn-group">
+              ${isMsg ? `<button class="jarvis-callout-copy-btn" type="button" title="ক্লিপবোর্ডে কপি করুন">📋 কপি করুন</button>` : ""}
+              <button class="jarvis-callout-pick-btn" type="button" title="${isMsg ? "মেসেজ বক্সে বসান" : "এই উত্তরটি পেজে অটো-সিলেক্ট করতে চাপুন"}">${isMsg ? "টাইপ করুন ✍️" : "সিলেক্ট করুন 🎯"}</button>
+            </div>
           `;
+
+          const copyBtn = callout.querySelector(".jarvis-callout-copy-btn");
+          if (copyBtn) {
+            copyBtn.addEventListener("click", (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              copyTextSafely(answerText, copyBtn);
+              const ta = targetContainer.querySelector("textarea, input[type='text'], [contenteditable='true']");
+              if (ta) {
+                simulateHumanAction(ta, ans);
+              }
+            });
+          }
 
           const pickBtn = callout.querySelector(".jarvis-callout-pick-btn");
           if (pickBtn) {
@@ -2483,27 +2694,33 @@
               e.preventDefault();
               e.stopPropagation();
               pickBtn.disabled = true;
-              pickBtn.innerText = "সিলেক্ট হচ্ছে...";
+              pickBtn.innerText = isMsg ? "টাইপ হচ্ছে..." : "সিলেক্ট হচ্ছে...";
               try {
                 let el = null;
-                if (ans.selected_labels && ans.selected_labels.length > 0) {
+                if (isMsg) {
+                  el = targetContainer.querySelector("textarea, input[type='text'], input:not([type]), [contenteditable='true']");
+                }
+                if (!el && ans.selected_labels && ans.selected_labels.length > 0) {
                   el = findInputByLabelOrValue(ans.selected_labels[0], ans);
                 }
                 if (!el && ans.target_element_ids && ans.target_element_ids.length > 0) {
                   el = document.getElementById(ans.target_element_ids[0]);
                 }
+                if (!el) {
+                  el = targetContainer.querySelector("textarea, input[type='text'], input[type='radio'], input[type='checkbox'], select");
+                }
                 if (el) {
                   await simulateHumanAction(el, ans);
                   applyHighlightStyle(el, ans, idx + 1);
-                  pickBtn.innerText = "✅ সিলেক্টেড";
+                  pickBtn.innerText = isMsg ? "✅ টাইপ সম্পন্ন" : "✅ সিলেক্টেড";
                 } else {
-                  pickBtn.innerText = "চেষ্টা করা হয়েছে";
+                  copyTextSafely(answerText, pickBtn);
                 }
               } finally {
                 setTimeout(() => {
                   if (pickBtn) {
                     pickBtn.disabled = false;
-                    pickBtn.innerText = "সিলেক্ট করুন 🎯";
+                    pickBtn.innerText = isMsg ? "টাইপ করুন ✍️" : "সিলেক্ট করুন 🎯";
                   }
                 }, 2000);
               }

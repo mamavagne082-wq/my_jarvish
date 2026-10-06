@@ -77,7 +77,10 @@ class JarvisBridgeHandler(BaseHTTPRequestHandler):
                         "openRouterApiKey3": api_keys.get("openrouter_backup_2", ""),
                         "torveAiApiKey": api_keys.get("torveai", api_keys.get("torve", "")),
                         "torveAiApiKey2": api_keys.get("torveai_backup_1", ""),
-                        "torveAiApiKey3": api_keys.get("torveai_backup_2", "")
+                        "torveAiApiKey3": api_keys.get("torveai_backup_2", ""),
+                        "geminiAcc1Email": api_keys.get("gemini_web_plus_account", "plus.alamin@gmail.com"),
+                        "geminiAcc2Email": api_keys.get("gemini_web_pro_account", "pro.alamin@gmail.com"),
+                        "geminiAcc3Email": api_keys.get("gemini_web_ultra_account", "alaminmiah1976@gmail.com")
                     }
                 else:
                     resp = {"success": False, "error": "user_config.json not found"}
@@ -86,8 +89,27 @@ class JarvisBridgeHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(resp).encode("utf-8"))
             return
 
+        if self.path in ("/api/gemini_session", "/gemini_session"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self._send_cors_headers()
+            self.end_headers()
+            try:
+                import os
+                session_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "gemini_session.json")
+                if os.path.exists(session_path):
+                    with open(session_path, "r", encoding="utf-8") as f:
+                        session_data = json.load(f)
+                    self.wfile.write(json.dumps(session_data).encode("utf-8"))
+                else:
+                    self.wfile.write(json.dumps({"success": False, "error": "No saved session"}).encode("utf-8"))
+            except Exception as se:
+                self.wfile.write(json.dumps({"success": False, "error": str(se)}).encode("utf-8"))
+            return
+
         self.send_response(404)
         self.end_headers()
+
 
     def do_POST(self):
         content_length = int(self.headers.get("Content-Length", 0))
@@ -142,10 +164,27 @@ class JarvisBridgeHandler(BaseHTTPRequestHandler):
             self._send_cors_headers()
             self.end_headers()
             self.wfile.write(json.dumps({"status": "acknowledged"}).encode("utf-8"))
+        if self.path in ("/api/gemini_session", "/gemini_session"):
+            try:
+                import os
+                session_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "gemini_session.json")
+                with open(session_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self._send_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True, "message": "Session saved to disk"}).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self._send_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
 
         self.send_response(404)
         self.end_headers()
+
 
     def log_message(self, format, *args):
         # Suppress noisy default logging

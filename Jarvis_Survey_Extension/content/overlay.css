@@ -571,24 +571,112 @@
 
 .jarvis-prominent-item {
   background: rgba(0, 240, 255, 0.05) !important;
-  border-left: 3px solid #00ff88 !important;
-  padding: 6px 10px !important;
-  border-radius: 4px !important;
+  border-left: 3.5px solid #00ff88 !important;
+  padding: 8px 10px !important;
+  border-radius: 6px !important;
   font-size: 11px !important;
   line-height: 1.4 !important;
   color: #e2e8f0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+}
+
+.jarvis-prominent-item.jarvis-p-msg-item {
+  border-left-color: #f59e0b !important;
+  background: rgba(245, 158, 11, 0.08) !important;
+  border: 1px solid rgba(245, 158, 11, 0.3) !important;
+  border-left-width: 3.5px !important;
+}
+
+.jarvis-p-q-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 6px !important;
 }
 
 .jarvis-prominent-item strong.jarvis-p-q {
   color: #94a3b8 !important;
   display: block !important;
-  margin-bottom: 2px !important;
+  font-size: 11px !important;
 }
 
-.jarvis-prominent-item span.jarvis-p-ans {
-  color: #00ff88 !important;
+.jarvis-p-badge-msg {
+  background: rgba(245, 158, 11, 0.25) !important;
+  color: #fde047 !important;
+  border: 1px solid rgba(245, 158, 11, 0.5) !important;
+  font-size: 9px !important;
   font-weight: 700 !important;
+  padding: 1px 6px !important;
+  border-radius: 4px !important;
+  white-space: nowrap !important;
+}
+
+.jarvis-p-ans-box {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+
+.jarvis-p-ans-label {
+  font-size: 11px !important;
+  color: #cbd5e1 !important;
+}
+
+.jarvis-p-ans-label strong {
+  color: #00ff88 !important;
+}
+
+.jarvis-prominent-item.jarvis-p-msg-item .jarvis-p-ans-label strong {
+  color: #fde047 !important;
+}
+
+.jarvis-p-bold-ans {
+  color: #ffffff !important;
+  font-weight: 800 !important;
   font-size: 12px !important;
+  background: rgba(0, 255, 136, 0.15) !important;
+  border: 1px dashed #00ff88 !important;
+  padding: 3px 8px !important;
+  border-radius: 4px !important;
+  word-break: break-word !important;
+}
+
+.jarvis-prominent-item.jarvis-p-msg-item .jarvis-p-bold-ans {
+  background: rgba(245, 158, 11, 0.18) !important;
+  border-color: #f59e0b !important;
+  color: #fffbeb !important;
+  line-height: 1.4 !important;
+}
+
+.jarvis-p-action-bar {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-top: 4px !important;
+}
+
+.jarvis-p-copy-btn {
+  background: linear-gradient(135deg, #00f0ff 0%, #0284c7 100%) !important;
+  color: #031424 !important;
+  border: none !important;
+  border-radius: 4px !important;
+  padding: 3px 8px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+}
+
+.jarvis-p-copy-btn:hover {
+  transform: scale(1.04) !important;
+  box-shadow: 0 0 8px rgba(0, 240, 255, 0.5) !important;
+}
+
+.jarvis-p-hint {
+  font-size: 9px !important;
+  color: #94a3b8 !important;
 }
 
 .jarvis-btn-reapply {
@@ -630,6 +718,12 @@
   animation: jarvis-fade-in 0.3s ease !important;
 }
 
+.jarvis-inline-question-callout.jarvis-callout-msg-type {
+  border-color: #f59e0b !important;
+  background: linear-gradient(90deg, #1f1404 0%, #291a07 100%) !important;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.25) !important;
+}
+
 .jarvis-inline-question-callout .jarvis-callout-text {
   flex: 1 !important;
   color: #e2e8f0 !important;
@@ -639,8 +733,17 @@
 .jarvis-inline-question-callout .jarvis-callout-text strong {
   color: #00ff88 !important;
   font-size: 13px !important;
-  text-decoration: underline !important;
-  text-underline-offset: 2px !important;
+  font-weight: 800 !important;
+}
+
+.jarvis-inline-question-callout.jarvis-callout-msg-type .jarvis-callout-text strong {
+  color: #fde047 !important;
+}
+
+.jarvis-callout-btn-group {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
 }
 
 .jarvis-inline-question-callout .jarvis-callout-pick-btn {
@@ -658,5 +761,22 @@
 
 .jarvis-inline-question-callout .jarvis-callout-pick-btn:hover {
   background: #00cc6a !important;
+  transform: scale(1.04) !important;
+}
+
+.jarvis-callout-copy-btn {
+  background: linear-gradient(135deg, #00f0ff 0%, #0284c7 100%) !important;
+  color: #031424 !important;
+  border: none !important;
+  border-radius: 5px !important;
+  padding: 4px 10px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  transition: transform 0.15s !important;
+  white-space: nowrap !important;
+}
+
+.jarvis-callout-copy-btn:hover {
   transform: scale(1.04) !important;
 }

@@ -135,10 +135,10 @@ chrome.runtime.onInstalled.addListener(async () => {
   if (!toSet.openRouterApiKey2) toSet.openRouterApiKey2 = DEFAULT_SETTINGS.openRouterApiKey2;
   if (!toSet.torveAiModel) toSet.torveAiModel = DEFAULT_SETTINGS.torveAiModel;
   if (toSet.useTorveAi === undefined) toSet.useTorveAi = true;
-  if (!toSet.providerPriority || toSet.providerPriority === "gemini_first") {
-    toSet.providerPriority = (toSet.openRouterApiKey && !toSet.geminiApiKey) ? "openrouter_first" : (toSet.providerPriority || "openrouter_first");
+  if (!toSet.providerPriority) {
+    toSet.providerPriority = (toSet.useGeminiWeb !== false) ? "gemini_web_first" : "openrouter_first";
   }
-  if (!toSet.engineMode) toSet.engineMode = "ai_first";
+  if (!toSet.engineMode) toSet.engineMode = "smart_cost_saving";
 
   if (!toSet.personalInfo) {
     toSet.personalInfo = { ...DEFAULT_PERSONAL_INFO };
@@ -248,16 +248,57 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.action === "CONNECT_GEMINI_WEB") {
     if (typeof GeminiWebClient !== "undefined") {
-      GeminiWebClient.openOrConnectGeminiTab()
+      GeminiWebClient.loginOrConnectGoogleGemini({
+        accountIndex: message.accountIndex || 1,
+        email: message.email,
+        password: message.password,
+        directGoogleLogin: message.directGoogleLogin !== false,
+        forceLogin: message.forceLogin || false
+      })
         .then((tab) => sendResponse({ success: true, tabId: tab ? tab.id : null }))
         .catch((err) => sendResponse({ success: false, error: err.message }));
     } else {
-      chrome.tabs.create({ url: "https://gemini.google.com/app" })
+      const email = message.email ? `?Email=${encodeURIComponent(message.email)}&continue=https%3A%2F%2Fgemini.google.com%2Fapp` : "";
+      chrome.tabs.create({ url: `https://accounts.google.com/AccountChooser${email}`, active: true })
         .then((tab) => sendResponse({ success: true, tabId: tab.id }))
         .catch((err) => sendResponse({ success: false, error: err.message }));
     }
     return true;
   }
+
+  if (message.action === "EXPORT_GEMINI_SESSION") {
+    if (typeof GeminiWebClient !== "undefined") {
+      GeminiWebClient.exportSession()
+        .then((sessionData) => sendResponse({ success: true, session: sessionData }))
+        .catch((err) => sendResponse({ success: false, error: err.message }));
+    } else {
+      sendResponse({ success: false, error: "GeminiWebClient not loaded" });
+    }
+    return true;
+  }
+
+  if (message.action === "IMPORT_GEMINI_SESSION") {
+    if (typeof GeminiWebClient !== "undefined") {
+      GeminiWebClient.importSession(message.sessionData)
+        .then((res) => sendResponse(res))
+        .catch((err) => sendResponse({ success: false, error: err.message }));
+    } else {
+      sendResponse({ success: false, error: "GeminiWebClient not loaded" });
+    }
+    return true;
+  }
+
+  if (message.action === "GEMINI_SESSION_DETECTED") {
+    chrome.storage.local.set({
+      geminiWebConnected: true,
+      geminiAccountEmail: message.email || "Active Google Session",
+      geminiAccountTier: message.tier || "Gemini Advanced (Pro)"
+    }).then(() => {
+      sendResponse({ success: true });
+    }).catch((err) => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
 
   if (message.action === "NOTIFY_JARVIS_EVENT") {
     notifyJarvisDesktop(message.event, {
@@ -829,21 +870,38 @@ async function handleSurveyAnalysis(payload, tabId) {
 
   const hasAnyApiKey = (geminiKeys.length > 0 || openRouterKeys.length > 0 || torveAiKeys.length > 0);
 
+  let result = null;
+  let lastError = null;
+  let apiPayload = payload;
+
+  const originalQuestions = payload.questions || [];
+  const persona = storage.surveyPersona || {};
+  const personalInfo = storage.personalInfo || null;
+
+  let base64Image = null;
+  let fullDataUrl = null;
+
+  if (isScreenshot && payload.screenshot) {
+    fullDataUrl = payload.screenshot;
+    base64Image = payload.screenshot.replace(/^data:image\/[a-zA-Z+]+;base64,/, "");
+  }
+
   // =========================================================================
-  // STEP 1: SMART ZERO-COST OFFLINE & KNOWLEDGE BASE RESOLUTION (Cost-Saving)
-  // Check Knowledge Base & Hermes AI Local Agent before making any API calls
+  // STEP 1: CHECK KNOWLEDGE BASE (USER FILES) & LOCAL MEMORY CACHE FIRST!
+  // Checks previously completed survey QA & user uploaded files (0 API, 0 Gemini message)
   // =========================================================================
   let memoryResolution = null;
   let hermesResolution = null;
   let memAnswers = [];
   let hermesAnswers = [];
   let questionsAfterMemory = questions;
+  let allOfflineResolvedSoFar = [];
 
   if (engineMode !== "ai_only" && !isScreenshot && questions.length > 0) {
     if (typeof JarvisMemoryManager !== "undefined") {
       try {
         memoryResolution = await JarvisMemoryManager.resolveSurveyQuestions(questions);
-        console.log(`[Jarvis Memory] Checked ${questions.length} questions: ${memoryResolution.resolvedAnswers.length} hits, ${memoryResolution.missingQuestions.length} misses`);
+        console.log(`[Jarvis Memory] Checked ${questions.length} questions: ${memoryResolution.resolvedAnswers.length} hits (${memoryResolution.kbHitCount} KB, ${memoryResolution.cacheHitCount} Cache), ${memoryResolution.missingQuestions.length} misses`);
       } catch (e) {
         console.warn("[Jarvis ServiceWorker] Memory resolution error:", e);
       }
@@ -854,7 +912,7 @@ async function handleSurveyAnalysis(payload, tabId) {
     if (questionsAfterMemory.length > 0 && typeof HermesAgent !== "undefined") {
       try {
         hermesResolution = HermesAgent.resolveQuestions(questionsAfterMemory);
-        console.log(`[Hermes AI] Resolved ${hermesResolution.hitCount}/${questionsAfterMemory.length} questions offline (${hermesResolution.missCount} need API)`);
+        console.log(`[Hermes AI] Resolved ${hermesResolution.hitCount}/${questionsAfterMemory.length} questions offline (${hermesResolution.missCount} need Gemini/API)`);
       } catch (e) {
         console.warn("[Jarvis ServiceWorker] Hermes resolution error:", e);
       }
@@ -862,11 +920,11 @@ async function handleSurveyAnalysis(payload, tabId) {
 
     memAnswers = (memoryResolution && memoryResolution.resolvedAnswers) ? memoryResolution.resolvedAnswers : [];
     hermesAnswers = (hermesResolution && hermesResolution.resolvedAnswers) ? hermesResolution.resolvedAnswers : [];
-    const allOfflineAnswers = [...memAnswers, ...hermesAnswers];
-    allOfflineAnswers.sort((a, b) => (a.question_index || 0) - (b.question_index || 0));
+    allOfflineResolvedSoFar = [...memAnswers, ...hermesAnswers];
+    allOfflineResolvedSoFar.sort((a, b) => (a.question_index || 0) - (b.question_index || 0));
 
-    // COMPLETE OFFLINE HIT: 100% of questions resolved from Profile/Memory!
-    if (allOfflineAnswers.length === questions.length && questions.length > 0) {
+    // COMPLETE 100% HIT: Every question found in Knowledge Base / Memory Cache!
+    if (allOfflineResolvedSoFar.length === questions.length && questions.length > 0) {
       if (memoryResolution && memoryResolution.cacheHitCount > 0) {
         for (let c = 0; c < memoryResolution.cacheHitCount; c++) await JarvisMemoryManager.recordHit("cache");
       }
@@ -877,27 +935,29 @@ async function handleSurveyAnalysis(payload, tabId) {
         for (let h = 0; h < hermesAnswers.length; h++) await JarvisMemoryManager.recordHit("hermes");
       }
 
-      let providerLabel = "Hermes AI + Memory Cache ⚡🤖";
-      if (hermesAnswers.length > 0 && memAnswers.length === 0) providerLabel = "Hermes AI Local Agent 🤖";
-      else if (memAnswers.length > 0 && hermesAnswers.length === 0) providerLabel = "Memory Cache & KB ⚡📄";
+      let providerLabel = "User Knowledge Base & Memory Cache ⚡📄";
+      if (memoryResolution?.kbHitCount > 0 && memoryResolution?.cacheHitCount === 0) providerLabel = "User Knowledge Base Files 📄 (Master Dataset)";
+      else if (memoryResolution?.cacheHitCount > 0 && memoryResolution?.kbHitCount === 0) providerLabel = "Local Memory Cache ⚡ (Previous Survey QA)";
+      else if (hermesAnswers.length > 0 && memAnswers.length === 0) providerLabel = "Hermes AI Local Agent 🤖";
 
       const synthesizedData = {
-        page_summary: `Answered by ${providerLabel} (0 API Calls, 100% Offline Instant)`,
+        page_summary: `Answered by ${providerLabel} (0 API Calls, 0 Gemini Web used, 100% Instant)`,
         trap_detected: false,
         trap_alert_message: "",
         is_last_page: false,
         estimated_human_reading_seconds: 1,
-        answers: allOfflineAnswers,
+        answers: allOfflineResolvedSoFar,
         is_screenshot_analysis: false,
         analyzed_at: Date.now(),
         page_title: payload.title || "",
         page_url: payload.url || "",
-        model_used: hermesAnswers.length > 0 ? "Hermes Local Agent" : "Offline Local Matcher",
+        model_used: "Local Memory & Knowledge Base",
         provider_used: providerLabel,
-        source: hermesAnswers.length > 0 ? "hermes" : (memoryResolution ? memoryResolution.dominantSource : "cache"),
+        source: memoryResolution ? memoryResolution.dominantSource : "cache",
         is_from_cache: true,
         hermes_hit_count: hermesAnswers.length,
-        memory_hit_count: memAnswers.length
+        memory_hit_count: memAnswers.length,
+        kb_hit_count: memoryResolution?.kbHitCount || 0
       };
 
       await chrome.storage.local.set({ lastAnalysisResult: synthesizedData });
@@ -921,25 +981,49 @@ async function handleSurveyAnalysis(payload, tabId) {
   }
 
   // =========================================================================
-  // STEP 2: CALL AI API (GEMINI / OPENROUTER / TORVE AI / OPENAI / PC BRIDGE)
+  // STEP 2: QUERY GOOGLE GEMINI WEB ACCOUNTS (Plus, Pro, Ultra, Advanced) - 0 API Cost!
+  // For any missing or new questions not yet in Memory/KB, directly query Gemini Web
   // =========================================================================
-  let result = null;
-  let lastError = null;
-
-  const originalQuestions = payload.questions || [];
-  const persona = storage.surveyPersona || {};
-  const personalInfo = storage.personalInfo || null;
-
-  let base64Image = null;
-  let fullDataUrl = null;
-
-  if (isScreenshot && payload.screenshot) {
-    fullDataUrl = payload.screenshot;
-    base64Image = payload.screenshot.replace(/^data:image\/[a-zA-Z+]+;base64,/, "");
+  const remainingQuestions = hermesResolution ? hermesResolution.missingQuestions : questionsAfterMemory;
+  if (!isScreenshot && remainingQuestions.length > 0 && allOfflineResolvedSoFar.length > 0) {
+    apiPayload = Object.assign({}, payload, { questions: remainingQuestions });
+    console.log(`[Jarvis ServiceWorker] Memory resolved ${allOfflineResolvedSoFar.length}/${questions.length}. Sending ONLY ${remainingQuestions.length} remaining questions to Gemini Web!`);
   }
 
-  // 1. Try local Jarvis Desktop AI Bridge first if PC is running and discuss mode
-  if (storage.localBridgeEnabled !== false) {
+  const useGeminiWeb = storage.useGeminiWeb !== false;
+  let priority = storage.providerPriority || "gemini_web_first";
+
+  if (!result && useGeminiWeb && (priority === "gemini_web_first" || priority === "gemini_web_only" || priority === "gemini_first" || !hasAnyApiKey || !priority.includes("only"))) {
+    try {
+      console.log(`[Jarvis ServiceWorker] Step 2: Requesting answers from Google Gemini Web Accounts (Plus/Pro/Advanced) for ${apiPayload.questions?.length || questions.length} questions...`);
+      const promptForWeb = isScreenshot
+        ? buildVisionSurveyPrompt(apiPayload, persona, personalInfo)
+        : buildHumanLikeSurveyPrompt(apiPayload, persona, personalInfo);
+
+      if (typeof GeminiWebClient !== "undefined") {
+        const webRes = await GeminiWebClient.executeSurveyQuery(
+          promptForWeb,
+          fullDataUrl || (base64Image ? ("data:image/jpeg;base64," + base64Image) : null)
+        );
+        if (webRes && webRes.data && webRes.data.answers && webRes.data.answers.length > 0) {
+          result = webRes;
+          console.log(`[Jarvis ServiceWorker] ✅ Successfully answered via Google Gemini Web Account (${result.data.answers.length} answers) - 0 API Cost!`);
+        }
+      }
+    } catch (webErr) {
+      console.warn("[Jarvis ServiceWorker] Gemini Web Account notice:", webErr.message);
+      if (priority === "gemini_web_only") {
+        lastError = webErr;
+      }
+    }
+  }
+
+  // =========================================================================
+  // STEP 3: FALLBACK TO DESKTOP BRIDGE OR EXTERNAL API KEYS
+  // =========================================================================
+
+  // 1. Try local Jarvis Desktop AI Bridge if PC is running
+  if (!result && storage.localBridgeEnabled !== false) {
     try {
       const bridgeUrl = (storage.localBridgeUrl || "http://127.0.0.1:8765") + "/survey_analyze";
       const ctrl = new AbortController();
@@ -947,7 +1031,7 @@ async function handleSurveyAnalysis(payload, tabId) {
       const bResp = await fetch(bridgeUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(apiPayload),
         signal: ctrl.signal
       });
       clearTimeout(tid);
@@ -964,32 +1048,6 @@ async function handleSurveyAnalysis(payload, tabId) {
         }
       }
     } catch (_) { }
-  }
-
-  // 1.5. Try Google Gemini Web Account (User's Pro / Advanced Session - 0 API Key Cost!)
-  const useGeminiWeb = storage.useGeminiWeb !== false;
-  let priority = storage.providerPriority || "gemini_web_first";
-
-  if (!result && useGeminiWeb && (priority === "gemini_web_first" || priority === "gemini_web_only" || !hasAnyApiKey)) {
-    try {
-      console.log("[Jarvis ServiceWorker] Initiating survey analysis via User's Google Gemini Web Account (Pro/Advanced)...");
-      const promptForWeb = isScreenshot
-        ? buildVisionSurveyPrompt(payload, persona, personalInfo)
-        : buildHumanLikeSurveyPrompt(payload, persona, personalInfo);
-
-      if (typeof GeminiWebClient !== "undefined") {
-        const webRes = await GeminiWebClient.executeSurveyQuery(promptForWeb, fullDataUrl || (base64Image ? ("data:image/jpeg;base64," + base64Image) : null));
-        if (webRes && webRes.data && webRes.data.answers && webRes.data.answers.length > 0) {
-          result = webRes;
-          console.log(`[Jarvis ServiceWorker] ✅ Successfully answered via Google Gemini Web Account (${result.data.answers.length} answers) - 0 API Cost!`);
-        }
-      }
-    } catch (webErr) {
-      console.warn("[Jarvis ServiceWorker] Gemini Web Account notice:", webErr.message);
-      if (priority === "gemini_web_only") {
-        lastError = webErr;
-      }
-    }
   }
 
   // 2. If desktop bridge & Gemini Web didn't handle and we have external API keys, call pipeline
@@ -1423,7 +1481,7 @@ OUTPUT INSTRUCTIONS:
 1. You MUST generate an answer for EVERY SINGLE question listed. Do not skip any!
 2. In "selected_labels", provide the EXACT string of the choice option as written in the question's options list or visible on page so it can be clicked.
 3. In "target_element_ids", provide the exact element ID from options if available.
-4. For text inputs, provide natural, realistic 1-2 sentences in first-person human voice ("ans as a human").
+4. For text inputs, message boxes, textareas, reasons, or open-ended questions: You MUST generate a natural, realistic, thoughtful 1 to 3 sentence answer in first-person human voice ("ans as a human") in "text_input_value" AND include it in "selected_labels": [your_text_answer]. Never leave text_input_value null for a text question!
 5. Return ONLY a valid JSON object matching this exact structure:
 {
   "page_summary": "1-sentence summary of survey topic",

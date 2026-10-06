@@ -186,6 +186,21 @@
         </button>
       </div>
 
+      <!-- PROMINENT CORRECT ANSWERS FALLBACK CARD (Under Manual Mode & Auto-Pilot Mode) -->
+      <div id="card-prominent-solution" class="prominent-solution-card hidden">
+        <div class="prominent-solution-header">
+          <div class="prominent-solution-title">
+            <span class="prominent-solution-icon">💡</span>
+            <strong>সঠিক উত্তর (এটা হবে সঠিক উত্তর):</strong>
+          </div>
+          <span class="prominent-solution-badge" id="prominent-solution-badge">সঠিক সমাধান</span>
+        </div>
+        <p class="prominent-solution-desc" id="prominent-solution-desc">
+          পেজে অপশন সিলেক্ট বা মেসেজ বক্সে টাইপ করা না গেলে নিচের বোল্ড করা উত্তর দেখে সিলেক্ট করুন বা কপি করে বসিয়ে দিন:
+        </p>
+        <div id="prominent-solution-items" class="prominent-solution-items"></div>
+      </div>
+
       <!-- Status Banner -->
       <div id="live-status-box" class="status-box">
         <span id="live-status-text">Gemini 3.8 Flash Ready. Click Auto-Pilot or 1-Click.</span>
@@ -552,6 +567,14 @@
         <small class="helper-text">★ ৩টি অ্যাকাউন্ট ক্রমানুসারে কাজ করবে: প্লাস ➡️ প্রো ➡️ আল্ট্রা প্রো। একটার সীমা শেষ হলে আরেকটা স্বয়ংক্রিয়ভাবে ধরবে।</small>
       </div>
 
+      <!-- Quick 1-Click Google Login Launcher -->
+      <div style="margin-bottom:10px;">
+        <button type="button" id="btn-quick-open-google-login" style="width:100%;padding:8px 12px;background:linear-gradient(135deg,#0284c7,#0369a1);border:1px solid #38bdf8;border-radius:6px;color:#fff;font-weight:700;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 2px 8px rgba(2,132,199,0.3);">
+          🌐 Google অফিসিয়াল লগইন পেজ ওপেন করুন (Account Chooser)
+        </button>
+        <small class="helper-text" style="margin-top:4px;display:block;">💡 গুগলের অরিজিনাল পেজ খুলবে। সেখানে আপনার অ্যাকাউন্ট সিলেক্ট বা ইউজারনেম/পাসওয়ার্ড ও 2FA দিয়ে নিশ্চিত করুন।</small>
+      </div>
+
       <!-- Account 1: Gemini Plus -->
       <div class="gemini-account-card" style="background:rgba(15,23,42,0.7);border:1px solid #38bdf8;border-radius:8px;padding:10px;margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
@@ -566,15 +589,18 @@
           <input type="email" id="input-gemini-email-acc1" placeholder="plus.account@gmail.com" style="width:100%;font-size:11px;padding:5px 8px;background:#090d16;border:1px solid #1e293b;border-radius:5px;color:#fff;">
         </div>
         <div class="form-group" style="margin-bottom:6px;">
-          <label for="input-gemini-pwd-acc1" style="font-size:10px;color:#94a3b8;">পাসওয়ার্ড / সেশন টোকেন (ঐচ্ছিক / অটো-ডিটেক্ট)</label>
+          <label for="input-gemini-pwd-acc1" style="font-size:10px;color:#94a3b8;">পাসওয়ার্ড (ঐচ্ছিক - Google লগইন পেজে অটো-টাইপ সাহায্য করবে)</label>
           <div class="api-key-row">
-            <input type="password" id="input-gemini-pwd-acc1" placeholder="•••••••• অথবা সেশন কুকি">
+            <input type="password" id="input-gemini-pwd-acc1" placeholder="•••••••• (ঐচ্ছিক)">
             <button id="btn-toggle-pwd-acc1" class="btn-small" type="button">👁️</button>
           </div>
         </div>
-        <div style="display:flex;gap:6px;margin-top:6px;">
-          <button type="button" class="btn-connect-acc btn btn-action-primary" id="btn-connect-acc1" data-acc="1" style="flex:1;font-size:10px;padding:5px 8px;">
-            🔗 প্লাস অ্যাকাউন্ট কানেক্ট / টেস্ট
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <button type="button" class="btn-google-direct-login" id="btn-google-login-acc1" data-acc="1" style="flex:1.4;font-size:11px;font-weight:700;padding:6px 10px;background:linear-gradient(135deg,#1a73e8,#4285f4);border:none;border-radius:6px;color:#fff;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;">
+            🌐 Google দিয়ে লগইন
+          </button>
+          <button type="button" class="btn-connect-acc btn btn-action-secondary" id="btn-connect-acc1" data-acc="1" style="flex:1;font-size:10px;padding:6px 8px;">
+            🔄 সেশন টেস্ট
           </button>
         </div>
       </div>
@@ -593,15 +619,18 @@
           <input type="email" id="input-gemini-email-acc2" placeholder="pro.account@gmail.com" style="width:100%;font-size:11px;padding:5px 8px;background:#090d16;border:1px solid #1e293b;border-radius:5px;color:#fff;">
         </div>
         <div class="form-group" style="margin-bottom:6px;">
-          <label for="input-gemini-pwd-acc2" style="font-size:10px;color:#94a3b8;">পাসওয়ার্ড / সেশন টোকেন (ঐচ্ছিক / অটো-ডিটেক্ট)</label>
+          <label for="input-gemini-pwd-acc2" style="font-size:10px;color:#94a3b8;">পাসওয়ার্ড (ঐচ্ছিক - Google লগইন পেজে অটো-টাইপ সাহায্য করবে)</label>
           <div class="api-key-row">
-            <input type="password" id="input-gemini-pwd-acc2" placeholder="•••••••• অথবা সেশন কুকি">
+            <input type="password" id="input-gemini-pwd-acc2" placeholder="•••••••• (ঐচ্ছিক)">
             <button id="btn-toggle-pwd-acc2" class="btn-small" type="button">👁️</button>
           </div>
         </div>
-        <div style="display:flex;gap:6px;margin-top:6px;">
-          <button type="button" class="btn-connect-acc btn btn-action-primary" id="btn-connect-acc2" data-acc="2" style="flex:1;font-size:10px;padding:5px 8px;">
-            🔗 প্রো অ্যাকাউন্ট কানেক্ট / টেস্ট
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <button type="button" class="btn-google-direct-login" id="btn-google-login-acc2" data-acc="2" style="flex:1.4;font-size:11px;font-weight:700;padding:6px 10px;background:linear-gradient(135deg,#7c3aed,#9333ea);border:none;border-radius:6px;color:#fff;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;">
+            🌐 Google দিয়ে লগইন
+          </button>
+          <button type="button" class="btn-connect-acc btn btn-action-secondary" id="btn-connect-acc2" data-acc="2" style="flex:1;font-size:10px;padding:6px 8px;">
+            🔄 সেশন টেস্ট
           </button>
         </div>
       </div>
@@ -620,19 +649,51 @@
           <input type="email" id="input-gemini-email-acc3" placeholder="ultra.account@gmail.com" style="width:100%;font-size:11px;padding:5px 8px;background:#090d16;border:1px solid #1e293b;border-radius:5px;color:#fff;">
         </div>
         <div class="form-group" style="margin-bottom:6px;">
-          <label for="input-gemini-pwd-acc3" style="font-size:10px;color:#94a3b8;">পাসওয়ার্ড / সেশন টোকেন (ঐচ্ছিক / অটো-ডিটেক্ট)</label>
+          <label for="input-gemini-pwd-acc3" style="font-size:10px;color:#94a3b8;">পাসওয়ার্ড (ঐচ্ছিক - Google লগইন পেজে অটো-টাইপ সাহায্য করবে)</label>
           <div class="api-key-row">
-            <input type="password" id="input-gemini-pwd-acc3" placeholder="•••••••• অথবা সেশন কুকি">
+            <input type="password" id="input-gemini-pwd-acc3" placeholder="•••••••• (ঐচ্ছিক)">
             <button id="btn-toggle-pwd-acc3" class="btn-small" type="button">👁️</button>
           </div>
         </div>
-        <div style="display:flex;gap:6px;margin-top:6px;">
-          <button type="button" class="btn-connect-acc btn btn-action-primary" id="btn-connect-acc3" data-acc="3" style="flex:1;font-size:10px;padding:5px 8px;">
-            🔗 আল্ট্রা প্রো কানেক্ট / টেস্ট
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <button type="button" class="btn-google-direct-login" id="btn-google-login-acc3" data-acc="3" style="flex:1.4;font-size:11px;font-weight:700;padding:6px 10px;background:linear-gradient(135deg,#d97706,#f59e0b);border:none;border-radius:6px;color:#fff;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;">
+            🌐 Google দিয়ে লগইন
+          </button>
+          <button type="button" class="btn-connect-acc btn btn-action-secondary" id="btn-connect-acc3" data-acc="3" style="flex:1;font-size:10px;padding:6px 8px;">
+            🔄 সেশন টেস্ট
           </button>
         </div>
       </div>
+
+      <!-- Universal Session Portability & Backup Hub -->
+      <div class="gemini-account-card" style="background:rgba(2,6,23,0.85);border:1px solid #10b981;border-radius:8px;padding:10px;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:13px;">💾</span>
+            <strong style="color:#34d399;font-size:11px;">লগইন সেশন ফাইল ট্রান্সফার (১ ক্লিকে অন্য এক্সটেনশনে নিয়ে যান)</strong>
+          </div>
+          <span class="badge-primary" style="font-size:8px;background:#065f46;color:#a7f3d0;">PORTABLE</span>
+        </div>
+        <small class="helper-text" style="color:#94a3b8;margin-bottom:8px;display:block;">
+          ★ একবার লগইন করে "Export" বাটনে চাপলে সেশন ফাইল ডাউনলোড হবে। অন্য যেকোনো ব্রাউজারে সেই ফাইল "Import" করলেই কোনো পাসওয়ার্ড ছাড়া অ্যাকাউন্ট স্বয়ংক্রিয় লগইন হয়ে যাবে!
+        </small>
+        <div style="display:flex;gap:6px;margin-top:6px;">
+          <button type="button" id="btn-export-gemini-session" class="btn" style="flex:1;font-size:10px;padding:6px 6px;background:rgba(16,185,129,0.15);border:1px solid #10b981;border-radius:5px;color:#34d399;cursor:pointer;font-weight:600;">
+            📥 সেশন এক্সপোর্ট
+          </button>
+          <button type="button" id="btn-import-gemini-session" class="btn" style="flex:1;font-size:10px;padding:6px 6px;background:rgba(56,189,248,0.15);border:1px solid #38bdf8;border-radius:5px;color:#38bdf8;cursor:pointer;font-weight:600;">
+            📤 সেশন ইমপোর্ট
+          </button>
+          <button type="button" id="btn-sync-gemini-desktop" class="btn" style="flex:1;font-size:10px;padding:6px 6px;background:rgba(168,85,247,0.15);border:1px solid #c084fc;border-radius:5px;color:#c084fc;cursor:pointer;font-weight:600;">
+            🔄 PC সিঙ্ক
+          </button>
+        </div>
+        <input type="file" id="file-import-gemini-session" accept=".json" style="display:none;">
+        <div id="session-transfer-msg" style="margin-top:8px;font-size:10px;padding:5px 8px;border-radius:4px;display:none;"></div>
+      </div>
+
       <div id="gemini-web-connect-msg" style="font-size:11px;color:#cbd5e1;margin-bottom:10px;display:none;"></div>
+
 
       <!-- OpenRouter API Section -->
       <div class="settings-section-title" style="margin-top:12px;">🌐 OpenRouter - Multi-Key Support</div>

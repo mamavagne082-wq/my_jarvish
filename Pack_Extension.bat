@@ -38,7 +38,8 @@ if defined BROWSER_EXE (
 )
 
 echo [4] Creating ZIP package for easy loading...
-powershell -NoProfile -Command "if (Test-Path '%OUT_ZIP%') { Remove-Item -Force '%OUT_ZIP%' }; Compress-Archive -Path '%EXT_DIR%\*' -DestinationPath '%OUT_ZIP%' -Force"
+powershell -NoProfile -Command "if (Test-Path '%OUT_ZIP%') { Remove-Item -Force '%OUT_ZIP%' }; Get-ChildItem -Path '%EXT_DIR%' -Exclude '__pycache__','*.pyc' | Compress-Archive -DestinationPath '%OUT_ZIP%' -Force"
+
 
 echo.
 echo ==========================================================

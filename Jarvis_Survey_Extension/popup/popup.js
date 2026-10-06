@@ -381,7 +381,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         geminiApiKey3: inputApiKey3 ? inputApiKey3.value.trim() : "",
         geminiModel: selectModel ? selectModel.value : "gemini-3.8-flash",
         engineMode: selectEngineMode ? selectEngineMode.value : "ai_first",
-        providerPriority: selectProviderPriority ? selectProviderPriority.value : "openrouter_first",
+        providerPriority: selectProviderPriority ? selectProviderPriority.value : "gemini_web_first",
         autoFillDelay: inputFillDelay ? parseInt(inputFillDelay.value, 10) || 350 : 350,
         useVisionScreenshot: false,
         localBridgeEnabled: checkLocalBridge ? checkLocalBridge.checked : true,
@@ -612,43 +612,279 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (msgBox) {
           msgBox.style.display = "block";
           msgBox.style.color = "#34d399";
-          msgBox.innerHTML = `✅ Gemini Multi-Account সেশন সংযুক্ত (${res.hasTab ? "ট্যাব রেডি" : "সেশন সক্রিয়"})। ৩টি অ্যাকাউন্ট ব্যাকআপ সহ আনলিমিটেড চলবে!`;
+          const emailInfo = res.email ? ` [${res.email}]` : "";
+          msgBox.innerHTML = `✅ Google Gemini সেশন সংযুক্ত${emailInfo} (${res.hasTab ? "ট্যাব রেডি" : "কুকি সক্রিয় - " + (res.cookieCount || "OK")})। ৩টি অ্যাকাউন্ট ব্যাকআপ সহ আনলিমিটেড চলবে!`;
         }
       } else {
+        const stAcc1 = document.getElementById("gemini-status-acc1");
+        if (stAcc1 && stAcc1.innerText === "Active") {
+          stAcc1.className = "badge-backup";
+          stAcc1.innerText = "Not Connected";
+        }
         if (msgBox) {
           msgBox.style.display = "block";
           msgBox.style.color = "#cbd5e1";
-          msgBox.innerHTML = `ℹ️ আপনার যেকোনো অ্যাকাউন্টে লগইন করতে নিচের 'কানেক্ট / টেস্ট' বাটনে চাপুন।`;
+          msgBox.innerHTML = `ℹ️ গুগল অ্যাকাউন্টে লগইন করতে '🌐 Google দিয়ে লগইন' বাটনে চাপুন। সরাসরি গুগলের অফিসিয়াল পেজ ওপেন হবে।`;
         }
       }
     });
   }
 
-  // Multi-Account individual connect buttons
-  document.querySelectorAll(".btn-connect-acc").forEach(btn => {
+  // 1. Direct Official Google Sign-In Buttons (Plus, Pro, Ultra)
+  document.querySelectorAll(".btn-google-direct-login").forEach(btn => {
     btn.addEventListener("click", (e) => {
       const accNum = e.currentTarget.getAttribute("data-acc") || "1";
       const accLabels = { "1": "Gemini Plus", "2": "Gemini Pro", "3": "Gemini Ultra Pro" };
-      chrome.runtime.sendMessage({ action: "CONNECT_GEMINI_WEB", accountIndex: accNum }, () => {
-        const msgBox = document.getElementById("gemini-web-connect-msg");
-        if (msgBox) {
-          msgBox.style.display = "block";
-          msgBox.style.color = "#38bdf8";
-          msgBox.innerHTML = `🔗 ${accLabels[accNum]} অ্যাকাউন্ট ব্রাউজারে চালু হচ্ছে... লগইন নিশ্চিত করুন।`;
-        }
-        setTimeout(checkGeminiWebLiveStatus, 2500);
+      const emailInput = document.getElementById(`input-gemini-email-acc${accNum}`);
+      const pwdInput = document.getElementById(`input-gemini-pwd-acc${accNum}`);
+      const emailVal = emailInput ? emailInput.value.trim() : "";
+      const pwdVal = pwdInput ? pwdInput.value.trim() : "";
+
+      const msgBox = document.getElementById("gemini-web-connect-msg");
+      if (msgBox) {
+        msgBox.style.display = "block";
+        msgBox.style.color = "#38bdf8";
+        msgBox.innerHTML = `🌐 ${accLabels[accNum]} এর জন্য Google অফিসিয়াল লগইন পেজ খোলা হচ্ছে... অ্যাকাউন্ট নির্বাচন বা লগইন সম্পন্ন করুন।`;
+      }
+
+      chrome.runtime.sendMessage({
+        action: "CONNECT_GEMINI_WEB",
+        accountIndex: accNum,
+        email: emailVal,
+        password: pwdVal,
+        directGoogleLogin: true,
+        forceLogin: true
+      }, () => {
+        // Poll status every 2 seconds
+        let checks = 0;
+        const pollTimer = setInterval(() => {
+          checkGeminiWebLiveStatus();
+          checks++;
+          if (checks >= 10) clearInterval(pollTimer);
+        }, 2000);
       });
     });
   });
 
-  const btnQuickOpenGeminiWeb = document.getElementById("btn-quick-open-gemini-web");
-  if (btnQuickOpenGeminiWeb) {
-    btnQuickOpenGeminiWeb.addEventListener("click", () => {
-      chrome.runtime.sendMessage({ action: "CONNECT_GEMINI_WEB" }, () => {
+  // 2. Session Test / Refresh Buttons
+  document.querySelectorAll(".btn-connect-acc").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const accNum = e.currentTarget.getAttribute("data-acc") || "1";
+      const accLabels = { "1": "Gemini Plus", "2": "Gemini Pro", "3": "Gemini Ultra Pro" };
+      const emailInput = document.getElementById(`input-gemini-email-acc${accNum}`);
+      const emailVal = emailInput ? emailInput.value.trim() : "";
+
+      const msgBox = document.getElementById("gemini-web-connect-msg");
+      if (msgBox) {
+        msgBox.style.display = "block";
+        msgBox.style.color = "#38bdf8";
+        msgBox.innerHTML = `🔄 ${accLabels[accNum]} এর কানেকশন ও সেশন টেস্ট করা হচ্ছে...`;
+      }
+
+      chrome.runtime.sendMessage({
+        action: "CONNECT_GEMINI_WEB",
+        accountIndex: accNum,
+        email: emailVal,
+        directGoogleLogin: false
+      }, () => {
         setTimeout(checkGeminiWebLiveStatus, 1500);
       });
     });
+  });
+
+  // 3. Quick Open Google Login Launcher Header Button
+  const btnQuickOpenGoogleLogin = document.getElementById("btn-quick-open-google-login");
+  if (btnQuickOpenGoogleLogin) {
+    btnQuickOpenGoogleLogin.addEventListener("click", () => {
+      const emailAcc1 = (document.getElementById("input-gemini-email-acc1")?.value || "").trim();
+      const msgBox = document.getElementById("gemini-web-connect-msg");
+      if (msgBox) {
+        msgBox.style.display = "block";
+        msgBox.style.color = "#38bdf8";
+        msgBox.innerHTML = "🌐 Google অফিসিয়াল লগইন পেজ ব্রাউজারে ওপেন হচ্ছে...";
+      }
+      chrome.runtime.sendMessage({
+        action: "CONNECT_GEMINI_WEB",
+        accountIndex: 1,
+        email: emailAcc1,
+        directGoogleLogin: true,
+        forceLogin: true
+      }, () => {
+        setTimeout(checkGeminiWebLiveStatus, 2500);
+      });
+    });
   }
+
+  // 4. Session Export (Download portable session JSON)
+  const btnExportSession = document.getElementById("btn-export-gemini-session");
+  const sessionTransferMsg = document.getElementById("session-transfer-msg");
+
+  if (btnExportSession) {
+    btnExportSession.addEventListener("click", () => {
+      if (sessionTransferMsg) {
+        sessionTransferMsg.style.display = "block";
+        sessionTransferMsg.style.background = "rgba(16,185,129,0.15)";
+        sessionTransferMsg.style.color = "#34d399";
+        sessionTransferMsg.innerText = "⏳ ব্রাউজার থেকে গুগল সেশন ও কুকি সংগ্রহ করা হচ্ছে...";
+      }
+
+      chrome.runtime.sendMessage({ action: "EXPORT_GEMINI_SESSION" }, (res) => {
+        if (res && res.success && res.session) {
+          try {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(res.session, null, 2));
+            const dlAnchor = document.createElement("a");
+            dlAnchor.setAttribute("href", dataStr);
+            dlAnchor.setAttribute("download", `jarvis_gemini_session_${Date.now()}.json`);
+            document.body.appendChild(dlAnchor);
+            dlAnchor.click();
+            dlAnchor.remove();
+
+            if (sessionTransferMsg) {
+              sessionTransferMsg.style.display = "block";
+              sessionTransferMsg.style.background = "rgba(16,185,129,0.2)";
+              sessionTransferMsg.style.color = "#34d399";
+              sessionTransferMsg.innerText = `✅ সেশন ফাইল ডাউনলোড সম্পন্ন (${res.session.cookiesCount || res.session.cookies.length}টি কুকি সংরক্ষিত)! এই ফাইলটি অন্য ব্রাউজারে 'Import' করুন।`;
+            }
+          } catch (dlErr) {
+            if (sessionTransferMsg) {
+              sessionTransferMsg.style.color = "#f87171";
+              sessionTransferMsg.innerText = "ত্রুটি: " + dlErr.message;
+            }
+          }
+        } else {
+          if (sessionTransferMsg) {
+            sessionTransferMsg.style.display = "block";
+            sessionTransferMsg.style.background = "rgba(239,68,68,0.2)";
+            sessionTransferMsg.style.color = "#f87171";
+            sessionTransferMsg.innerText = `❌ সেশন এক্সপোর্ট ব্যর্থ: ${res?.error || "কুকি পাওয়া যায়নি, আগে গুগল লগইন করুন।"}`;
+          }
+        }
+      });
+    });
+  }
+
+  // 5. Session Import (Load portable session JSON)
+  const btnImportSession = document.getElementById("btn-import-gemini-session");
+  const fileImportSession = document.getElementById("file-import-gemini-session");
+
+  if (btnImportSession && fileImportSession) {
+    btnImportSession.addEventListener("click", () => {
+      fileImportSession.click();
+    });
+
+    fileImportSession.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      if (sessionTransferMsg) {
+        sessionTransferMsg.style.display = "block";
+        sessionTransferMsg.style.background = "rgba(56,189,248,0.15)";
+        sessionTransferMsg.style.color = "#38bdf8";
+        sessionTransferMsg.innerText = "⏳ সেশন ফাইল প্রসেস করা হচ্ছে এবং কুকি সেট করা হচ্ছে...";
+      }
+
+      const reader = new FileReader();
+      reader.onload = function (event) {
+        try {
+          const parsedData = JSON.parse(event.target.result);
+          chrome.runtime.sendMessage({ action: "IMPORT_GEMINI_SESSION", sessionData: parsedData }, (res) => {
+            if (res && res.success) {
+              if (sessionTransferMsg) {
+                sessionTransferMsg.style.display = "block";
+                sessionTransferMsg.style.background = "rgba(16,185,129,0.2)";
+                sessionTransferMsg.style.color = "#34d399";
+                sessionTransferMsg.innerText = `🎉 সফল! ${res.importedCount}টি গুগল কুকি ব্রাউজারে রিস্টোর হয়েছে। এখন সব Gemini অ্যাকাউন্ট সরাসরি সক্রিয়!`;
+              }
+              // Update form values if present in imported file
+              if (parsedData.accountEmails) {
+                const e1 = document.getElementById("input-gemini-email-acc1");
+                const e2 = document.getElementById("input-gemini-email-acc2");
+                const e3 = document.getElementById("input-gemini-email-acc3");
+                if (e1 && parsedData.accountEmails.acc1) e1.value = parsedData.accountEmails.acc1;
+                if (e2 && parsedData.accountEmails.acc2) e2.value = parsedData.accountEmails.acc2;
+                if (e3 && parsedData.accountEmails.acc3) e3.value = parsedData.accountEmails.acc3;
+              }
+              setTimeout(checkGeminiWebLiveStatus, 1500);
+            } else {
+              if (sessionTransferMsg) {
+                sessionTransferMsg.style.display = "block";
+                sessionTransferMsg.style.background = "rgba(239,68,68,0.2)";
+                sessionTransferMsg.style.color = "#f87171";
+                sessionTransferMsg.innerText = `❌ সেশন ইমপোর্ট ত্রুটি: ${res?.error || "অকার্যকর ফাইল ফরম্যাট"}`;
+              }
+            }
+          });
+        } catch (jsonErr) {
+          if (sessionTransferMsg) {
+            sessionTransferMsg.style.color = "#f87171";
+            sessionTransferMsg.innerText = "JSON পার্স ত্রুটি: " + jsonErr.message;
+          }
+        }
+      };
+      reader.readAsText(file);
+      fileImportSession.value = "";
+    });
+  }
+
+  // 6. Sync with Local Jarvis Desktop Bridge (http://127.0.0.1:8765/api/gemini_session)
+  const btnSyncDesktop = document.getElementById("btn-sync-gemini-desktop");
+  if (btnSyncDesktop) {
+    btnSyncDesktop.addEventListener("click", async () => {
+      if (sessionTransferMsg) {
+        sessionTransferMsg.style.display = "block";
+        sessionTransferMsg.style.background = "rgba(168,85,247,0.15)";
+        sessionTransferMsg.style.color = "#c084fc";
+        sessionTransferMsg.innerText = "⏳ লোকাল Jarvis সার্ভারের সাথে সেশন সিঙ্ক করা হচ্ছে...";
+      }
+
+      try {
+        // First try pulling from desktop
+        const res = await fetch("http://127.0.0.1:8765/api/gemini_session");
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.cookies && data.cookies.length > 0) {
+            chrome.runtime.sendMessage({ action: "IMPORT_GEMINI_SESSION", sessionData: data }, (importRes) => {
+              if (importRes && importRes.success) {
+                if (sessionTransferMsg) {
+                  sessionTransferMsg.style.display = "block";
+                  sessionTransferMsg.style.background = "rgba(16,185,129,0.2)";
+                  sessionTransferMsg.style.color = "#34d399";
+                  sessionTransferMsg.innerText = `✅ লোকাল Jarvis সার্ভার থেকে ${importRes.importedCount}টি সেশন কুকি সফলভাবে সিঙ্ক হয়েছে!`;
+                }
+                setTimeout(checkGeminiWebLiveStatus, 1500);
+              }
+            });
+            return;
+          }
+        }
+
+        // If nothing on desktop, push current browser session to desktop
+        chrome.runtime.sendMessage({ action: "EXPORT_GEMINI_SESSION" }, async (exportRes) => {
+          if (exportRes && exportRes.success && exportRes.session) {
+            await fetch("http://127.0.0.1:8765/api/gemini_session", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(exportRes.session)
+            });
+            if (sessionTransferMsg) {
+              sessionTransferMsg.style.display = "block";
+              sessionTransferMsg.style.background = "rgba(16,185,129,0.2)";
+              sessionTransferMsg.style.color = "#34d399";
+              sessionTransferMsg.innerText = "✅ বর্তমান ব্রাউজারের সেশন লোকাল Jarvis সার্ভারে আপলোড ও ব্যাকআপ হয়েছে!";
+            }
+          }
+        });
+      } catch (err) {
+        if (sessionTransferMsg) {
+          sessionTransferMsg.style.display = "block";
+          sessionTransferMsg.style.background = "rgba(239,68,68,0.2)";
+          sessionTransferMsg.style.color = "#f87171";
+          sessionTransferMsg.innerText = `⚠️ লোকাল Jarvis সার্ভার সক্রিয় নেই (Start_Jarvis.bat চালু করুন): ${err.message}`;
+        }
+      }
+    });
+  }
+
 
   // 6. Action: Toggle Autonomous Auto-Pilot
   if (btnToggleAutopilot) {
@@ -781,6 +1017,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (resultsList) resultsList.innerHTML = `<div class="empty-state">Highlights cleared.</div>`;
         if (resultsCount) resultsCount.innerText = "0";
         if (trapAlertCard) trapAlertCard.classList.add("hidden");
+        const promCard = document.getElementById("card-prominent-solution");
+        if (promCard) promCard.classList.add("hidden");
+        const promItems = document.getElementById("prominent-solution-items");
+        if (promItems) promItems.innerHTML = "";
         updateStatus("idle", "Page highlights cleared.");
       } catch (e) {
         updateStatus("error", e.message || "Failed to clear highlights.");
@@ -964,6 +1204,110 @@ document.addEventListener("DOMContentLoaded", async () => {
       `;
       resultsList.appendChild(item);
     });
+
+    // Render prominent bold solution card right below Manual and AutoPilot mode cards
+    renderProminentSolutionCard(data);
+  }
+
+  function renderProminentSolutionCard(data) {
+    const card = document.getElementById("card-prominent-solution");
+    const list = document.getElementById("prominent-solution-items");
+    const desc = document.getElementById("prominent-solution-desc");
+    if (!card || !list) return;
+
+    if (!data || !data.answers || data.answers.length === 0) {
+      card.classList.add("hidden");
+      list.innerHTML = "";
+      return;
+    }
+
+    list.innerHTML = "";
+    if (data.is_screenshot_analysis) {
+      if (desc) desc.innerText = "📸 স্ক্রিনশট এনালাইসিস থেকে পাওয়া সঠিক উত্তর নিচে বোল্ড করে লিখে দেওয়া হলো। দেখে অপশন সিলেক্ট বা মেসেজ বক্সে টাইপ করুন:";
+    } else {
+      if (desc) desc.innerText = "পেজে অপশন অটো-সিলেক্ট করা না গেলে বা মেসেজ বক্সে লিখতে না পারলে নিচে বোল্ড করা উত্তর দেখে সিলেক্ট করুন বা কপি করে টাইপ করুন:";
+    }
+
+    data.answers.forEach((ans, idx) => {
+      const isMsg = ans.recommended_action === "type_text" || Boolean(ans.text_input_value) || Boolean(ans.text);
+      const answerText = isMsg
+        ? (ans.text_input_value || ans.text || (ans.selected_labels && ans.selected_labels[0]) || "")
+        : ((ans.selected_labels && ans.selected_labels.length > 0) ? ans.selected_labels.join(", ") : (ans.text_input_value || "সঠিক বিকল্প"));
+
+      const qText = ans.question_text || `প্রশ্ন ${idx + 1}`;
+      const item = document.createElement("div");
+      item.className = `solution-item ${isMsg ? "message-solution-item" : "choice-solution-item"}`;
+
+      if (isMsg) {
+        item.innerHTML = `
+          <div class="solution-q-title">
+            <strong>Q${idx + 1}: ${escapeHtml(qText)}</strong>
+            <span class="tag-msg-box">📝 মেসেজ বক্স / টাইপ ফিল্ড</span>
+          </div>
+          <div class="solution-bold-ans">
+            👉 <strong>এটা হবে সঠিক উত্তর:</strong>
+            <div class="solution-highlight">${escapeHtml(answerText)}</div>
+          </div>
+          <div class="solution-action-row">
+            <button type="button" class="btn-copy-ans" title="ক্লিপবোর্ডে কপি করুন">📋 কপি করুন</button>
+            <span class="solution-hint">দেখে দেখে মেসেজ বক্সে টাইপ করুন বা পেস্ট করুন</span>
+          </div>
+        `;
+
+        const copyBtn = item.querySelector(".btn-copy-ans");
+        if (copyBtn) {
+          copyBtn.addEventListener("click", () => {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(answerText).then(() => {
+                copyBtn.innerText = "✅ কপি হয়েছে!";
+                setTimeout(() => { copyBtn.innerText = "📋 কপি করুন"; }, 2000);
+              }).catch(() => fallbackCopyText(answerText, copyBtn));
+            } else {
+              fallbackCopyText(answerText, copyBtn);
+            }
+          });
+        }
+      } else {
+        item.innerHTML = `
+          <div class="solution-q-title">
+            <strong>Q${idx + 1}: ${escapeHtml(qText)}</strong>
+          </div>
+          <div class="solution-bold-ans">
+            👉 <strong>এটা হবে সঠিক উত্তর:</strong>
+            <span class="solution-highlight">${escapeHtml(answerText)}</span>
+          </div>
+        `;
+      }
+
+      list.appendChild(item);
+    });
+
+    card.classList.remove("hidden");
+  }
+
+  function fallbackCopyText(text, btn) {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+      if (btn) {
+        btn.innerText = "✅ কপি হয়েছে!";
+        setTimeout(() => { btn.innerText = "📋 কপি করুন"; }, 2000);
+      }
+    } catch (_) { }
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
   }
 
   function populatePersonalInfoForm(data) {
