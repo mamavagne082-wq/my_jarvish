@@ -74,7 +74,10 @@ class JarvisBridgeHandler(BaseHTTPRequestHandler):
                         "geminiApiKey3": api_keys.get("google_backup_2", ""),
                         "openRouterApiKey": api_keys.get("openrouter", ""),
                         "openRouterApiKey2": api_keys.get("openrouter_backup_1", ""),
-                        "openRouterApiKey3": api_keys.get("openrouter_backup_2", "")
+                        "openRouterApiKey3": api_keys.get("openrouter_backup_2", ""),
+                        "torveAiApiKey": api_keys.get("torveai", api_keys.get("torve", "")),
+                        "torveAiApiKey2": api_keys.get("torveai_backup_1", ""),
+                        "torveAiApiKey3": api_keys.get("torveai_backup_2", "")
                     }
                 else:
                     resp = {"success": False, "error": "user_config.json not found"}

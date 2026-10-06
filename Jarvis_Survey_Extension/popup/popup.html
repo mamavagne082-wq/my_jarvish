@@ -478,10 +478,12 @@
       <div class="settings-group">
         <label for="select-provider-priority">অগ্রাধিকার ক্রম (Failover Sequence)</label>
         <select id="select-provider-priority">
-          <option value="gemini_first" selected>⚡ Gemini প্রথম (Gemini শেষ হলে OpenRouter ধরবে)</option>
-          <option value="openrouter_first">🌐 OpenRouter প্রথম (OpenRouter শেষ হলে Gemini ধরবে)</option>
+          <option value="gemini_first" selected>⚡ Gemini প্রথম (Gemini শেষ হলে OpenRouter / Torve AI ধরবে)</option>
+          <option value="openrouter_first">🌐 OpenRouter প্রথম (OpenRouter শেষ হলে Gemini / Torve AI ধরবে)</option>
+          <option value="torveai_first">🚀 Torve AI প্রথম (Torve AI শেষ হলে Gemini / OpenRouter ধরবে)</option>
           <option value="gemini_only">🔒 শুধুমাত্র Gemini (Key 1 → Key 2 → Key 3)</option>
           <option value="openrouter_only">🔒 শুধুমাত্র OpenRouter (Key 1 → Key 2 → Key 3)</option>
+          <option value="torveai_only">🔒 শুধুমাত্র Torve AI (Key 1 → Key 2 → Key 3)</option>
         </select>
         <small class="helper-text">★ একটির লিমিট শেষ হলে আরেকটিতে স্বয়ংক্রিয়ভাবে সুইচ করবে, সার্ভে কখনো আটকাবে না</small>
       </div>
@@ -546,6 +548,64 @@
             <option value="meta-llama/llama-3.1-8b-instruct:free">Llama 3.1 8B (Free)</option>
           </optgroup>
         </select>
+      </div>
+
+      <!-- Torve AI Section -->
+      <div class="settings-section-title" style="margin-top:12px;">🚀 Torve AI - Multi-Key Support</div>
+      <div class="settings-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="check-use-torveai" checked>
+          <span>Torve AI সক্রিয় রাখুন (Frontier Models & Failover)</span>
+        </label>
+        <small class="helper-text">সক্রিয় রাখলে Gemini বা OpenRouter-এর পাশাপাশি Torve AI দিয়ে অ্যানালাইসিস করে সার্ভে সম্পন্ন করবে</small>
+      </div>
+
+      <div class="settings-group" id="torveai-settings">
+        <label for="input-torve-api-key">Torve AI API Key 1 <span class="badge-primary">Primary</span></label>
+        <div class="api-key-row">
+          <input type="password" id="input-torve-api-key" placeholder="torve-... বা আপনার Torve AI API Key (১ম)">
+          <button id="btn-toggle-torve-key" class="btn-small" type="button">👁️</button>
+        </div>
+      </div>
+
+      <div class="settings-group" id="torveai-settings-2">
+        <label for="input-torve-api-key-2">Torve AI API Key 2 <span class="badge-backup">Backup 1</span></label>
+        <div class="api-key-row">
+          <input type="password" id="input-torve-api-key-2" placeholder="২য় Torve AI কী (ঐচ্ছিক ব্যাকআপ)">
+          <button id="btn-toggle-torve-key-2" class="btn-small" type="button">👁️</button>
+        </div>
+      </div>
+
+      <div class="settings-group" id="torveai-settings-3">
+        <label for="input-torve-api-key-3">Torve AI API Key 3 <span class="badge-backup">Backup 2</span></label>
+        <div class="api-key-row">
+          <input type="password" id="input-torve-api-key-3" placeholder="৩য় Torve AI কী (ঐচ্ছিক ব্যাকআপ)">
+          <button id="btn-toggle-torve-key-3" class="btn-small" type="button">👁️</button>
+        </div>
+        <small class="helper-text">👉 <a href="https://torveai.com" target="_blank">torveai.com</a> থেকে API Key সংগ্রহ করুন</small>
+      </div>
+
+      <div class="settings-group" id="torveai-model-settings">
+        <label for="select-torve-model">Torve AI মডেল</label>
+        <select id="select-torve-model">
+          <optgroup label="🆓 Free Tier Included">
+            <option value="claude-opus-4-8" selected>⚡ claude-opus-4-8 (Free Monthly Frontier)</option>
+          </optgroup>
+          <optgroup label="🤖 Anthropic Claude (Pro / Team)">
+            <option value="claude-opus-5">Claude Opus 5 (Maximum Intelligence)</option>
+            <option value="claude-opus-5-thinking">Claude Opus 5 Thinking (Deep Reasoning)</option>
+          </optgroup>
+          <optgroup label="🧠 OpenAI (Pro / Team)">
+            <option value="gpt-5.2-mini">GPT 5.2 Mini (Super Fast & Light)</option>
+            <option value="gpt-5.2">GPT 5.2 (Frontier)</option>
+          </optgroup>
+          <optgroup label="⚡ DeepSeek & Google (Pro / Team)">
+            <option value="deepseek-v4">DeepSeek V4 (High Speed & Accuracy)</option>
+            <option value="gemini-3-pro">Google Gemini 3 Pro</option>
+            <option value="grok-4.1">xAI Grok 4.1</option>
+          </optgroup>
+        </select>
+        <small class="helper-text">★ Free প্যাকেজে <code>claude-opus-4-8</code> অন্তর্ভুক্ত থাকে</small>
       </div>
 
       <!-- Memory & Embedding Settings -->

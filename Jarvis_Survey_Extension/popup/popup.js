@@ -60,6 +60,21 @@ document.addEventListener("DOMContentLoaded", async () => {
   const checkUseOpenRouter = document.getElementById("check-use-openrouter");
   const openRouterSettings = document.getElementById("openrouter-settings");
   const openRouterModelSettings = document.getElementById("openrouter-model-settings");
+
+  // Torve AI settings elements
+  const inputTorveApiKey = document.getElementById("input-torve-api-key");
+  const inputTorveApiKey2 = document.getElementById("input-torve-api-key-2");
+  const inputTorveApiKey3 = document.getElementById("input-torve-api-key-3");
+  const btnToggleTorveKey = document.getElementById("btn-toggle-torve-key");
+  const btnToggleTorveKey2 = document.getElementById("btn-toggle-torve-key-2");
+  const btnToggleTorveKey3 = document.getElementById("btn-toggle-torve-key-3");
+  const selectTorveModel = document.getElementById("select-torve-model");
+  const checkUseTorveAi = document.getElementById("check-use-torveai");
+  const torveAiSettings = document.getElementById("torveai-settings");
+  const torveAiSettings2 = document.getElementById("torveai-settings-2");
+  const torveAiSettings3 = document.getElementById("torveai-settings-3");
+  const torveAiModelSettings = document.getElementById("torveai-model-settings");
+
   const settingsSaveMsg = document.getElementById("settings-save-msg");
 
   // Memory Cache & Knowledge Base Hub elements
@@ -177,6 +192,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     toggleOpenRouterSectionVisibility(checkUseOpenRouter.checked);
   }
 
+  // Load Torve AI settings (up to 3 keys)
+  if (inputTorveApiKey) inputTorveApiKey.value = storage.torveAiApiKey || "";
+  if (inputTorveApiKey2) inputTorveApiKey2.value = storage.torveAiApiKey2 || "";
+  if (inputTorveApiKey3) inputTorveApiKey3.value = storage.torveAiApiKey3 || "";
+
+  if (selectTorveModel && storage.torveAiModel) {
+    selectTorveModel.value = storage.torveAiModel;
+  }
+  if (checkUseTorveAi) {
+    checkUseTorveAi.checked = storage.useTorveAi !== undefined ? !!storage.useTorveAi : true;
+    toggleTorveAiSectionVisibility(checkUseTorveAi.checked);
+  }
+
   // Auto-Pilot state
   isAutoPilotActive = !!storage.autoPilotActive;
   updateAutopilotButtonUI(isAutoPilotActive);
@@ -272,6 +300,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupPasswordToggle(btnToggleOrKey2, inputOrApiKey2);
   setupPasswordToggle(btnToggleOrKey3, inputOrApiKey3);
 
+  setupPasswordToggle(btnToggleTorveKey, inputTorveApiKey);
+  setupPasswordToggle(btnToggleTorveKey2, inputTorveApiKey2);
+  setupPasswordToggle(btnToggleTorveKey3, inputTorveApiKey3);
+
   setupPasswordToggle(btnToggleMemoryKey, inputMemoryApiKey);
   setupPasswordToggle(btnToggleSettingsMemKey, inputSettingsMemKey);
 
@@ -289,6 +321,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (checkUseOpenRouter) {
     checkUseOpenRouter.addEventListener("change", () => {
       toggleOpenRouterSectionVisibility(checkUseOpenRouter.checked);
+    });
+  }
+
+  // Toggle Torve AI section visibility when checkbox changes
+  if (checkUseTorveAi) {
+    checkUseTorveAi.addEventListener("change", () => {
+      toggleTorveAiSectionVisibility(checkUseTorveAi.checked);
     });
   }
 
@@ -310,6 +349,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         openRouterApiKey3: inputOrApiKey3 ? inputOrApiKey3.value.trim() : "",
         openRouterModel: selectOrModel ? selectOrModel.value : "google/gemini-2.5-flash",
         useOpenRouter: checkUseOpenRouter ? checkUseOpenRouter.checked : true,
+        // Torve AI settings
+        torveAiApiKey: inputTorveApiKey ? inputTorveApiKey.value.trim() : "",
+        torveAiApiKey2: inputTorveApiKey2 ? inputTorveApiKey2.value.trim() : "",
+        torveAiApiKey3: inputTorveApiKey3 ? inputTorveApiKey3.value.trim() : "",
+        torveAiModel: selectTorveModel ? selectTorveModel.value : "claude-opus-4-8",
+        useTorveAi: checkUseTorveAi ? checkUseTorveAi.checked : true,
         // Memory settings
         memoryApiKey: inputSettingsMemKey ? inputSettingsMemKey.value.trim() : (inputMemoryApiKey ? inputMemoryApiKey.value.trim() : ""),
         memoryProvider: selectMemoryProvider ? selectMemoryProvider.value : "local_offline"
@@ -324,13 +369,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (settingsSaveMsg) {
         const geminiCount = [updated.geminiApiKey, updated.geminiApiKey2, updated.geminiApiKey3].filter(Boolean).length;
         const orCount = [updated.openRouterApiKey, updated.openRouterApiKey2, updated.openRouterApiKey3].filter(Boolean).length;
+        const torveCount = [updated.torveAiApiKey, updated.torveAiApiKey2, updated.torveAiApiKey3].filter(Boolean).length;
 
-        let statusText = `✅ সেটিংস সেভ হয়েছে! Gemini Key: ${geminiCount}টি | OpenRouter Key: ${orCount}টি فعال`;
-        if (geminiCount === 0 && orCount === 0) {
+        let statusText = `✅ সেটিংস সেভ হয়েছে! Gemini: ${geminiCount}টি | OpenRouter: ${orCount}টি | Torve AI: ${torveCount}টি فعال`;
+        if (geminiCount === 0 && orCount === 0 && torveCount === 0) {
           statusText = "⚠️ কোনো API Key দেওয়া নেই! লোকাল নলেজ বেস ফাইল বা মেমরি ক্যাশ ছাড়া সার্ভে কাজ করবে না।";
         }
         settingsSaveMsg.innerText = statusText;
-        settingsSaveMsg.className = (geminiCount > 0 || orCount > 0)
+        settingsSaveMsg.className = (geminiCount > 0 || orCount > 0 || torveCount > 0)
           ? "personal-info-msg success" : "personal-info-msg error";
         setTimeout(() => {
           if (settingsSaveMsg) settingsSaveMsg.innerText = "";
@@ -350,6 +396,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const autoSaveInputs = [
     inputApiKey, inputApiKey2, inputApiKey3, selectModel, selectProviderPriority,
     inputFillDelay, inputOrApiKey, inputOrApiKey2, inputOrApiKey3, selectOrModel,
+    inputTorveApiKey, inputTorveApiKey2, inputTorveApiKey3, selectTorveModel,
     inputMemoryApiKey, inputSettingsMemKey, selectMemoryProvider
   ];
   let autoSaveTimer = null;
@@ -369,6 +416,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         openRouterApiKey3: inputOrApiKey3 ? inputOrApiKey3.value.trim() : "",
         openRouterModel: selectOrModel ? selectOrModel.value : "google/gemini-2.5-flash",
         useOpenRouter: checkUseOpenRouter ? checkUseOpenRouter.checked : true,
+        torveAiApiKey: inputTorveApiKey ? inputTorveApiKey.value.trim() : "",
+        torveAiApiKey2: inputTorveApiKey2 ? inputTorveApiKey2.value.trim() : "",
+        torveAiApiKey3: inputTorveApiKey3 ? inputTorveApiKey3.value.trim() : "",
+        torveAiModel: selectTorveModel ? selectTorveModel.value : "claude-opus-4-8",
+        useTorveAi: checkUseTorveAi ? checkUseTorveAi.checked : true,
         memoryApiKey: inputSettingsMemKey ? inputSettingsMemKey.value.trim() : (inputMemoryApiKey ? inputMemoryApiKey.value.trim() : ""),
         memoryProvider: selectMemoryProvider ? selectMemoryProvider.value : "local_offline"
       };
@@ -795,6 +847,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (cfg.openRouterApiKey && inputOrApiKey) { inputOrApiKey.value = cfg.openRouterApiKey; updates.openRouterApiKey = cfg.openRouterApiKey; }
             if (cfg.openRouterApiKey2 && inputOrApiKey2) { inputOrApiKey2.value = cfg.openRouterApiKey2; updates.openRouterApiKey2 = cfg.openRouterApiKey2; }
             if (cfg.openRouterApiKey3 && inputOrApiKey3) { inputOrApiKey3.value = cfg.openRouterApiKey3; updates.openRouterApiKey3 = cfg.openRouterApiKey3; }
+            if (cfg.torveAiApiKey && inputTorveApiKey) { inputTorveApiKey.value = cfg.torveAiApiKey; updates.torveAiApiKey = cfg.torveAiApiKey; }
+            if (cfg.torveAiApiKey2 && inputTorveApiKey2) { inputTorveApiKey2.value = cfg.torveAiApiKey2; updates.torveAiApiKey2 = cfg.torveAiApiKey2; }
+            if (cfg.torveAiApiKey3 && inputTorveApiKey3) { inputTorveApiKey3.value = cfg.torveAiApiKey3; updates.torveAiApiKey3 = cfg.torveAiApiKey3; }
             if (Object.keys(updates).length > 0) {
               await chrome.storage.local.set(updates);
             }
@@ -1190,5 +1245,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (openRouterModelSettings) {
       openRouterModelSettings.style.display = useOpenRouter ? "block" : "none";
     }
+  }
+
+  // Helper: Show/hide Torve AI settings fields based on checkbox state
+  function toggleTorveAiSectionVisibility(useTorveAi) {
+    if (torveAiSettings) torveAiSettings.style.display = useTorveAi ? "block" : "none";
+    if (torveAiSettings2) torveAiSettings2.style.display = useTorveAi ? "block" : "none";
+    if (torveAiSettings3) torveAiSettings3.style.display = useTorveAi ? "block" : "none";
+    if (torveAiModelSettings) torveAiModelSettings.style.display = useTorveAi ? "block" : "none";
   }
 });

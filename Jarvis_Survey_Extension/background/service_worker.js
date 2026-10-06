@@ -53,6 +53,11 @@ const DEFAULT_SETTINGS = {
   openRouterApiKey2: "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",
   openRouterApiKey3: "",
   openRouterModel: "google/gemini-2.5-flash",
+  torveAiApiKey: "",
+  torveAiApiKey2: "",
+  torveAiApiKey3: "",
+  torveAiModel: "claude-opus-4-8",
+  useTorveAi: true,
   memoryApiKey: "",
   memoryProvider: "local_offline",
   providerPriority: "gemini_first",
@@ -111,6 +116,8 @@ chrome.runtime.onInstalled.addListener(async () => {
   if (!toSet.geminiApiKey2) toSet.geminiApiKey2 = DEFAULT_SETTINGS.geminiApiKey2;
   if (!toSet.openRouterApiKey) toSet.openRouterApiKey = DEFAULT_SETTINGS.openRouterApiKey;
   if (!toSet.openRouterApiKey2) toSet.openRouterApiKey2 = DEFAULT_SETTINGS.openRouterApiKey2;
+  if (!toSet.torveAiModel) toSet.torveAiModel = DEFAULT_SETTINGS.torveAiModel;
+  if (toSet.useTorveAi === undefined) toSet.useTorveAi = true;
   if (!toSet.providerPriority) toSet.providerPriority = "gemini_first";
 
   if (!toSet.personalInfo) {
@@ -835,8 +842,13 @@ async function handleSurveyAnalysis(payload, tabId) {
     "openRouterApiKey2",
     "openRouterApiKey3",
     "openRouterModel",
+    "torveAiApiKey",
+    "torveAiApiKey2",
+    "torveAiApiKey3",
+    "torveAiModel",
     "providerPriority",
     "useOpenRouter",
+    "useTorveAi",
     "surveyPersona",
     "personalInfo"
   ]);
@@ -855,13 +867,21 @@ async function handleSurveyAnalysis(payload, tabId) {
     { key: (storage.openRouterApiKey3 || "").trim(), label: "OpenRouter Key 3" }
   ].filter(k => k.key.length > 0);
 
-  if (geminiKeys.length === 0 && openRouterKeys.length === 0) {
-    throw new Error("❌ কোনো API Key পাওয়া যায়নি! Settings থেকে Gemini অথবা OpenRouter API Key দিন, অথবা Knowledge Base ফাইল যোগ করুন।");
+  // Extract all Torve AI keys
+  const torveAiKeys = [
+    { key: (storage.torveAiApiKey || "").trim(), label: "Torve AI Key 1" },
+    { key: (storage.torveAiApiKey2 || "").trim(), label: "Torve AI Key 2" },
+    { key: (storage.torveAiApiKey3 || "").trim(), label: "Torve AI Key 3" }
+  ].filter(k => k.key.length > 0);
+
+  if (geminiKeys.length === 0 && openRouterKeys.length === 0 && torveAiKeys.length === 0) {
+    throw new Error("❌ কোনো API Key পাওয়া যায়নি! Settings থেকে Gemini, OpenRouter অথবা Torve AI API Key দিন, অথবা Knowledge Base ফাইল যোগ করুন।");
   }
 
   const priority = storage.providerPriority || "gemini_first";
   const selectedGeminiModel = resolveGeminiModelName(storage.geminiModel || "gemini-3.8-flash");
   const selectedOrModel = storage.openRouterModel || "google/gemini-2.5-flash";
+  const selectedTorveModel = storage.torveAiModel || "claude-opus-4-8";
 
   let attemptPipeline = [];
 
@@ -872,21 +892,33 @@ async function handleSurveyAnalysis(payload, tabId) {
     model: selectedGeminiModel
   }));
 
-  const openRouterAttempts = openRouterKeys.map(k => ({
+  const openRouterAttempts = (storage.useOpenRouter !== false) ? openRouterKeys.map(k => ({
     provider: "openrouter",
     key: k.key,
     label: k.label,
     model: selectedOrModel
-  }));
+  })) : [];
 
-  if (priority === "openrouter_first") {
-    attemptPipeline = [...openRouterAttempts, ...geminiAttempts];
+  const torveAiAttempts = (storage.useTorveAi !== false) ? torveAiKeys.map(k => ({
+    provider: "torveai",
+    key: k.key,
+    label: k.label,
+    model: selectedTorveModel
+  })) : [];
+
+  if (priority === "torveai_first") {
+    attemptPipeline = [...torveAiAttempts, ...geminiAttempts, ...openRouterAttempts];
+  } else if (priority === "openrouter_first") {
+    attemptPipeline = [...openRouterAttempts, ...geminiAttempts, ...torveAiAttempts];
+  } else if (priority === "torveai_only") {
+    attemptPipeline = [...torveAiAttempts];
   } else if (priority === "openrouter_only") {
     attemptPipeline = [...openRouterAttempts];
   } else if (priority === "gemini_only") {
     attemptPipeline = [...geminiAttempts];
   } else {
-    attemptPipeline = [...geminiAttempts, ...openRouterAttempts];
+    // gemini_first (default)
+    attemptPipeline = [...geminiAttempts, ...openRouterAttempts, ...torveAiAttempts];
   }
 
   const persona = storage.surveyPersona || {};
@@ -935,6 +967,8 @@ async function handleSurveyAnalysis(payload, tabId) {
 
       if (attempt.provider === "gemini") {
         result = await callGeminiAPI(attempt.key, attempt.model, prompt, base64Image);
+      } else if (attempt.provider === "torveai") {
+        result = await callTorveAiAPI(attempt.key, attempt.model, prompt, fullDataUrl);
       } else {
         result = await callOpenRouterAPI(attempt.key, attempt.model, prompt, fullDataUrl);
       }
@@ -1576,4 +1610,153 @@ async function callOpenRouterAPI(apiKey, model, promptText, base64Image = null) 
   }
 
   throw lastError || new Error("❌ OpenRouter এর সব মডেল ব্যর্থ হয়েছে। দয়া করে API Key ও ব্যালেন্স চেক করুন।");
+}
+
+/**
+ * Calls Torve AI API (OpenAI-compatible gateway: https://api.torveai.com/v1)
+ * Supports claude-opus-4-8 (Free monthly frontier model), claude-opus-5, gpt-5.2, deepseek-v4, etc.
+ */
+async function callTorveAiAPI(apiKey, model, promptText, base64Image = null) {
+  const endpoint = "https://api.torveai.com/v1/chat/completions";
+  const primaryModel = model || "claude-opus-4-8";
+
+  const candidateModels = [
+    primaryModel,
+    "claude-opus-4-8",
+    "gpt-5.2-mini",
+    "deepseek-v4",
+    "claude-opus-5"
+  ].filter((m, i, arr) => arr.indexOf(m) === i);
+
+  let lastError = null;
+
+  for (const torveModel of candidateModels) {
+    let userContent;
+    if (base64Image) {
+      const imgUrl = base64Image.startsWith("data:") ? base64Image : `data:image/jpeg;base64,${base64Image}`;
+      userContent = [
+        { type: "text", text: promptText },
+        { type: "image_url", image_url: { url: imgUrl } }
+      ];
+    } else {
+      userContent = promptText;
+    }
+
+    // Try first with response_format json_object, fallback if not supported
+    const formatConfigs = [
+      { response_format: { type: "json_object" } },
+      {}
+    ];
+
+    for (let fIdx = 0; fIdx < formatConfigs.length; fIdx++) {
+      const requestBody = {
+        model: torveModel,
+        messages: [{ role: "user", content: userContent }],
+        temperature: 0.15,
+        max_tokens: 2048,
+        ...formatConfigs[fIdx]
+      };
+
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 18000);
+
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${apiKey.trim()}`,
+              "HTTP-Referer": "https://jarvis-survey-copilot.extension",
+              "X-Title": "Jarvis Survey Copilot"
+            },
+            body: JSON.stringify(requestBody),
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.warn(`[Jarvis TorveAI] ${torveModel} attempt ${attempt + 1} failed (${response.status}):`, errorText);
+
+            if (response.status === 401 || response.status === 403) {
+              const err = new Error(`Torve AI Key Error (${response.status})`);
+              err.isKeyError = true;
+              throw err;
+            }
+
+            if (response.status === 429 || response.status === 402) {
+              const err = new Error(`Torve AI Quota/Limit Reached (${response.status})`);
+              err.isQuota = true;
+              throw err;
+            }
+
+            if (response.status === 400 && fIdx === 0) {
+              // response_format might be rejected by model, break attempt and try standard without response_format
+              break;
+            }
+
+            if (response.status === 404) {
+              lastError = new Error(`Torve AI model ${torveModel} not found (404)`);
+              break; // try next candidate model
+            }
+
+            if (response.status === 503 && attempt === 0) {
+              await new Promise((r) => setTimeout(r, 1200));
+              continue;
+            }
+
+            lastError = new Error(`Torve AI API Error (${torveModel}): ${response.status} - ${errorText.slice(0, 180)}`);
+            break;
+          }
+
+          const data = await response.json();
+          const content = data?.choices?.[0]?.message?.content;
+          if (!content) {
+            lastError = new Error(`Empty response from Torve AI: ${torveModel}`);
+            break;
+          }
+
+          let parsed;
+          try {
+            const cleaned = content.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
+            parsed = JSON.parse(cleaned);
+          } catch {
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              try {
+                parsed = JSON.parse(jsonMatch[0]);
+              } catch {
+                parsed = { page_summary: "Survey analysis completed via Torve AI", trap_detected: false, answers: [] };
+              }
+            } else {
+              parsed = { page_summary: "Survey analysis completed via Torve AI", trap_detected: false, answers: [] };
+            }
+          }
+
+          console.log(`[Jarvis] ✅ Torve AI Success with model: ${torveModel}`);
+          return {
+            success: true,
+            modelUsed: `TorveAI:${torveModel}`,
+            data: parsed
+          };
+        } catch (err) {
+          if (err.isQuota || err.isKeyError) throw err;
+          if (err.name === "AbortError") {
+            lastError = new Error(`Torve AI timeout (18s) on ${torveModel}`);
+            break;
+          }
+          lastError = err;
+          if (attempt === 0) await new Promise((r) => setTimeout(r, 600));
+        }
+      }
+
+      // If we got success, we already returned. If it wasn't a 400, don't repeat formatConfigs.
+      if (lastError && !lastError.message.includes("400")) {
+        break;
+      }
+    }
+  }
+
+  throw lastError || new Error("❌ Torve AI এর সব মডেল ব্যর্থ হয়েছে। দয়া করে API Key ও একাউন্ট চেক করুন।");
 }

@@ -38,21 +38,23 @@
 
 ## 🔑 মাল্টি-কী ফেইলওভার সিস্টেম (Multi-API-Key Auto-Failover)
 
-এক্সটেনশনে এখন **একসাথে একাধিক API Key** যোগ করার সম্পূর্ণ সুবিধা যুক্ত করা হয়েছে:
+এক্সটেনশনে এখন **একসাথে একাধিক AI প্রোভাইডার ও মাল্টিপল API Key** যোগ করার সম্পূর্ণ সুবিধা যুক্ত করা হয়েছে:
 1. **Gemini AI (Google):** ৩টি API Key যোগ করার অপশন (Key 1 Primary, Key 2 Backup, Key 3 Backup)।
 2. **OpenRouter:** ৩টি API Key যোগ করার অপশন (Key 1 Primary, Key 2 Backup, Key 3 Backup)।
-3. **অটোম্যাটিক লিমিট সুইচিং:**
-   * Gemini Key 1 এর রেট লিমিট বা কোটা (429) শেষ হলে সার্ভে না থামিয়ে তাৎক্ষণিকভাবে **Gemini Key 2** তে সুইচ করবে।
-   * Gemini Key 2 শেষ হলে **Gemini Key 3** তে সুইচ করবে।
-   * Gemini এর সব Key শেষ হলে স্বয়ংক্রিয়ভাবে **OpenRouter Key 1 -> Key 2 -> Key 3** এ সুইচ করে সার্ভে নিরবচ্ছিন্নভাবে সম্পন্ন করবে।
-4. **লেটেস্ট লাইভ মডেলসমূহ:**
+3. **Torve AI (Frontier Gateway):** ৩টি API Key যোগ করার অপশন (Key 1 Primary, Key 2 Backup, Key 3 Backup)।
+   * **Free Tier Model:** `claude-opus-4-8` (সম্পূর্ণ ফ্রি মাসিক অ্যালাউন্সসহ পাওয়ারফুল ফ্রন্টিয়ার মডেল)।
+   * **Pro/Team Models:** `claude-opus-5`, `claude-opus-5-thinking`, `gpt-5.2-mini`, `gpt-5.2`, `deepseek-v4`, `gemini-3-pro`, `grok-4.1`।
+4. **অটোম্যাটিক লিমিট সুইচিং ও ফেইলওভার (Failover Strategy):**
+   * আপনি অগ্রাধিকার ক্রম (Priority Sequence) বেছে নিতে পারেন:
+     * ⚡ **Gemini First:** Gemini (Key 1 → 2 → 3) শেষ হলে স্বয়ংক্রিয়ভাবে OpenRouter অথবা Torve AI দিয়ে সার্ভে সম্পন্ন করবে।
+     * 🌐 **OpenRouter First:** OpenRouter (Key 1 → 2 → 3) শেষ হলে Gemini অথবা Torve AI ধরবে।
+     * 🚀 **Torve AI First:** Torve AI (Key 1 → 2 → 3) শেষ হলে Gemini অথবা OpenRouter ধরবে।
+     * 🔒 **শুধুমাত্র নির্দিষ্ট প্রোভাইডার:** যেমন শুধুমাত্র Torve AI বা Gemini দিয়ে সার্ভে চালানো।
+5. **লেটেস্ট লাইভ মডেলসমূহ:**
    * ⚡ **Gemini 3.8 Flash (Ultra Fast Live - ডিফল্ট ও দ্রুততম)**
-   * ⚡ **Gemini 3.7 Flash (High Speed Preview)**
-   * ⚡ **Gemini 3.6 Flash (Fast Response)**
-   * ⚡ **Gemini 3.5 Flash**
-   * ✅ **Gemini 2.5 Flash / Flash Latest**
-   * ✨ **Gemini 2.5 Pro (Deep Reasoning)**
-   *(পুরোনো `gemini-1.5-pro` 404 সমস্যা স্থায়ীভাবে সমাধান করা হয়েছে এবং স্বয়ংক্রিয়ভাবে লেটেস্ট মডেলে আপগ্রেড করা হয়েছে।)*
+   * ⚡ **Claude Opus 4.8 via Torve AI (Free Tier Frontier)**
+   * ⚡ **Gemini 2.5 Flash / DeepSeek V3 via OpenRouter**
+   *(কোনো কী বা প্রোভাইডারের কোটা লিমিট বা ত্রুটি হলে সার্ভে আটকাবে না, পরবর্তী কী দিয়ে নিরবচ্ছিন্ন কাজ চলবে।)*
 
 ---
 
