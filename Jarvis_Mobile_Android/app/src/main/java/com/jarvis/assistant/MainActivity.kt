@@ -584,6 +584,16 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun sendTextMessage(text: String) {
+            val clean = text.trim()
+            if (clean.isBlank()) return
+            activity.runOnUiThread {
+                activity.resetAutoMinimizeTimer()
+                JarvisForegroundService.instance?.handleUserSpokenCommand(clean)
+            }
+        }
+
+        @JavascriptInterface
         fun executeMobileAction(action: String, payloadJson: String) {
             activity.runOnUiThread {
                 try {

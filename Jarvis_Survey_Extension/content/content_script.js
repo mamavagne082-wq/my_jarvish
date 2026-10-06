@@ -563,11 +563,55 @@
     return selectedCount;
   }
 
+  let lastHandledQuestionFingerprint = "";
+  let spaMutationObserver = null;
+  let spaDebounceTimer = null;
+
+  function getQuestionsFingerprint() {
+    try {
+      const qs = extractSurveyQuestions();
+      if (!qs || qs.length === 0) return "";
+      return qs.map(q => {
+        const textPart = (q.text || "").slice(0, 80).trim().toLowerCase();
+        const optPart = (q.options || []).map(o => (o.text || "").slice(0, 30).trim().toLowerCase()).join("|");
+        return `${textPart}::${optPart}`;
+      }).join("###");
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function setupSpaDynamicWatcher() {
+    if (spaMutationObserver) return;
+    try {
+      spaMutationObserver = new MutationObserver(() => {
+        if (!isAutoPilotActive || autoPilotRunningCycle) return;
+        clearTimeout(spaDebounceTimer);
+        spaDebounceTimer = setTimeout(() => {
+          if (!isAutoPilotActive || autoPilotRunningCycle) return;
+          const currentFingerprint = getQuestionsFingerprint();
+          if (currentFingerprint && currentFingerprint !== lastHandledQuestionFingerprint) {
+            console.log("[Jarvis AutoPilot] SPA DOM question change detected in-place! Triggering auto-pilot cycle...");
+            triggerAutoPilotCycle();
+          }
+        }, 1800);
+      });
+
+      if (document.body) {
+        spaMutationObserver.observe(document.body, { childList: true, subtree: true, characterData: false });
+      }
+    } catch (e) {
+      console.warn("[Jarvis AutoPilot] SPA observer setup warning:", e);
+    }
+  }
+
   async function triggerAutoPilotCycle() {
       if (autoPilotRunningCycle || !isAutoPilotActive) return;
       autoPilotRunningCycle = true;
 
       try {
+        setupSpaDynamicWatcher();
+
         // 1. CAPTCHA Check
         if (detectCaptchaOnPage()) {
           updateHUDStatus("error", "⚠️ CAPTCHA Detected! Pausing for human verification...");
@@ -629,9 +673,12 @@
           return;
         }
 
+        // Capture initial fingerprint of questions on page before processing
+        const initialQuestionsSig = getQuestionsFingerprint();
+
         // 5. Initial Settling & Reading Delay for new page
         // User requirement: নেক্সট পেজ আসার পর একটু সময় নিয়ে (৩-৫/৬ সেকেন্ড) পেজ পর্যবেক্ষণ করে উত্তর সিলেক্ট করবে
-        const initialDelay = 3200 + Math.random() * 2200; // 3.2s to 5.4s
+        const initialDelay = 3200 + Math.random() * 1800; // 3.2s to 5.0s
         updateHUDStatus("analyzing", `🤖 নতুন পেজ এসেছে... মানুষের মতো পর্যবেক্ষণ করা হচ্ছে (${(initialDelay / 1000).toFixed(1)}s)...`);
         await sleep(initialDelay);
 
@@ -641,7 +688,6 @@
         }
 
         // 6. Check if this is the LAST PAGE initially
-        // User requirement: লাস্ট পেজে যাওয়ার পর অবশ্যই থামবে। ৭-১০ সেকেন্ড সময় নিয়ে উত্তর সিলেক্ট করবে
         const isLastPageInitial = isLastSurveyPage();
         if (isLastPageInitial) {
           const lastPageDelay = 7500 + Math.random() * 2000; // 7.5s - 9.5s
@@ -659,20 +705,20 @@
         let analysisData = null;
         let filledCount = 0;
         let usedScreenshot = false;
+        let fillRes = null;
 
         const questionsOnPage = extractSurveyQuestions();
         if (questionsOnPage.length > 0) {
           const scanRes = await performFullScan();
           if (scanRes && scanRes.success && scanRes.data && scanRes.data.answers?.length > 0) {
             analysisData = scanRes.data;
-            updateHUDStatus("analyzing", "🤖 Auto-Pilot: কমপক্ষে ৩ সেকেন্ড বিরতি দিয়ে উত্তর সিলেক্ট করা হচ্ছে...");
-            const fillRes = await autoFillAnswers(analysisData);
-            filledCount = fillRes.filledCount;
+            updateHUDStatus("analyzing", "🤖 Auto-Pilot: মানুষের মতো বিরতি দিয়ে উত্তর সিলেক্ট করা হচ্ছে...");
+            fillRes = await autoFillAnswers(analysisData);
+            filledCount = fillRes?.filledCount || 0;
           }
         }
 
         // If DOM analysis failed, found 0 questions, or could not select elements:
-        // USER REQUIREMENT: যদি পেজ এনালাইসিস করতে না পারে, সিলেক্ট করতে না পারে তখন স্ক্রিনশট নিয়ে এনালাইসিস করে সঠিক উত্তর সিলেক্ট করবে
         if (!analysisData || filledCount === 0 || !analysisData.answers || analysisData.answers.length === 0) {
           updateHUDStatus("analyzing", "📸 পেজ সরাসরি সিলেক্ট করা যায়নি! সম্পূর্ণ পেজের স্ক্রিনশট নিয়ে এনালাইসিস করা হচ্ছে...");
           const ssRes = await performScreenshotAnalysis();
@@ -705,8 +751,38 @@
           return;
         }
 
-        // 8. Post-Answering Pause before Next / Submit
-        // Normal page: ~5s
+        // 8. Auto-Advance & In-Place Dynamic Question Change Watcher
+        // USER REQUIREMENT: কিছু সার্ভেতে উত্তর সিলেক্ট করলে স্বয়ংক্রিয়ভাবে নেক্সট প্রশ্নে চলে যায়, আলাদা Next বাটন চাপতে হয় না।
+        // স্ক্রিন চেঞ্জ না হয়ে ওখানেই নতুন প্রশ্ন আসে। এই ক্ষেত্রে Next বাটন চাপবে না, নতুন প্রশ্ন দ্রুত এনালাইসিস করবে।
+        let didAutoAdvance = fillRes?.autoAdvanced || false;
+        if (!didAutoAdvance) {
+          // Monitor DOM for 2.6 seconds to see if choice click triggered instant AJAX transition
+          const watchStart = Date.now();
+          while (Date.now() - watchStart < 2600) {
+            await sleep(300);
+            if (!isAutoPilotActive) { autoPilotRunningCycle = false; return; }
+            const currentSig = getQuestionsFingerprint();
+            if (currentSig && currentSig !== initialQuestionsSig) {
+              didAutoAdvance = true;
+              break;
+            }
+          }
+        }
+
+        if (didAutoAdvance) {
+          lastHandledQuestionFingerprint = initialQuestionsSig;
+          updateHUDStatus("analyzing", "⚡ সার্ভে নিজে থেকেই পরবর্তী প্রশ্নে চলে গেছে! মানুষের মতো পর্যালোচনা শেষে নতুন উত্তর তৈরি হচ্ছে...");
+          autoPilotRunningCycle = false;
+          setTimeout(() => {
+            if (isAutoPilotActive && !autoPilotRunningCycle) {
+              triggerAutoPilotCycle();
+            }
+          }, 2800 + Math.random() * 800);
+          return;
+        }
+
+        // 9. Post-Answering Pause before Next / Submit
+        // Normal page: ~4.5s
         // Last page: 8-10s before submit to avoid disqualification / screen-out
         const isFinalPage = isLastSurveyPage(analysisData) || isLastPageInitial;
 
@@ -715,7 +791,7 @@
           updateHUDStatus("done", `🛑 লাস্ট পেজ সম্পন্ন! সার্ভে ড্রপ এড়াতে ${(submitWaitMs / 1000).toFixed(1)} সেকেন্ড পর সাবমিট করা হচ্ছে...`);
           await sleep(submitWaitMs);
         } else {
-          const nextWaitMs = 4500 + Math.random() * 1200; // 4.5s - 5.7s (around 5 seconds)
+          const nextWaitMs = 4200 + Math.random() * 1000;
           updateHUDStatus("done", `🤖 মানুষের মতো পর্যালোচনা সম্পন্ন (${(nextWaitMs / 1000).toFixed(1)}s)। Next পেজে যাওয়া হচ্ছে...`);
           await sleep(nextWaitMs);
         }
@@ -725,11 +801,26 @@
           return;
         }
 
-        // 9. Click Next or Submit
+        // Pre-click check: Verify if question changed during the post-answer pause
+        const preClickSig = getQuestionsFingerprint();
+        if (preClickSig && preClickSig !== initialQuestionsSig) {
+          lastHandledQuestionFingerprint = initialQuestionsSig;
+          updateHUDStatus("analyzing", "⚡ নতুন প্রশ্ন দৃশ্যমান হয়েছে! Next ক্লিক বাদ দিয়ে নতুন প্রশ্ন সমাধান করা হচ্ছে...");
+          autoPilotRunningCycle = false;
+          setTimeout(() => {
+            if (isAutoPilotActive && !autoPilotRunningCycle) {
+              triggerAutoPilotCycle();
+            }
+          }, 1500);
+          return;
+        }
+
+        // 10. Click Next or Submit
         const nextBtn = findNextButton();
         if (nextBtn) {
           updateHUDStatus("done", isFinalPage ? "🛑 লাস্ট পেজ: সাবমিট বাটনে ক্লিক করা হচ্ছে..." : "🤖 Next বাটনে ক্লিক করা হচ্ছে...");
           await sleep(400 + Math.random() * 300);
+          lastHandledQuestionFingerprint = initialQuestionsSig;
           clickElementLikeHuman(nextBtn);
 
           // Schedule next cycle for dynamic SPAs where no full page reload occurs
@@ -738,10 +829,11 @@
               if (isAutoPilotActive && !autoPilotRunningCycle) {
                 triggerAutoPilotCycle();
               }
-            }, 3600);
+            }, 3200);
           }
         } else {
-          updateHUDStatus("done", "🤖 পেজের উত্তর সম্পন্ন। পরবর্তী ধাপের জন্য অপেক্ষা করা হচ্ছে...");
+          lastHandledQuestionFingerprint = initialQuestionsSig;
+          updateHUDStatus("done", "🤖 পেজের উত্তর সম্পন্ন। স্বয়ংক্রিয় পরিবর্তনের জন্য পর্যবেক্ষণ করা হচ্ছে...");
         }
 
       } catch (e) {
@@ -757,7 +849,8 @@
      */
     async function runOneClickAutoFillAndNext(autoProceed = false) {
       try {
-        updateHUDStatus("analyzing", "⚡ ম্যানুয়াল মোড: সম্পূর্ণ পেজ Gemini Flash দিয়ে বিশ্লেষণ হচ্ছে...");
+        toggleHUD(true);
+        updateHUDStatus("analyzing", "⚡ ম্যানুয়াল মোড: সম্পূর্ণ পেজ বিশ্লেষণ করা হচ্ছে...");
 
         let analysisData = null;
         let filledCount = 0;
@@ -769,21 +862,32 @@
           const scanRes = await performFullScan();
           if (scanRes && scanRes.success && scanRes.data && scanRes.data.answers?.length > 0) {
             analysisData = scanRes.data;
-            updateHUDStatus("analyzing", "⚡ মানুষের মতো উত্তর সিলেক্ট ও মেসেজ বক্সে লেখা হচ্ছে...");
+            renderAnalysisInHUD(analysisData);
+            renderProminentAnswersBox(analysisData);
+            attachInPageAnswerBadges(analysisData);
+            updateHUDStatus("analyzing", "⚡ মানুষের মতো উত্তর সিলেক্ট ও পূরণ করা হচ্ছে...");
             const fillRes = await autoFillAnswers(analysisData);
             filledCount = fillRes.filledCount;
+            if (fillRes.autoAdvanced) {
+              updateHUDStatus("done", "⚡ উত্তর সিলেক্ট করা মাত্রই সার্ভে স্বয়ংক্রিয়ভাবে পরবর্তী প্রশ্নে চলে গেছে!");
+              return { success: true, filledCount, autoAdvanced: true, data: analysisData };
+            }
           }
         }
 
         // Step 2: Fallback to Screenshot if DOM found 0 questions or failed or 0 answers filled
         if (!analysisData || filledCount === 0 || !analysisData.answers || analysisData.answers.length === 0) {
-          updateHUDStatus("analyzing", "📸 পেজ সরাসরি এনালাইসিস বা সিলেক্ট করা যায়নি! সম্পূর্ণ পেজের স্ক্রিনশট নিয়ে সঠিক উত্তর নির্ণয় করা হচ্ছে...");
+          updateHUDStatus("analyzing", "📸 পেজ সরাসরি সিলেক্ট করা যায়নি! সম্পূর্ণ পেজের স্ক্রিনশট নিয়ে সঠিক উত্তর নির্ণয় করা হচ্ছে...");
           const ssRes = await performScreenshotAnalysis();
           if (ssRes && ssRes.success && ssRes.data) {
             analysisData = ssRes.data;
             filledCount = ssRes.filledCount || 0;
             isScreenshot = true;
+            renderAnalysisInHUD(analysisData);
+            renderProminentAnswersBox(analysisData);
+            attachInPageAnswerBadges(analysisData);
           } else if (!analysisData || !analysisData.answers || analysisData.answers.length === 0) {
+            updateHUDStatus("error", ssRes?.error || "Analysis failed.");
             return { success: false, message: ssRes?.error || "Analysis failed." };
           }
         }
@@ -792,6 +896,8 @@
         if (analysisData) {
           lastAnalysisResult = analysisData;
           chrome.storage.local.set({ lastAnalysisResult: analysisData });
+          renderProminentAnswersBox(analysisData);
+          attachInPageAnswerBadges(analysisData);
         }
 
         if (autoProceed) {
@@ -803,9 +909,13 @@
           }
         }
 
-        updateHUDStatus("done", isScreenshot
-          ? `✅ স্ক্রিনশট এনালাইসিস সম্পন্ন! সঠিক উত্তর এক্সটেনশনের নিচে দেখানো হলো, দেখে নিয়ে Next চাপুন।`
-          : `✅ ম্যানুয়াল মোড: ${filledCount}টি উত্তর মানুষের মতো পূরণ সম্পন্ন! আপনি দেখে নিয়ে Next চাপুন।`);
+        if (filledCount > 0) {
+          updateHUDStatus("done", isScreenshot
+            ? `✅ স্ক্রিনশট থেকে ${filledCount}টি উত্তর সিলেক্ট করা হয়েছে! নিচে সঠিক উত্তরসমূহ দেখানো হলো, দেখে Next চাপুন।`
+            : `✅ ম্যানুয়াল মোড: ${filledCount}টি উত্তর মানুষের মতো পূরণ সম্পন্ন! আপনি দেখে নিয়ে Next চাপুন।`);
+        } else {
+          updateHUDStatus("done", `💡 সঠিক উত্তর নিচে জারভিসের বক্সে ও পেজে চিহ্নিত করা হলো (এইটা এইটা উত্তর হবে)। দেখে সিলেক্ট করে Next চাপুন।`);
+        }
 
         return { success: true, filledCount, data: analysisData, isScreenshot };
       } catch (err) {
@@ -1240,7 +1350,7 @@
         }))
       };
 
-      updateHUDStatus("analyzing", `🤖 Gemini 3.8 Flash দিয়ে ${questions.length}টি প্রশ্ন মানুষের মতো বিশ্লেষণ হচ্ছে...`);
+      updateHUDStatus("analyzing", `🤖 AI ইঞ্জিন দিয়ে ${questions.length}টি প্রশ্ন মানুষের মতো বিশ্লেষণ হচ্ছে...`);
 
       const response = await new Promise((resolve) => {
         chrome.runtime.sendMessage(
@@ -1258,10 +1368,10 @@
       lastAnalysisResult = response.data;
       renderAnalysisInHUD(response.data);
       highlightAnswersOnPage(response.data);
-      const modelTag = response.modelUsed || "Gemini 3.8 Flash";
+      const modelTag = response.modelUsed || "AI";
       const providerTag = response.providerUsed ? ` [${response.providerUsed}]` : "";
       if (response.data?.is_from_cache) {
-        updateHUDStatus("done", `⚡ ${response.providerUsed}: মানুষের মতো ${response.data.answers?.length || questions.length}টি উত্তর ইনস্ট্যান্ট প্রস্তুত! (API কল খরচ হয়নি)`);
+        updateHUDStatus("done", `⚡ ${response.providerUsed || "Memory"}: মানুষের মতো ${response.data.answers?.length || questions.length}টি উত্তর ইনস্ট্যান্ট প্রস্তুত! (API কল সাশ্রয়)`);
       } else {
         updateHUDStatus("done", `✅ ${modelTag}${providerTag}: মানুষের মতো ${response.data.answers?.length || questions.length}টি উত্তর প্রস্তুত!`);
       }
@@ -1429,15 +1539,26 @@
         const targetIds = ans.target_element_ids || [];
         const labels = ans.selected_labels || [];
 
-        targetIds.forEach((targetId) => {
-          let el = document.getElementById(targetId) || document.querySelector(`[data-jarvis-optid="${targetId}"]`);
-          if (!el && labels.length > 0) {
-            el = findInputByLabelOrValue(labels[0], ans);
-          }
-          if (el) {
-            applyHighlightStyle(el, ans, idx + 1);
-          }
-        });
+        let foundEl = false;
+        if (targetIds.length > 0) {
+          targetIds.forEach((targetId) => {
+            let el = document.getElementById(targetId) || document.querySelector(`[data-jarvis-optid="${targetId}"]`);
+            if (el) {
+              applyHighlightStyle(el, ans, idx + 1);
+              foundEl = true;
+            }
+          });
+        }
+
+        if (!foundEl && labels.length > 0) {
+          labels.forEach((lbl) => {
+            let el = findInputByLabelOrValue(lbl, ans);
+            if (el) {
+              applyHighlightStyle(el, ans, idx + 1);
+              foundEl = true;
+            }
+          });
+        }
       });
     }
 
@@ -1482,6 +1603,7 @@
       const baseDelay = customGapMs !== null ? customGapMs : (isAuto ? 3000 : (autoFillDelay !== undefined ? autoFillDelay : 100));
 
       let filledCount = 0;
+      const startQuestionsSig = getQuestionsFingerprint();
       const questions = extractSurveyQuestions();
 
       for (let ansIdx = 0; ansIdx < data.answers.length; ansIdx++) {
@@ -1539,6 +1661,17 @@
           }
         }
 
+        // Check if clicking this option triggered an instant auto-advance to next page/question
+        if (filledThisAnswer) {
+          await sleep(350);
+          const currentSig = getQuestionsFingerprint();
+          if (startQuestionsSig && currentSig && currentSig !== startQuestionsSig) {
+            console.log("[Jarvis] Instant auto-advance detected right after option selection!");
+            updateHUDStatus("analyzing", "⚡ উত্তর সিলেক্ট করা মাত্রই সার্ভে স্বয়ংক্রিয়ভাবে পরবর্তী প্রশ্নে চলে গেছে!");
+            return { success: true, filledCount, autoAdvanced: true };
+          }
+        }
+
         // Human-paced inter-question delay (at least 3 seconds in auto mode)
         if (filledThisAnswer && isAuto && ansIdx < data.answers.length - 1) {
           const pauseMs = baseDelay + Math.random() * 600;
@@ -1550,10 +1683,15 @@
       }
 
       // Safety Verification: Ensure zero questions were skipped or left unfilled!
-      const verifiedAdded = await verifyAndFillAllQuestions(data);
-      filledCount += verifiedAdded;
+      const endQuestionsSig = getQuestionsFingerprint();
+      const autoAdvanced = Boolean(startQuestionsSig && endQuestionsSig && startQuestionsSig !== endQuestionsSig);
 
-      return { success: true, filledCount };
+      if (!autoAdvanced) {
+        const verifiedAdded = await verifyAndFillAllQuestions(data);
+        filledCount += verifiedAdded;
+      }
+
+      return { success: true, filledCount, autoAdvanced };
     }
 
     function matchOptionByLabels(question, labels) {
@@ -1842,10 +1980,32 @@
       element.dispatchEvent(new MouseEvent("mouseup", opts));
       element.dispatchEvent(new MouseEvent("click", opts));
 
-      // Also trigger native click
+      // Also trigger native clicks on element, associated input, and wrapping label
+      try { element.click(); } catch (e) { }
+      if (associatedInput && associatedInput !== element) {
+        try { associatedInput.click(); } catch (e) { }
+      }
+      const parentLabel = element.closest("label");
+      if (parentLabel && parentLabel !== element) {
+        try { parentLabel.click(); } catch (e) { }
+      }
+
+      // Bypass any invisible overlay or custom styled div by clicking visual center
       try {
-        element.click();
-      } catch (e) { }
+        const targetEl = associatedInput || element;
+        const rect = targetEl.getBoundingClientRect();
+        if (rect && rect.width > 0 && rect.height > 0) {
+          const cx = Math.floor(rect.left + rect.width / 2);
+          const cy = Math.floor(rect.top + rect.height / 2);
+          if (cx >= 0 && cx <= window.innerWidth && cy >= 0 && cy <= window.innerHeight) {
+            const visualPointEl = document.elementFromPoint(cx, cy);
+            if (visualPointEl && visualPointEl !== element && visualPointEl !== associatedInput) {
+              visualPointEl.click();
+              visualPointEl.dispatchEvent(new MouseEvent("click", opts));
+            }
+          }
+        }
+      } catch (_) {}
 
       // Add active styling
       element.classList.add("selected", "active", "checked");
@@ -2027,6 +2187,16 @@
           Status: রেডি। ম্যানুয়ালি উত্তর সিলেক্ট করতে উপরের বাটনে চাপ দিন বা Alt+S চাপুন।
         </div>
 
+        <!-- Prominent Answers Solution Box (Always visible under Jarvis Pilot) -->
+        <div id="jarvis-prominent-answers" class="jarvis-prominent-box jarvis-hidden">
+          <div class="jarvis-prominent-header">
+            <span class="jarvis-bulb-icon">💡</span>
+            <span>জারভিস সঠিক উত্তরসমূহ (এইটা এইটা উত্তর হবে):</span>
+          </div>
+          <div id="jarvis-prominent-list" class="jarvis-prominent-items"></div>
+          <button id="jarvis-btn-reapply" class="jarvis-btn jarvis-btn-reapply" title="Click to auto-fill these answers on this page">🎯 এই উত্তরগুলো পেজে পূরণ করুন (Auto-Select)</button>
+        </div>
+
         <div id="jarvis-results-container" class="jarvis-results-list"></div>
       </div>
     `;
@@ -2045,6 +2215,25 @@
       const scanOnlyBtn = document.getElementById("jarvis-btn-scan-only");
       const nextBtn = document.getElementById("jarvis-btn-next");
       const clearBtn = document.getElementById("jarvis-btn-clear");
+      const reapplyBtn = document.getElementById("jarvis-btn-reapply");
+
+      if (reapplyBtn) {
+        reapplyBtn.addEventListener("click", async () => {
+          reapplyBtn.disabled = true;
+          reapplyBtn.innerText = "⏳ উত্তর সিলেক্ট হচ্ছে...";
+          try {
+            if (lastAnalysisResult && lastAnalysisResult.answers) {
+              const res = await autoFillAnswers(lastAnalysisResult);
+              updateHUDStatus("done", `✅ ${res.filledCount || 0}টি উত্তর পেজে সিলেক্ট সম্পন্ন!`);
+            } else {
+              await runOneClickAutoFillAndNext(false);
+            }
+          } finally {
+            reapplyBtn.disabled = false;
+            reapplyBtn.innerText = "🎯 এই উত্তরগুলো পেজে পূরণ করুন (Auto-Select)";
+          }
+        });
+      }
 
       // Mode Switcher handlers
       tabManual.addEventListener("click", () => {
@@ -2205,6 +2394,129 @@
         ${ans.reasoning ? `<div class="jarvis-a-reasoning">💡 ${ans.reasoning}</div>` : ""}
       `;
         resultsContainer.appendChild(card);
+      });
+    }
+
+    /**
+     * Prominently displays all survey answers directly inside the Jarvis HUD
+     * Ensures the user clearly sees: "এইটা এইটা উত্তর হবে"
+     */
+    function renderProminentAnswersBox(data) {
+      const box = document.getElementById("jarvis-prominent-answers");
+      const list = document.getElementById("jarvis-prominent-list");
+      if (!box || !list) return;
+
+      if (!data || !data.answers || data.answers.length === 0) {
+        box.classList.add("jarvis-hidden");
+        return;
+      }
+
+      list.innerHTML = "";
+      data.answers.forEach((ans, idx) => {
+        const item = document.createElement("div");
+        item.className = "jarvis-prominent-item";
+        const answerText = (ans.selected_labels && ans.selected_labels.length > 0)
+          ? ans.selected_labels.join(", ")
+          : (ans.text_input_value || "সঠিক বিকল্প");
+        const qText = ans.question_text || `প্রশ্ন ${idx + 1}`;
+        item.innerHTML = `
+          <strong class="jarvis-p-q">Q${idx + 1}: ${qText}</strong>
+          <span class="jarvis-p-ans">👉 এইটা উত্তর হবে: <strong>${answerText}</strong></span>
+        `;
+        list.appendChild(item);
+      });
+      box.classList.remove("jarvis-hidden");
+    }
+
+    /**
+     * Attaches prominent in-page helper badges directly under survey questions
+     * Even if elements cannot be clicked via script, user sees: "👉 জারভিস উত্তর: [Answer]"
+     */
+    function attachInPageAnswerBadges(data) {
+      document.querySelectorAll(".jarvis-inline-question-callout").forEach(el => el.remove());
+      if (!data || !data.answers || data.answers.length === 0) return;
+
+      const questions = extractSurveyQuestions();
+
+      data.answers.forEach((ans, idx) => {
+        const answerText = (ans.selected_labels && ans.selected_labels.length > 0)
+          ? ans.selected_labels.join(", ")
+          : (ans.text_input_value || "সঠিক বিকল্প");
+
+        let targetContainer = null;
+        if (typeof ans.question_index === "number" && questions[ans.question_index]?.options?.[0]?.element) {
+          const firstOptEl = questions[ans.question_index].options[0].element;
+          targetContainer = firstOptEl.closest(".question-block, .survey-question, .question, .QuestionOuter, fieldset, [role='radiogroup'], .form-group, .survey-card, .survey-row, tr, td, li, form") || firstOptEl.parentElement;
+        }
+
+        if (!targetContainer && ans.question_text) {
+          const qSnippet = cleanText(ans.question_text).toLowerCase().slice(0, 40);
+          const allElements = document.querySelectorAll(".QuestionText, .question-text, .title, .q-title, h1, h2, h3, h4, legend, strong, b, .survey-question");
+          for (const el of allElements) {
+            if (cleanText(el.innerText).toLowerCase().includes(qSnippet)) {
+              targetContainer = el.closest(".question-block, .survey-question, .question, .QuestionOuter, fieldset, [role='radiogroup'], .form-group, .survey-card, .survey-row, tr, td, li") || el.parentElement;
+              break;
+            }
+          }
+        }
+
+        if (!targetContainer && questions[idx]?.options?.[0]?.element) {
+          const firstOptEl = questions[idx].options[0].element;
+          targetContainer = firstOptEl.closest(".question-block, .survey-question, .question, .QuestionOuter, fieldset, [role='radiogroup'], .form-group, .survey-card, .survey-row, tr, td, li") || firstOptEl.parentElement;
+        }
+
+        if (targetContainer && !targetContainer.querySelector(`.jarvis-inline-question-callout[data-ans-idx="${idx}"]`)) {
+          const callout = document.createElement("div");
+          callout.className = "jarvis-inline-question-callout";
+          callout.setAttribute("data-ans-idx", String(idx));
+          callout.innerHTML = `
+            <div class="jarvis-callout-text">
+              <span class="jarvis-callout-icon">👉</span>
+              <span>জারভিস উত্তর: <strong>${answerText}</strong></span>
+            </div>
+            <button class="jarvis-callout-pick-btn" type="button" title="এই উত্তরটি পেজে অটো-সিলেক্ট করতে চাপুন">সিলেক্ট করুন 🎯</button>
+          `;
+
+          const pickBtn = callout.querySelector(".jarvis-callout-pick-btn");
+          if (pickBtn) {
+            pickBtn.addEventListener("click", async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              pickBtn.disabled = true;
+              pickBtn.innerText = "সিলেক্ট হচ্ছে...";
+              try {
+                let el = null;
+                if (ans.selected_labels && ans.selected_labels.length > 0) {
+                  el = findInputByLabelOrValue(ans.selected_labels[0], ans);
+                }
+                if (!el && ans.target_element_ids && ans.target_element_ids.length > 0) {
+                  el = document.getElementById(ans.target_element_ids[0]);
+                }
+                if (el) {
+                  await simulateHumanAction(el, ans);
+                  applyHighlightStyle(el, ans, idx + 1);
+                  pickBtn.innerText = "✅ সিলেক্টেড";
+                } else {
+                  pickBtn.innerText = "চেষ্টা করা হয়েছে";
+                }
+              } finally {
+                setTimeout(() => {
+                  if (pickBtn) {
+                    pickBtn.disabled = false;
+                    pickBtn.innerText = "সিলেক্ট করুন 🎯";
+                  }
+                }, 2000);
+              }
+            });
+          }
+
+          const titleEl = targetContainer.querySelector("legend, .QuestionText, .question-text, .title, .q-title, h1, h2, h3, h4, h5, .control-label, [role='heading']");
+          if (titleEl && titleEl.nextSibling) {
+            titleEl.parentNode.insertBefore(callout, titleEl.nextSibling);
+          } else {
+            targetContainer.insertBefore(callout, targetContainer.firstChild);
+          }
+        }
       });
     }
 

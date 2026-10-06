@@ -1177,3 +1177,28 @@ input:focus, select:focus {
   border: 1px solid #a855f7;
   color: #c084fc;
 }
+
+/* Key Test Diagnostics UI */
+.key-test-status {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  margin-top: 8px;
+  word-break: break-word;
+}
+.key-test-status.testing {
+  background: rgba(0, 240, 255, 0.1);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  color: #00f0ff;
+}
+.key-test-status.success {
+  background: rgba(0, 255, 136, 0.12);
+  border: 1px solid rgba(0, 255, 136, 0.4);
+  color: #00ff88;
+}
+.key-test-status.error {
+  background: rgba(255, 68, 102, 0.12);
+  border: 1px solid rgba(255, 68, 102, 0.4);
+  color: #ff5577;
+}

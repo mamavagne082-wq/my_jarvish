@@ -48,6 +48,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   const bridgeStatusText = document.getElementById("bridge-status-text");
   const btnSaveSettings = document.getElementById("btn-save-settings");
   const modelNameBadge = document.getElementById("model-name-badge");
+  const selectEngineMode = document.getElementById("select-engine-mode");
+  const btnTestGeminiKey = document.getElementById("btn-test-gemini-key");
+  const geminiKeyTestResult = document.getElementById("gemini-key-test-result");
 
   // OpenRouter settings elements
   const inputOrApiKey = document.getElementById("input-or-api-key");
@@ -60,6 +63,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   const checkUseOpenRouter = document.getElementById("check-use-openrouter");
   const openRouterSettings = document.getElementById("openrouter-settings");
   const openRouterModelSettings = document.getElementById("openrouter-model-settings");
+  const btnTestOrKey = document.getElementById("btn-test-or-key");
+  const orKeyTestResult = document.getElementById("or-key-test-result");
 
   // Torve AI settings elements
   const inputTorveApiKey = document.getElementById("input-torve-api-key");
@@ -151,9 +156,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 3. Load Storage Settings & Auto-Pilot State
   const storage = await chrome.storage.local.get(null);
 
-  // Load Gemini Keys (up to 3)
-  if (inputApiKey) inputApiKey.value = storage.geminiApiKey || "AQ.Ab8RN6LtcM7pevIID9jpLXKQ_030T06c0A2UhJDnYOBQPb7O5w";
-  if (inputApiKey2) inputApiKey2.value = storage.geminiApiKey2 || "AQ.Ab8RN6J1FBmr5Rfi34mDhIDv1nmmVqt9WLcpUZrGS30lX761ng";
+  // Load Gemini Keys (up to 3) - Ignore dummy AQ keys
+  if (inputApiKey) inputApiKey.value = (storage.geminiApiKey && !storage.geminiApiKey.startsWith("AQ.")) ? storage.geminiApiKey : "";
+  if (inputApiKey2) inputApiKey2.value = (storage.geminiApiKey2 && !storage.geminiApiKey2.startsWith("AQ.")) ? storage.geminiApiKey2 : "";
   if (inputApiKey3) inputApiKey3.value = storage.geminiApiKey3 || "";
 
   // Gemini model: auto-upgrade any 2.5 / 1.5 / outdated model to working gemini-3.8-flash
@@ -167,7 +172,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     modelNameBadge.innerText = "3.8-FLASH";
   }
 
-  // Priority
+  // Engine Mode & Priority
+  if (selectEngineMode) {
+    selectEngineMode.value = storage.engineMode || "smart_cost_saving";
+  }
   if (selectProviderPriority && storage.providerPriority) {
     selectProviderPriority.value = storage.providerPriority;
   }
@@ -180,8 +188,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // Load OpenRouter settings (up to 3 keys)
-  if (inputOrApiKey) inputOrApiKey.value = storage.openRouterApiKey || "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";
-  if (inputOrApiKey2) inputOrApiKey2.value = storage.openRouterApiKey2 || "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";
+  if (inputOrApiKey) inputOrApiKey.value = storage.openRouterApiKey || "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";
+  if (inputOrApiKey2) inputOrApiKey2.value = storage.openRouterApiKey2 || "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";
   if (inputOrApiKey3) inputOrApiKey3.value = storage.openRouterApiKey3 || "";
 
   if (selectOrModel && storage.openRouterModel) {
@@ -204,6 +212,39 @@ document.addEventListener("DOMContentLoaded", async () => {
     checkUseTorveAi.checked = storage.useTorveAi !== undefined ? !!storage.useTorveAi : true;
     toggleTorveAiSectionVisibility(checkUseTorveAi.checked);
   }
+
+  // Load Gemini Web 3-Tier Accounts settings
+  const checkUseGeminiWeb = document.getElementById("check-use-gemini-web");
+  const inputEmailAcc1 = document.getElementById("input-gemini-email-acc1");
+  const inputPwdAcc1 = document.getElementById("input-gemini-pwd-acc1");
+  const inputEmailAcc2 = document.getElementById("input-gemini-email-acc2");
+  const inputPwdAcc2 = document.getElementById("input-gemini-pwd-acc2");
+  const inputEmailAcc3 = document.getElementById("input-gemini-email-acc3");
+  const inputPwdAcc3 = document.getElementById("input-gemini-pwd-acc3");
+
+  if (checkUseGeminiWeb) checkUseGeminiWeb.checked = storage.useGeminiWeb !== false;
+  if (inputEmailAcc1) inputEmailAcc1.value = storage.geminiAcc1Email || "plus.alamin@gmail.com";
+  if (inputPwdAcc1) inputPwdAcc1.value = storage.geminiAcc1Pwd || "";
+  if (inputEmailAcc2) inputEmailAcc2.value = storage.geminiAcc2Email || "pro.alamin@gmail.com";
+  if (inputPwdAcc2) inputPwdAcc2.value = storage.geminiAcc2Pwd || "";
+  if (inputEmailAcc3) inputEmailAcc3.value = storage.geminiAcc3Email || "alaminmiah1976@gmail.com";
+  if (inputPwdAcc3) inputPwdAcc3.value = storage.geminiAcc3Pwd || "";
+
+  function wireTogglePwd(btnId, inputId) {
+    const btn = document.getElementById(btnId);
+    const input = document.getElementById(inputId);
+    if (btn && input) {
+      btn.addEventListener("click", () => {
+        input.type = input.type === "password" ? "text" : "password";
+      });
+    }
+  }
+  wireTogglePwd("btn-toggle-pwd-acc1", "input-gemini-pwd-acc1");
+  wireTogglePwd("btn-toggle-pwd-acc2", "input-gemini-pwd-acc2");
+  wireTogglePwd("btn-toggle-pwd-acc3", "input-gemini-pwd-acc3");
+
+  // Check live status of Gemini Web Account
+  checkGeminiWebLiveStatus();
 
   // Auto-Pilot state
   isAutoPilotActive = !!storage.autoPilotActive;
@@ -339,7 +380,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         geminiApiKey2: inputApiKey2 ? inputApiKey2.value.trim() : "",
         geminiApiKey3: inputApiKey3 ? inputApiKey3.value.trim() : "",
         geminiModel: selectModel ? selectModel.value : "gemini-3.8-flash",
-        providerPriority: selectProviderPriority ? selectProviderPriority.value : "gemini_first",
+        engineMode: selectEngineMode ? selectEngineMode.value : "ai_first",
+        providerPriority: selectProviderPriority ? selectProviderPriority.value : "openrouter_first",
         autoFillDelay: inputFillDelay ? parseInt(inputFillDelay.value, 10) || 350 : 350,
         useVisionScreenshot: false,
         localBridgeEnabled: checkLocalBridge ? checkLocalBridge.checked : true,
@@ -355,6 +397,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         torveAiApiKey3: inputTorveApiKey3 ? inputTorveApiKey3.value.trim() : "",
         torveAiModel: selectTorveModel ? selectTorveModel.value : "claude-opus-4-8",
         useTorveAi: checkUseTorveAi ? checkUseTorveAi.checked : true,
+        // Google Gemini Web 3-Tier Accounts settings (Zero API Cost)
+        useGeminiWeb: checkUseGeminiWeb ? checkUseGeminiWeb.checked : true,
+        geminiAcc1Email: inputEmailAcc1 ? inputEmailAcc1.value.trim() : "plus.alamin@gmail.com",
+        geminiAcc1Pwd: inputPwdAcc1 ? inputPwdAcc1.value.trim() : "",
+        geminiAcc2Email: inputEmailAcc2 ? inputEmailAcc2.value.trim() : "pro.alamin@gmail.com",
+        geminiAcc2Pwd: inputPwdAcc2 ? inputPwdAcc2.value.trim() : "",
+        geminiAcc3Email: inputEmailAcc3 ? inputEmailAcc3.value.trim() : "alaminmiah1976@gmail.com",
+        geminiAcc3Pwd: inputPwdAcc3 ? inputPwdAcc3.value.trim() : "",
         // Memory settings
         memoryApiKey: inputSettingsMemKey ? inputSettingsMemKey.value.trim() : (inputMemoryApiKey ? inputMemoryApiKey.value.trim() : ""),
         memoryProvider: selectMemoryProvider ? selectMemoryProvider.value : "local_offline"
@@ -371,7 +421,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const orCount = [updated.openRouterApiKey, updated.openRouterApiKey2, updated.openRouterApiKey3].filter(Boolean).length;
         const torveCount = [updated.torveAiApiKey, updated.torveAiApiKey2, updated.torveAiApiKey3].filter(Boolean).length;
 
-        let statusText = `✅ সেটিংস সেভ হয়েছে! Gemini: ${geminiCount}টি | OpenRouter: ${orCount}টি | Torve AI: ${torveCount}টি فعال`;
+        let statusText = `✅ সেটিংস সেভ হয়েছে! Gemini: ${geminiCount}টি | OpenRouter: ${orCount}টি | Torve AI: ${torveCount}টি সক্রিয়`;
         if (geminiCount === 0 && orCount === 0 && torveCount === 0) {
           statusText = "⚠️ কোনো API Key দেওয়া নেই! লোকাল নলেজ বেস ফাইল বা মেমরি ক্যাশ ছাড়া সার্ভে কাজ করবে না।";
         }
@@ -394,9 +444,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Auto-save settings on input/change/blur so pasted keys are never lost
   const autoSaveInputs = [
-    inputApiKey, inputApiKey2, inputApiKey3, selectModel, selectProviderPriority,
+    inputApiKey, inputApiKey2, inputApiKey3, selectModel, selectEngineMode, selectProviderPriority,
     inputFillDelay, inputOrApiKey, inputOrApiKey2, inputOrApiKey3, selectOrModel,
     inputTorveApiKey, inputTorveApiKey2, inputTorveApiKey3, selectTorveModel,
+    checkUseGeminiWeb, inputEmailAcc1, inputPwdAcc1, inputEmailAcc2, inputPwdAcc2, inputEmailAcc3, inputPwdAcc3,
     inputMemoryApiKey, inputSettingsMemKey, selectMemoryProvider
   ];
   let autoSaveTimer = null;
@@ -408,9 +459,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         geminiApiKey2: inputApiKey2 ? inputApiKey2.value.trim() : "",
         geminiApiKey3: inputApiKey3 ? inputApiKey3.value.trim() : "",
         geminiModel: selectModel ? selectModel.value : "gemini-3.8-flash",
-        providerPriority: selectProviderPriority ? selectProviderPriority.value : "gemini_first",
+        engineMode: selectEngineMode ? selectEngineMode.value : "ai_first",
+        providerPriority: selectProviderPriority ? selectProviderPriority.value : "gemini_web_first",
         autoFillDelay: inputFillDelay ? parseInt(inputFillDelay.value, 10) || 350 : 350,
         localBridgeEnabled: checkLocalBridge ? checkLocalBridge.checked : true,
+        useGeminiWeb: checkUseGeminiWeb ? checkUseGeminiWeb.checked : true,
+        geminiAcc1Email: inputEmailAcc1 ? inputEmailAcc1.value.trim() : "plus.alamin@gmail.com",
+        geminiAcc1Pwd: inputPwdAcc1 ? inputPwdAcc1.value.trim() : "",
+        geminiAcc2Email: inputEmailAcc2 ? inputEmailAcc2.value.trim() : "pro.alamin@gmail.com",
+        geminiAcc2Pwd: inputPwdAcc2 ? inputPwdAcc2.value.trim() : "",
+        geminiAcc3Email: inputEmailAcc3 ? inputEmailAcc3.value.trim() : "alaminmiah1976@gmail.com",
+        geminiAcc3Pwd: inputPwdAcc3 ? inputPwdAcc3.value.trim() : "",
         openRouterApiKey: inputOrApiKey ? inputOrApiKey.value.trim() : "",
         openRouterApiKey2: inputOrApiKey2 ? inputOrApiKey2.value.trim() : "",
         openRouterApiKey3: inputOrApiKey3 ? inputOrApiKey3.value.trim() : "",
@@ -435,6 +494,161 @@ document.addEventListener("DOMContentLoaded", async () => {
       el.addEventListener("blur", triggerAutoSave);
     }
   });
+
+  // Test OpenRouter Key Handler
+  if (btnTestOrKey) {
+    btnTestOrKey.addEventListener("click", () => {
+      const keyToTest = (inputOrApiKey?.value || inputOrApiKey2?.value || "").trim();
+      const modelToTest = selectOrModel ? selectOrModel.value : "google/gemini-2.5-flash";
+      if (!keyToTest) {
+        if (orKeyTestResult) {
+          orKeyTestResult.style.display = "block";
+          orKeyTestResult.className = "key-test-status error";
+          orKeyTestResult.innerText = "❌ দয়া করে আগে একটি OpenRouter API Key বক্সে লিখুন বা পেস্ট করুন!";
+        }
+        return;
+      }
+
+      if (orKeyTestResult) {
+        orKeyTestResult.style.display = "block";
+        orKeyTestResult.className = "key-test-status testing";
+        orKeyTestResult.innerText = "⏳ OpenRouter API যাচাই করা হচ্ছে (সার্ভার কানেকশন ও ব্যালেন্স চেক)...";
+      }
+
+      try {
+        chrome.runtime.sendMessage({
+          action: "TEST_API_KEY",
+          provider: "openrouter",
+          apiKey: keyToTest,
+          model: modelToTest
+        }, (res) => {
+          if (!orKeyTestResult) return;
+          if (res && res.success) {
+            orKeyTestResult.className = "key-test-status success";
+            let msg = `${res.message || "✅ OpenRouter Key সক্রিয়!"}\nModel: ${res.modelTested}`;
+            if (res.isFreeTier) {
+              msg += `\n💡 Free Tier সক্রিয়: ক্রেডিট শেষ হলেও 'openrouter/free' মডেল দিয়ে আজীবন সার্ভে চলবে!`;
+            }
+            orKeyTestResult.innerText = msg;
+          } else {
+            orKeyTestResult.className = "key-test-status error";
+            orKeyTestResult.innerText = res?.error || "❌ OpenRouter API Key যাচাই ব্যর্থ হয়েছে।";
+          }
+        });
+      } catch (err) {
+        if (orKeyTestResult) {
+          orKeyTestResult.className = "key-test-status error";
+          orKeyTestResult.innerText = `ত্রুটি: ${err.message}`;
+        }
+      }
+    });
+  }
+
+  // Test Gemini Key Handler
+  if (btnTestGeminiKey) {
+    btnTestGeminiKey.addEventListener("click", () => {
+      const keyToTest = (inputApiKey?.value || inputApiKey2?.value || "").trim();
+      if (!keyToTest) {
+        if (geminiKeyTestResult) {
+          geminiKeyTestResult.style.display = "block";
+          geminiKeyTestResult.className = "key-test-status error";
+          geminiKeyTestResult.innerText = "❌ দয়া করে আগে একটি Gemini API Key লিখুন!";
+        }
+        return;
+      }
+
+      if (geminiKeyTestResult) {
+        geminiKeyTestResult.style.display = "block";
+        geminiKeyTestResult.className = "key-test-status testing";
+        geminiKeyTestResult.innerText = "⏳ Google Gemini API যাচাই করা হচ্ছে...";
+      }
+
+      try {
+        chrome.runtime.sendMessage({
+          action: "TEST_API_KEY",
+          provider: "gemini",
+          apiKey: keyToTest
+        }, (res) => {
+          if (!geminiKeyTestResult) return;
+          if (res && res.success) {
+            geminiKeyTestResult.className = "key-test-status success";
+            geminiKeyTestResult.innerText = res.message || "✅ Gemini Key সম্পূর্ণ সক্রিয়!";
+          } else {
+            geminiKeyTestResult.className = "key-test-status error";
+            geminiKeyTestResult.innerText = res?.error || "❌ Gemini API Key সঠিক নয় বা পারমিশন নেই।";
+          }
+        });
+      } catch (err) {
+        if (geminiKeyTestResult) {
+          geminiKeyTestResult.className = "key-test-status error";
+          geminiKeyTestResult.innerText = `ত্রুটি: ${err.message}`;
+        }
+      }
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Google Gemini Web 3-Tier Multi-Account (Plus + Pro + Ultra Pro) Handlers
+  // -------------------------------------------------------------------------
+  function checkGeminiWebLiveStatus() {
+    const badgePlus = document.getElementById("gemini-badge-plus");
+    const badgePro = document.getElementById("gemini-badge-pro");
+    const badgeUltra = document.getElementById("gemini-badge-ultra");
+    const msgBox = document.getElementById("gemini-web-connect-msg");
+
+    chrome.runtime.sendMessage({ action: "CHECK_GEMINI_WEB_STATUS" }, (res) => {
+      if (res && res.connected) {
+        if (badgePlus) badgePlus.innerText = "Connected";
+        if (badgePro) badgePro.innerText = "Connected";
+        if (badgeUltra) badgeUltra.innerText = "Connected";
+
+        const stAcc1 = document.getElementById("gemini-status-acc1");
+        const stAcc2 = document.getElementById("gemini-status-acc2");
+        const stAcc3 = document.getElementById("gemini-status-acc3");
+        if (stAcc1) { stAcc1.className = "badge-green"; stAcc1.innerText = "Active"; }
+        if (stAcc2) { stAcc2.className = "badge-green"; stAcc2.innerText = "Backup 1 Ready"; }
+        if (stAcc3) { stAcc3.className = "badge-green"; stAcc3.innerText = "Ultra Ready"; }
+
+        if (msgBox) {
+          msgBox.style.display = "block";
+          msgBox.style.color = "#34d399";
+          msgBox.innerHTML = `✅ Gemini Multi-Account সেশন সংযুক্ত (${res.hasTab ? "ট্যাব রেডি" : "সেশন সক্রিয়"})। ৩টি অ্যাকাউন্ট ব্যাকআপ সহ আনলিমিটেড চলবে!`;
+        }
+      } else {
+        if (msgBox) {
+          msgBox.style.display = "block";
+          msgBox.style.color = "#cbd5e1";
+          msgBox.innerHTML = `ℹ️ আপনার যেকোনো অ্যাকাউন্টে লগইন করতে নিচের 'কানেক্ট / টেস্ট' বাটনে চাপুন।`;
+        }
+      }
+    });
+  }
+
+  // Multi-Account individual connect buttons
+  document.querySelectorAll(".btn-connect-acc").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const accNum = e.currentTarget.getAttribute("data-acc") || "1";
+      const accLabels = { "1": "Gemini Plus", "2": "Gemini Pro", "3": "Gemini Ultra Pro" };
+      chrome.runtime.sendMessage({ action: "CONNECT_GEMINI_WEB", accountIndex: accNum }, () => {
+        const msgBox = document.getElementById("gemini-web-connect-msg");
+        if (msgBox) {
+          msgBox.style.display = "block";
+          msgBox.style.color = "#38bdf8";
+          msgBox.innerHTML = `🔗 ${accLabels[accNum]} অ্যাকাউন্ট ব্রাউজারে চালু হচ্ছে... লগইন নিশ্চিত করুন।`;
+        }
+        setTimeout(checkGeminiWebLiveStatus, 2500);
+      });
+    });
+  });
+
+  const btnQuickOpenGeminiWeb = document.getElementById("btn-quick-open-gemini-web");
+  if (btnQuickOpenGeminiWeb) {
+    btnQuickOpenGeminiWeb.addEventListener("click", () => {
+      chrome.runtime.sendMessage({ action: "CONNECT_GEMINI_WEB" }, () => {
+        setTimeout(checkGeminiWebLiveStatus, 1500);
+      });
+    });
+  }
 
   // 6. Action: Toggle Autonomous Auto-Pilot
   if (btnToggleAutopilot) {

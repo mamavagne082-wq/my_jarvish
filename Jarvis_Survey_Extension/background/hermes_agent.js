@@ -871,27 +871,140 @@
     }
 
     // =========================================================================
-    // GENERIC FALLBACKS
+    // SMART SURVEY HEURISTICS (Attention Traps, Likert Scales, Ratings, Text)
     // =========================================================================
 
-    // "Yes/No" questions about personal demographics
+    // 1. Attention Check Traps (Crucial to avoid survey termination)
+    if (hasKeyword(qText, [
+      "attention check", "verify you are reading", "to verify", "to confirm",
+      "please select", "carefully select", "select the option", "select the answer",
+      "choose the option", "quality check", "ensure quality"
+    ])) {
+      // Try to find if a specific option name was instructed in the question text
+      for (const opt of options) {
+        const optLabel = typeof opt === "string" ? opt : (opt.label || opt.value || "");
+        if (optLabel && optLabel.length > 2 && hasKeyword(qText, [optLabel])) {
+          return makeAnswer(question, [optLabel], "Hermes: Attention Check instructed option → " + optLabel);
+        }
+      }
+      // Common attention check options
+      const trapOpt = findBestOption(options, ["Strongly Agree", "Somewhat Agree", "None of the above", "Blue", "Green", "Red"]);
+      if (trapOpt) return makeAnswer(question, [trapOpt], "Hermes: Attention Check match");
+    }
+
+    // 2. Agreement / Likert scales
+    const agreementOpt = findBestOption(options, [
+      "Strongly Agree", "Agree", "Somewhat Agree", "Completely Agree",
+      "Tend to agree", "Neither agree nor disagree"
+    ]);
+    if (agreementOpt && hasKeyword(qText, ["agree", "statement", "opinion", "extent", "rate"])) {
+      return makeAnswer(question, [agreementOpt], "Hermes: Agreement scale → " + agreementOpt);
+    }
+
+    // 3. Satisfaction scales
+    const satisfactionOpt = findBestOption(options, [
+      "Very Satisfied", "Satisfied", "Somewhat Satisfied", "Extremely Satisfied",
+      "Mostly Satisfied"
+    ]);
+    if (satisfactionOpt && hasKeyword(qText, ["satisf", "experience", "how was", "rate your"])) {
+      return makeAnswer(question, [satisfactionOpt], "Hermes: Satisfaction scale → " + satisfactionOpt);
+    }
+
+    // 4. Likelihood / Probability
+    const likelihoodOpt = findBestOption(options, [
+      "Very Likely", "Likely", "Somewhat Likely", "Extremely Likely",
+      "Definitely will", "Probably will"
+    ]);
+    if (likelihoodOpt && hasKeyword(qText, ["likely", "likelihood", "recommend", "future", "would you", "will you"])) {
+      return makeAnswer(question, [likelihoodOpt], "Hermes: Likelihood scale → " + likelihoodOpt);
+    }
+
+    // 5. Importance scales
+    const importanceOpt = findBestOption(options, [
+      "Very Important", "Important", "Somewhat Important", "Extremely Important"
+    ]);
+    if (importanceOpt && hasKeyword(qText, ["important", "importance", "value", "factor"])) {
+      return makeAnswer(question, [importanceOpt], "Hermes: Importance scale → " + importanceOpt);
+    }
+
+    // 6. Frequency scales
+    const frequencyOpt = findBestOption(options, [
+      "Often", "Sometimes", "Frequently", "Regularly", "Daily",
+      "A few times a week", "Once a week", "1 to 3 times"
+    ]);
+    if (frequencyOpt && hasKeyword(qText, ["how often", "frequency", "how frequently"])) {
+      return makeAnswer(question, [frequencyOpt], "Hermes: Frequency scale → " + frequencyOpt);
+    }
+
+    // 7. General Yes/No Questions
     if (options.length === 2) {
       const labels = options.map(o => normalize(typeof o === "string" ? o : (o.label || o.value || "")));
       if (labels.includes("yes") && labels.includes("no")) {
-        // Use profile context to answer yes/no
-        if (hasKeyword(qText, ["driver", "license", "drive"])) {
-          const ans = findBestOption(options, ["Yes"]);
-          if (ans) return makeAnswer(question, [ans], "Hermes: Driver license → Yes");
-        }
-        if (hasKeyword(qText, ["webcam"])) {
-          const ans = findBestOption(options, ["Yes"]);
-          if (ans) return makeAnswer(question, [ans], "Hermes: Webcam → Yes");
-        }
+        const isNegativeQ = hasKeyword(qText, ["felony", "crime", "bankrupt", "sued", "fraud", "arrest", "fired", "disease", "cancer"]);
+        const chosen = isNegativeQ ? "No" : "Yes";
+        const ans = findBestOption(options, [chosen]);
+        if (ans) return makeAnswer(question, [ans], `Hermes: Yes/No heuristic → ${chosen}`);
       }
     }
 
-    // Cannot confidently answer → return null → API will handle it
+    // 8. Open-ended / Text Input Questions
+    if (question.type === "text_input" || options.length === 0 || (options.length === 1 && (options[0].type === "text_input" || options[0].type === "textarea"))) {
+      let textFeedback = "Overall reliable service with positive experience and dependable quality.";
+      if (hasKeyword(qText, ["why", "explain", "reason", "describe"])) {
+        textFeedback = "The service and products have consistently met our expectations, offering reliable performance and great usability.";
+      } else if (hasKeyword(qText, ["improve", "suggestion", "feedback", "change"])) {
+        textFeedback = "Continuing to enhance ease-of-use and prompt customer support would be appreciated.";
+      } else if (hasKeyword(qText, ["brand", "company", "name"])) {
+        textFeedback = "Samsung, Apple, and Audi are brands I trust and frequently engage with.";
+      }
+      return makeTextAnswer(question, textFeedback, "Hermes: Persona-grounded open-ended response");
+    }
+
+    // 9. Numeric / Rating scale (1-10, 1-5, 1-7)
+    if (options.length >= 5) {
+      // Look for high positive rating (e.g. 8, 9, 10 or 4, 5)
+      const highRating = findBestOption(options, ["9", "8", "10", "4", "5", "7", "Excellent", "Good"]);
+      if (highRating) {
+        return makeAnswer(question, [highRating], "Hermes: Rating scale → " + highRating);
+      }
+    }
+
+    // Cannot confidently answer → return null → can use resolveAnyQuestion if offline fallback requested
     return null;
+  }
+
+  /**
+   * Standalone fallback solver that GUARANTEES an answer for any survey question
+   * Ensures 0 API cost and zero failures when no external API is available.
+   */
+  function fallbackResolveQuestion(question) {
+    if (!question) return null;
+    const options = question.options || [];
+
+    if (question.type === "text_input" || options.length === 0 || (options.length === 1 && (options[0].type === "text_input" || options[0].type === "textarea"))) {
+      return makeTextAnswer(question, "Overall high satisfaction, dependable performance, and good quality.", "Hermes Fallback Response");
+    }
+
+    if (options.length > 0) {
+      // 1. Look for moderate-positive option
+      const posOpt = findBestOption(options, [
+        "Agree", "Somewhat Agree", "Satisfied", "Likely", "Important", "Yes",
+        "Good", "Very Good", "4", "5", "8", "9"
+      ]);
+      if (posOpt) return makeAnswer(question, [posOpt], "Hermes Smart Fallback: " + posOpt);
+
+      // 2. Avoid "Prefer not to say" or "None of the above" unless trapped
+      const normalOpts = options.filter(o => {
+        const lbl = (typeof o === "string" ? o : (o.label || o.value || "")).toLowerCase();
+        return !lbl.includes("prefer not") && !lbl.includes("don't know");
+      });
+
+      const chosenOpt = (normalOpts.length > 0 ? normalOpts[0] : options[0]);
+      const chosenLabel = typeof chosenOpt === "string" ? chosenOpt : (chosenOpt.label || chosenOpt.value || "Option");
+      return makeAnswer(question, [chosenLabel], "Hermes Default Heuristic: " + chosenLabel);
+    }
+
+    return makeTextAnswer(question, "Reliable and consistent quality.", "Hermes Default Text");
   }
 
   /**
@@ -938,7 +1051,7 @@
      * Try to answer all given questions using Hermes rule engine.
      * Returns { resolvedAnswers, missingQuestions, allHit, hitCount, missCount }
      */
-    resolveQuestions(questions) {
+    resolveQuestions(questions, allowFallback = false) {
       if (!questions || questions.length === 0) {
         return { resolvedAnswers: [], missingQuestions: [], allHit: true, hitCount: 0, missCount: 0 };
       }
@@ -948,7 +1061,11 @@
 
       for (const q of questions) {
         try {
-          const answer = resolveQuestion(q);
+          let answer = resolveQuestion(q);
+          if (!answer && allowFallback) {
+            answer = fallbackResolveQuestion(q);
+          }
+
           if (answer) {
             resolvedAnswers.push(answer);
           } else {
@@ -956,7 +1073,12 @@
           }
         } catch (e) {
           console.warn("[Hermes] Error resolving question:", q.text, e);
-          missingQuestions.push(q);
+          if (allowFallback) {
+            const fb = fallbackResolveQuestion(q);
+            if (fb) resolvedAnswers.push(fb); else missingQuestions.push(q);
+          } else {
+            missingQuestions.push(q);
+          }
         }
       }
 
@@ -968,6 +1090,17 @@
         hitCount: resolvedAnswers.length,
         missCount: missingQuestions.length
       };
+    },
+
+    /**
+     * Guarantees 100% offline resolution without needing any API
+     */
+    resolveAllOffline(questions) {
+      return this.resolveQuestions(questions, true);
+    },
+
+    fallbackResolveQuestion(q) {
+      return fallbackResolveQuestion(q);
     },
 
     /**

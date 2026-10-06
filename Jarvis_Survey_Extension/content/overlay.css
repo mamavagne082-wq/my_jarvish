@@ -535,3 +535,128 @@
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ========================================================
+   PROMINENT ANSWERS DISPLAY & IN-PAGE QUESTION CALLOUTS
+   ======================================================== */
+.jarvis-prominent-box {
+  background: linear-gradient(135deg, rgba(3, 15, 30, 0.95), rgba(5, 25, 45, 0.95)) !important;
+  border: 1.5px solid #00f0ff !important;
+  border-radius: 10px !important;
+  padding: 12px 14px !important;
+  margin: 10px 0 !important;
+  box-shadow: 0 4px 20px rgba(0, 240, 255, 0.25) !important;
+  animation: jarvis-fade-in 0.3s ease !important;
+}
+
+.jarvis-prominent-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #00f0ff !important;
+  margin-bottom: 8px !important;
+  border-bottom: 1px solid rgba(0, 240, 255, 0.2) !important;
+  padding-bottom: 6px !important;
+}
+
+.jarvis-prominent-items {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  max-height: 200px !important;
+  overflow-y: auto !important;
+}
+
+.jarvis-prominent-item {
+  background: rgba(0, 240, 255, 0.05) !important;
+  border-left: 3px solid #00ff88 !important;
+  padding: 6px 10px !important;
+  border-radius: 4px !important;
+  font-size: 11px !important;
+  line-height: 1.4 !important;
+  color: #e2e8f0 !important;
+}
+
+.jarvis-prominent-item strong.jarvis-p-q {
+  color: #94a3b8 !important;
+  display: block !important;
+  margin-bottom: 2px !important;
+}
+
+.jarvis-prominent-item span.jarvis-p-ans {
+  color: #00ff88 !important;
+  font-weight: 700 !important;
+  font-size: 12px !important;
+}
+
+.jarvis-btn-reapply {
+  margin-top: 8px !important;
+  width: 100% !important;
+  padding: 8px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  background: linear-gradient(135deg, #00f0ff 0%, #00a8cc 100%) !important;
+  color: #030d1a !important;
+  border: none !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  transition: transform 0.15s !important;
+}
+
+.jarvis-btn-reapply:hover {
+  transform: scale(1.02) !important;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.5) !important;
+}
+
+/* In-Page Question Callout Badge (Rendered directly under survey questions on the page) */
+.jarvis-inline-question-callout {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  background: linear-gradient(90deg, #071728 0%, #0d2847 100%) !important;
+  border: 1.5px solid #00ff88 !important;
+  border-radius: 8px !important;
+  padding: 7px 12px !important;
+  margin: 8px 0 !important;
+  color: #fff !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 14px rgba(0, 255, 136, 0.25) !important;
+  z-index: 9999 !important;
+  position: relative !important;
+  animation: jarvis-fade-in 0.3s ease !important;
+}
+
+.jarvis-inline-question-callout .jarvis-callout-text {
+  flex: 1 !important;
+  color: #e2e8f0 !important;
+  font-size: 12px !important;
+}
+
+.jarvis-inline-question-callout .jarvis-callout-text strong {
+  color: #00ff88 !important;
+  font-size: 13px !important;
+  text-decoration: underline !important;
+  text-underline-offset: 2px !important;
+}
+
+.jarvis-inline-question-callout .jarvis-callout-pick-btn {
+  background: #00ff88 !important;
+  color: #03140e !important;
+  border: none !important;
+  border-radius: 5px !important;
+  padding: 4px 10px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  transition: background 0.2s, transform 0.15s !important;
+  white-space: nowrap !important;
+}
+
+.jarvis-inline-question-callout .jarvis-callout-pick-btn:hover {
+  background: #00cc6a !important;
+  transform: scale(1.04) !important;
+}

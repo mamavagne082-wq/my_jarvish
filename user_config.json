@@ -35,7 +35,10 @@
         "meta_ai_backup_1": "LLM_1641492130932646_FGADlFzHcoNNNLCWI5geRiCgv90",
         "meta": "LLM_2669867663448731_1QzjpJ8TB1g_7VLeHYNajinyc9I",
         "fast_router": "sk-v1-43ef5710114097156125b9b556c77f5df84982f05911c34667d2e1c5d2dadbfd",
-        "fast_router_backup_1": "pk-v1-819765dbde1db23db69d64ade5b0e9759293398f9ffdf334085d1e40b22596ab"
+        "fast_router_backup_1": "pk-v1-819765dbde1db23db69d64ade5b0e9759293398f9ffdf334085d1e40b22596ab",
+        "gemini_web_plus_account": "plus.alamin@gmail.com",
+        "gemini_web_pro_account": "pro.alamin@gmail.com",
+        "gemini_web_ultra_account": "alaminmiah1976@gmail.com"
     },
     "model_routing": {
         "screenshot_vision": "gemini-3.8-flash",

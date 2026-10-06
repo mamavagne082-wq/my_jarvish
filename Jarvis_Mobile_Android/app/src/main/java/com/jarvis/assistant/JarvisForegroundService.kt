@@ -713,39 +713,24 @@ class JarvisForegroundService : Service() {
         return false
     }
 
-    // ── Direct Multi-Model AI Engine (Gemini -> OpenRouter -> Offline) ───────
+    // ── Direct Multi-Model AI Engine (OpenRouter -> Torve -> Grok -> OpenAI -> Gemini -> Offline) ───────
     fun queryDirectAI(userPrompt: String, onResponse: (String) -> Unit) {
         serviceScope.launch(Dispatchers.IO) {
-            val googleKey = MobileConfig.getGoogleKey(this@JarvisForegroundService)
             val openRouterKey = MobileConfig.getOpenRouterKey(this@JarvisForegroundService)
+            val torveKey = MobileConfig.getTorveKey(this@JarvisForegroundService)
+            val grokKey = MobileConfig.getGrokKey(this@JarvisForegroundService)
             val openAiKey = MobileConfig.getOpenAiKey(this@JarvisForegroundService)
+            val googleKey = MobileConfig.getGoogleKey(this@JarvisForegroundService)
             var answered = false
 
-            // 1. Google Gemini API with fallback models
-            if (googleKey.isNotBlank() && googleKey != "0" && !googleKey.startsWith("AQ.")) {
-                val geminiModels = listOf("gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash")
-                for (model in geminiModels) {
-                    if (answered) break
-                    try {
-                        val result = callGeminiApi(googleKey, model, userPrompt)
-                        if (result.isNotBlank()) {
-                            answered = true
-                            withContext(Dispatchers.Main) { onResponse(result) }
-                        }
-                    } catch (e: Exception) {
-                        Log.d(TAG, "Gemini $model failed: ${e.message}")
-                    }
-                }
-            }
-
-            // 2. OpenRouter Multi-Model Cloud API
+            // 1. OpenRouter Multi-Model Cloud API (Fast & Free models)
             if (!answered && openRouterKey.isNotBlank()) {
                 val orModels = listOf(
-                    "qwen/qwen3.8-27b:free",
-                    "nvidia/nemotron-3.5-lightning:free",
-                    "meta-llama/llama-3.3-70b-instruct:free",
                     "google/gemini-2.0-flash-exp:free",
-                    "openrouter/auto"
+                    "meta-llama/llama-3.3-70b-instruct:free",
+                    "deepseek/deepseek-chat",
+                    "openrouter/auto",
+                    "mistralai/mistral-7b-instruct:free"
                 )
                 for (m in orModels) {
                     if (answered) break
@@ -761,7 +746,33 @@ class JarvisForegroundService : Service() {
                 }
             }
 
-            // 3. OpenAI API if configured
+            // 2. FastRouter / Torve AI
+            if (!answered && torveKey.isNotBlank()) {
+                try {
+                    val result = callTorveAiApi(torveKey, "claude-opus-4-8", userPrompt)
+                    if (result.isNotBlank()) {
+                        answered = true
+                        withContext(Dispatchers.Main) { onResponse(result) }
+                    }
+                } catch (e: Exception) {
+                    Log.d(TAG, "Torve AI failed: ${e.message}")
+                }
+            }
+
+            // 3. Grok (xAI)
+            if (!answered && grokKey.isNotBlank()) {
+                try {
+                    val result = callGrokApi(grokKey, "grok-beta", userPrompt)
+                    if (result.isNotBlank()) {
+                        answered = true
+                        withContext(Dispatchers.Main) { onResponse(result) }
+                    }
+                } catch (e: Exception) {
+                    Log.d(TAG, "Grok failed: ${e.message}")
+                }
+            }
+
+            // 4. OpenAI API (GPT-4o Mini)
             if (!answered && openAiKey.isNotBlank() && !openAiKey.startsWith("0")) {
                 try {
                     val result = callOpenAiApi(openAiKey, "gpt-4o-mini", userPrompt)
@@ -774,7 +785,24 @@ class JarvisForegroundService : Service() {
                 }
             }
 
-            // 4. Smart Offline Fallback
+            // 5. Google Gemini API (if key is valid and not AQ token)
+            if (!answered && googleKey.isNotBlank() && googleKey != "0" && !googleKey.startsWith("AQ.")) {
+                val geminiModels = listOf("gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash")
+                for (model in geminiModels) {
+                    if (answered) break
+                    try {
+                        val result = callGeminiApi(googleKey, model, userPrompt)
+                        if (result.isNotBlank()) {
+                            answered = true
+                            withContext(Dispatchers.Main) { onResponse(result) }
+                        }
+                    } catch (e: Exception) {
+                        Log.d(TAG, "Gemini $model failed: ${e.message}")
+                    }
+                }
+            }
+
+            // 6. Smart Offline Fallback (100% Offline Guaranteed - zero crash)
             if (!answered) {
                 val offlineReply = generateSmartOfflineReply(userPrompt)
                 withContext(Dispatchers.Main) { onResponse(offlineReply) }
@@ -947,6 +975,106 @@ class JarvisForegroundService : Service() {
         throw Exception("HTTP $code")
     }
 
+    private fun callGrokApi(apiKey: String, model: String, prompt: String): String {
+        val endpoint = "https://api.x.ai/v1/chat/completions"
+        val url = java.net.URL(endpoint)
+        val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 5000
+            readTimeout = 8000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+            setRequestProperty("Authorization", "Bearer ${apiKey.trim()}")
+        }
+
+        val sysPrompt = "You are Jarvis, the high-tech AI companion for ALAMIN. " +
+                "Reply naturally, smartly and concisely in Bengali (বাংলা). " +
+                "Keep verbal response to 1-2 short punchy sentences suitable for speech output."
+
+        val body = JSONObject().apply {
+            put("model", model)
+            put("max_tokens", 150)
+            val messages = JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "system")
+                    put("content", sysPrompt)
+                })
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", prompt)
+                })
+            }
+            put("messages", messages)
+        }
+
+        conn.outputStream.use { os ->
+            os.write(body.toString().toByteArray(Charsets.UTF_8))
+        }
+
+        val code = conn.responseCode
+        if (code == 200) {
+            val respText = conn.inputStream.bufferedReader().use { it.readText() }
+            conn.disconnect()
+            val jsonResp = JSONObject(respText)
+            return jsonResp.optJSONArray("choices")
+                ?.optJSONObject(0)
+                ?.optJSONObject("message")
+                ?.optString("content", "")?.trim() ?: ""
+        }
+        conn.disconnect()
+        throw Exception("HTTP $code")
+    }
+
+    private fun callTorveAiApi(apiKey: String, model: String, prompt: String): String {
+        val endpoint = "https://openrouter.ai/api/v1/chat/completions"
+        val url = java.net.URL(endpoint)
+        val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 5000
+            readTimeout = 8000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+            setRequestProperty("Authorization", "Bearer ${apiKey.trim()}")
+        }
+
+        val sysPrompt = "You are Jarvis, the high-tech AI companion for ALAMIN. " +
+                "Reply naturally, smartly and concisely in Bengali (বাংলা). " +
+                "Keep verbal response to 1-2 short punchy sentences suitable for speech output."
+
+        val body = JSONObject().apply {
+            put("model", model)
+            put("max_tokens", 150)
+            val messages = JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "system")
+                    put("content", sysPrompt)
+                })
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", prompt)
+                })
+            }
+            put("messages", messages)
+        }
+
+        conn.outputStream.use { os ->
+            os.write(body.toString().toByteArray(Charsets.UTF_8))
+        }
+
+        val code = conn.responseCode
+        if (code == 200) {
+            val respText = conn.inputStream.bufferedReader().use { it.readText() }
+            conn.disconnect()
+            val jsonResp = JSONObject(respText)
+            return jsonResp.optJSONArray("choices")
+                ?.optJSONObject(0)
+                ?.optJSONObject("message")
+                ?.optString("content", "")?.trim() ?: ""
+        }
+        conn.disconnect()
+        throw Exception("HTTP $code")
+    }
+
     private fun generateSmartOfflineReply(prompt: String): String {
         val lower = prompt.lowercase()
         return when {
@@ -958,8 +1086,8 @@ class JarvisForegroundService : Service() {
                 val dateStr = java.text.SimpleDateFormat("EEEE, dd MMMM yyyy", Locale("bn", "BD")).format(java.util.Date())
                 "আজকের তারিখ $dateStr।"
             }
-            isMatch(lower, listOf("কেমন আছো", "how are you")) -> {
-                "আমি চমৎকার আছি স্যার! আপনাকে সাহায্য করতে সর্বদা প্রস্তুত।"
+            isMatch(lower, listOf("কেমন আছো", "how are you", "কেমন আছেন")) -> {
+                "আমি চমৎকার আছি স্যার! আপনার সেবায় সর্বদা প্রস্তুত ও সক্রিয় আছি।"
             }
             isMatch(lower, listOf("তুমি কে", "তোমার নাম", "who are you", "your name")) -> {
                 "আমি জারভিস, আপনার ব্যক্তিগত এআই সহকারী। আমি মোবাইল ও পিসির সমস্ত কাজ সম্পূর্ণ করতে পারি।"
@@ -970,8 +1098,26 @@ class JarvisForegroundService : Service() {
             isMatch(lower, listOf("কি করতে পারো", "ফিচার", "সাহায্য", "help", "features")) -> {
                 "আমি ইউটিউবে গান বাজানো, যেকোনো অ্যাপ চালু করা, কল দেওয়া, মেসেজ পাঠানো, স্ক্রিন লক করা, নোটিফিকেশন পড়া এবং সার্ভে অটোমেশন সহ সব কাজ করতে পারি।"
             }
+            isMatch(lower, listOf("ব্যাটারি", "চার্জ", "battery", "charge")) -> {
+                val bm = getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
+                val batLevel = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+                if (batLevel >= 0) "বর্তমানে আপনার মোবাইলে $batLevel শতাংশ ব্যাটারি চার্জ রয়েছে।"
+                else "ব্যাটারি চার্জ পর্যাপ্ত রয়েছে স্যার।"
+            }
+            isMatch(lower, listOf("কৌতুক", "হাসাও", "joke", "হাসি")) -> {
+                "একজন প্রোগ্রামার বাজারে গিয়ে বলল: এক ডজন কলা দিন। যদি ডিম থাকে, ১০টা দিন। সে ১০ ডজন কলা নিয়ে ফিরে এল!"
+            }
+            isMatch(lower, listOf("সালাম", "আসসালামু আলাইকুম", "hello", "hi", "হাই", "হ্যালো")) -> {
+                "ওয়ালাইকুমুস সালাম স্যার! জারভিস প্রস্তুত, আদেশ করুন।"
+            }
+            isMatch(lower, listOf("শুভ সকাল", "good morning")) -> {
+                "শুভ সকাল স্যার! আজকের দিনটি আপনার দারুণ কাটুক।"
+            }
+            isMatch(lower, listOf("শুভ রাত্রি", "good night")) -> {
+                "শুভ রাত্রি স্যার! শান্তিতে ঘুমান, আমি ব্যাকগ্রাউন্ডে সতর্ক আছি।"
+            }
             else -> {
-                "স্যার, আপনার নির্দেশটি বুঝতে পেরেছি। বলুন আর কীভাবে সাহায্য করতে পারি?"
+                "স্যার, আমি আপনার কথা শুনতে পাচ্ছি এবং সব কাজ করতে প্রস্তুত। বলুন আর কীভাবে সাহায্য করতে পারি?"
             }
         }
     }
@@ -1114,8 +1260,9 @@ class JarvisForegroundService : Service() {
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE, "bn-BD")
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "bn-BD")
+                    putExtra(RecognizerIntent.EXTRA_SUPPORTED_LANGUAGES, arrayListOf("bn-BD", "en-US"))
                     putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, false)
-                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
                     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                     putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
                     putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)

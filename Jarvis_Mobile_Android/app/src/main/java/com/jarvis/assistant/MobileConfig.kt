@@ -15,17 +15,19 @@ object MobileConfig {
     // Default Settings & Pre-configured Credentials
     const val DEFAULT_USER_NAME = "ALAMIN"
     const val DEFAULT_ASSISTANT_NAME = "Jarvis"
-    const val DEFAULT_LLM_PROVIDER = "google"
-    const val DEFAULT_LLM_MODEL = "gemini-3.8-live"
+    const val DEFAULT_LLM_PROVIDER = "openrouter"
+    const val DEFAULT_LLM_MODEL = "google/gemini-2.0-flash-exp:free"
 
     const val DEFAULT_LIVEKIT_URL = "wss://jarvish-cdq66wc9.livekit.cloud"
     const val DEFAULT_LIVEKIT_KEY = "APIudafoJVHneWA"
     const val DEFAULT_LIVEKIT_SECRET = "QQlG0TxB5wxhZ3hiSkTNnXVNgsgbwSY1Yh1XFTzuTgL"
 
     const val DEFAULT_OPENROUTER_KEY = "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"
+    const val DEFAULT_OPENROUTER_KEY_2 = "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"
+    const val DEFAULT_TORVE_KEY = "sk-v1-43ef5710114097156125b9b556c77f5df84982f05911c34667d2e1c5d2dadbfd"
     const val DEFAULT_GROK_KEY = "xai-LvoLgGHbxHJ6PV3SJpc4MbrRysgqKEuGSY8qJiVJCOIgoojJexEOPGMZwkmW4s3mK7IF8lDfdJLlGy2e"
 
-    const val DEFAULT_GOOGLE_KEY = "AQ.Ab8RN6LtcM7pevIID9jpLXKQ_030T06c0A2UhJDnYOBQPb7O5w"
+    const val DEFAULT_GOOGLE_KEY = ""
     const val DEFAULT_OPENAI_KEY = "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"
     const val DEFAULT_MEM0_KEY = "m0-zXEwUTUVUBNC6xUyne1UtoFr5jSHrsspEfcBLS3S"
     const val DEFAULT_GOOGLE_SEARCH_KEY = "977565840084-3d463snmaaa7iq1rnr6lo26jdr3c38sk.apps.googleusercontent.com"
@@ -79,6 +81,7 @@ object MobileConfig {
 
     fun getGoogleKey(context: Context): String {
         val v = getPrefs(context).getString("google_key", DEFAULT_GOOGLE_KEY) ?: DEFAULT_GOOGLE_KEY
+        if (v.startsWith("AQ.")) return ""
         return if (v.isNotBlank()) v else DEFAULT_GOOGLE_KEY
     }
 
@@ -94,6 +97,23 @@ object MobileConfig {
     fun getOpenRouterKey(context: Context): String {
         val v = getPrefs(context).getString("openrouter_key", DEFAULT_OPENROUTER_KEY) ?: DEFAULT_OPENROUTER_KEY
         return if (v.isNotBlank()) v else DEFAULT_OPENROUTER_KEY
+    }
+
+    fun getGeminiPlusAccount(context: Context): String {
+        return getPrefs(context).getString("gemini_web_plus_account", "plus.alamin@gmail.com") ?: "plus.alamin@gmail.com"
+    }
+
+    fun getGeminiProAccount(context: Context): String {
+        return getPrefs(context).getString("gemini_web_pro_account", "pro.alamin@gmail.com") ?: "pro.alamin@gmail.com"
+    }
+
+    fun getGeminiUltraAccount(context: Context): String {
+        return getPrefs(context).getString("gemini_web_ultra_account", "alaminmiah1976@gmail.com") ?: "alaminmiah1976@gmail.com"
+    }
+
+    fun getTorveKey(context: Context): String {
+        val v = getPrefs(context).getString("torve_key", DEFAULT_TORVE_KEY) ?: DEFAULT_TORVE_KEY
+        return if (v.isNotBlank()) v else DEFAULT_TORVE_KEY
     }
 
     fun getGrokKey(context: Context): String {
@@ -196,6 +216,9 @@ object MobileConfig {
         if (apiKeys.has("elevenlabs")) editor.putString("elevenlabs_key", apiKeys.optString("elevenlabs"))
         if (apiKeys.has("elevenlabs_key")) editor.putString("elevenlabs_key", apiKeys.optString("elevenlabs_key"))
         if (apiKeys.has("elevenlabs_voice_id")) editor.putString("elevenlabs_voice_id", apiKeys.optString("elevenlabs_voice_id"))
+        if (apiKeys.has("gemini_web_plus_account")) editor.putString("gemini_web_plus_account", apiKeys.optString("gemini_web_plus_account"))
+        if (apiKeys.has("gemini_web_pro_account")) editor.putString("gemini_web_pro_account", apiKeys.optString("gemini_web_pro_account"))
+        if (apiKeys.has("gemini_web_ultra_account")) editor.putString("gemini_web_ultra_account", apiKeys.optString("gemini_web_ultra_account"))
 
         editor.apply()
     }
@@ -227,6 +250,9 @@ object MobileConfig {
                 put("xiaomi_mimo", getXiaomiMimoKey(context))
                 put("elevenlabs", getElevenLabsKey(context))
                 put("elevenlabs_voice_id", getElevenLabsVoiceId(context))
+                put("gemini_web_plus_account", getGeminiPlusAccount(context))
+                put("gemini_web_pro_account", getGeminiProAccount(context))
+                put("gemini_web_ultra_account", getGeminiUltraAccount(context))
             }
             put("api_keys", keys)
         }

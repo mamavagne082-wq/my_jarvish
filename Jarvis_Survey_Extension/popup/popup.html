@@ -110,6 +110,40 @@
           </p>
         </div>
       </div>
+
+      <!-- GEMINI WEB 3-TIER MULTI-ACCOUNT STATUS CARD -->
+      <div class="memory-hub-card" id="gemini-web-card" style="background:linear-gradient(135deg,#001428 0%,#002447 50%,#001830 100%);border:1px solid #00f0ff;margin-bottom:8px;">
+        <div class="memory-hub-header">
+          <div class="memory-hub-title">
+            <span class="memory-icon">👑</span>
+            <strong style="color:#38bdf8;">Gemini 3-Tier Multi-Account (0 API Cost)</strong>
+          </div>
+          <span class="memory-saved-badge" id="gemini-web-badge" style="background:linear-gradient(135deg,#0284c7,#00f0ff);color:#021024;" title="3 Premium Accounts Connected">💎 3 Accounts Ready</span>
+        </div>
+        <div class="memory-stats-row" style="flex-wrap:wrap;gap:4px;">
+          <div class="mem-stat-pill" style="background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.4);flex:1;min-width:90px;">
+            <span class="pill-dot" style="background:#38bdf8;"></span>
+            <span style="color:#bae6fd;">🌟 Plus: <strong id="gemini-badge-plus">Active</strong></span>
+          </div>
+          <div class="mem-stat-pill" style="background:rgba(168,85,247,0.15);border-color:rgba(168,85,247,0.4);flex:1;min-width:90px;">
+            <span class="pill-dot" style="background:#c084fc;"></span>
+            <span style="color:#e9d5ff;">🚀 Pro: <strong id="gemini-badge-pro">Active</strong></span>
+          </div>
+          <div class="mem-stat-pill" style="background:rgba(234,179,8,0.15);border-color:rgba(234,179,8,0.4);flex:1;min-width:90px;">
+            <span class="pill-dot" style="background:#fde047;"></span>
+            <span style="color:#fef08a;">⚡ Ultra: <strong id="gemini-badge-ultra">Active</strong></span>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 2px 0;">
+          <p style="font-size:10px;color:#94a3b8;margin:0;line-height:1.4;">
+            🌐 ৩টি পেইড অ্যাকাউন্ট ক্রমানুসারে সার্ভে অ্যানালাইসিস করবে।
+          </p>
+          <button type="button" id="btn-quick-open-gemini-web" class="btn-xs-pill" style="font-size:10px;padding:3px 8px;background:rgba(0,240,255,0.2);color:#38bdf8;border:1px solid #00f0ff;" title="Open or verify gemini.google.com tab">
+            🔗 সেশন চেক
+          </button>
+        </div>
+      </div>
+
       <div class="manual-mode-card">
         <div class="mode-header">
           <span class="mode-icon">🎯</span>
@@ -458,6 +492,10 @@
           <button id="btn-toggle-key-3" class="btn-small" type="button">👁️</button>
         </div>
         <small class="helper-text">👉 ৩য় কী: ২য় কী-র লিমিট শেষ হলে ৩য় কী দিয়ে সার্ভে চালু রাখবে</small>
+        <button type="button" id="btn-test-gemini-key" class="btn btn-action-secondary" style="width:100%;margin-top:8px;">
+          ⚡ Gemini Key টেস্ট ও যাচাই করুন (Test Key)
+        </button>
+        <div id="gemini-key-test-result" class="key-test-status" style="display:none;"></div>
       </div>
 
       <div class="settings-group">
@@ -473,29 +511,137 @@
         <small class="helper-text">★ লেটেস্ট মডেলগুলো দিয়ে দ্রুততম গতিতে সার্ভে পেজ এনালাইসিস সম্পন্ন হবে</small>
       </div>
 
-      <!-- Provider Priority Section -->
-      <div class="settings-section-title" style="margin-top:12px;">🔀 AI প্রোভাইডার ও ফেইলওভার স্ট্র্যাটেজি</div>
+      <!-- Answering Engine & Priority Section -->
+      <div class="settings-section-title" style="margin-top:12px;">🔀 AI প্রোভাইডার ও ইঞ্জিন মোড</div>
+      
+      <div class="settings-group">
+        <label for="select-engine-mode">উত্তর প্রদানের ইঞ্জিন মোড (Answering Mode)</label>
+        <select id="select-engine-mode">
+          <option value="smart_cost_saving" selected>⚡ স্মার্ট সাশ্রয়ী মোড (মেমরি/ফাইল আগে চেক করবে, না পেলে AI API - রেকমেন্ডেড)</option>
+          <option value="ai_first">🤖 সরাসরি AI API মোড (সব প্রশ্ন সরাসরি লাইভ AI এপিআই দিয়ে)</option>
+          <option value="offline_first">🔒 ১০০% অফলাইন মোড (Hermes / Memory Cache - API খরচ শূন্য)</option>
+        </select>
+        <small class="helper-text">★ "স্মার্ট সাশ্রয়ী মোড" নির্বাচন করলে মেমরি বা ফাইলে থাকা জানা প্রশ্নের উত্তর ফ্রি-তে দিয়ে বাকি অজানা প্রশ্নের জন্য ক্রমানুসারে সব API Key ব্যবহার করবে।</small>
+      </div>
+
       <div class="settings-group">
         <label for="select-provider-priority">অগ্রাধিকার ক্রম (Failover Sequence)</label>
         <select id="select-provider-priority">
-          <option value="gemini_first" selected>⚡ Gemini প্রথম (Gemini শেষ হলে OpenRouter / Torve AI ধরবে)</option>
+          <option value="gemini_web_first" selected>👑 Gemini Web Account প্রথম (Pro / Advanced - এপিআই কি ছাড়া আনলিমিটেড)</option>
+          <option value="gemini_web_only">👑 শুধুমাত্র Gemini Web Account (১০০% এপিআই কি মুক্ত)</option>
           <option value="openrouter_first">🌐 OpenRouter প্রথম (OpenRouter শেষ হলে Gemini / Torve AI ধরবে)</option>
+          <option value="gemini_first">⚡ Gemini API প্রথম (Gemini শেষ হলে OpenRouter / Torve AI ধরবে)</option>
           <option value="torveai_first">🚀 Torve AI প্রথম (Torve AI শেষ হলে Gemini / OpenRouter ধরবে)</option>
-          <option value="gemini_only">🔒 শুধুমাত্র Gemini (Key 1 → Key 2 → Key 3)</option>
           <option value="openrouter_only">🔒 শুধুমাত্র OpenRouter (Key 1 → Key 2 → Key 3)</option>
+          <option value="gemini_only">🔒 শুধুমাত্র Gemini (Key 1 → Key 2 → Key 3)</option>
           <option value="torveai_only">🔒 শুধুমাত্র Torve AI (Key 1 → Key 2 → Key 3)</option>
         </select>
         <small class="helper-text">★ একটির লিমিট শেষ হলে আরেকটিতে স্বয়ংক্রিয়ভাবে সুইচ করবে, সার্ভে কখনো আটকাবে না</small>
       </div>
+
+      <!-- Google Gemini Web Multi-Account Hub (Plus, Pro, Ultra Pro - 0 API Key!) -->
+      <div class="settings-section-title" style="margin-top:12px;background:linear-gradient(90deg,rgba(0,240,255,0.2),rgba(168,85,247,0.2));padding:6px 10px;border-left:3px solid #00f0ff;border-radius:4px;display:flex;justify-content:space-between;align-items:center;">
+        <span>👑 Google Gemini 3-Tier Accounts (Plus + Pro + Ultra Pro)</span>
+        <span class="badge-primary" style="font-size:9px;">0 API COST</span>
+      </div>
+      <div class="settings-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="check-use-gemini-web" checked>
+          <span>Gemini Multi-Account অটোমেশন সক্রিয় (একাধিক প্রিমিয়াম অ্যাকাউন্ট অটো-সুইচ)</span>
+        </label>
+        <small class="helper-text">★ ৩টি অ্যাকাউন্ট ক্রমানুসারে কাজ করবে: প্লাস ➡️ প্রো ➡️ আল্ট্রা প্রো। একটার সীমা শেষ হলে আরেকটা স্বয়ংক্রিয়ভাবে ধরবে।</small>
+      </div>
+
+      <!-- Account 1: Gemini Plus -->
+      <div class="gemini-account-card" style="background:rgba(15,23,42,0.7);border:1px solid #38bdf8;border-radius:8px;padding:10px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:14px;">🌟</span>
+            <strong style="color:#38bdf8;font-size:12px;">অ্যাকাউন্ট ১: Gemini Plus (জেমিনি প্লাস)</strong>
+          </div>
+          <span id="gemini-status-acc1" class="badge-green" style="font-size:9px;">Active</span>
+        </div>
+        <div class="form-group" style="margin-bottom:6px;">
+          <label for="input-gemini-email-acc1" style="font-size:10px;color:#94a3b8;">প্লাস জিমেইল / ইউজারনেম</label>
+          <input type="email" id="input-gemini-email-acc1" placeholder="plus.account@gmail.com" style="width:100%;font-size:11px;padding:5px 8px;background:#090d16;border:1px solid #1e293b;border-radius:5px;color:#fff;">
+        </div>
+        <div class="form-group" style="margin-bottom:6px;">
+          <label for="input-gemini-pwd-acc1" style="font-size:10px;color:#94a3b8;">পাসওয়ার্ড / সেশন টোকেন (ঐচ্ছিক / অটো-ডিটেক্ট)</label>
+          <div class="api-key-row">
+            <input type="password" id="input-gemini-pwd-acc1" placeholder="•••••••• অথবা সেশন কুকি">
+            <button id="btn-toggle-pwd-acc1" class="btn-small" type="button">👁️</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:6px;">
+          <button type="button" class="btn-connect-acc btn btn-action-primary" id="btn-connect-acc1" data-acc="1" style="flex:1;font-size:10px;padding:5px 8px;">
+            🔗 প্লাস অ্যাকাউন্ট কানেক্ট / টেস্ট
+          </button>
+        </div>
+      </div>
+
+      <!-- Account 2: Gemini Pro -->
+      <div class="gemini-account-card" style="background:rgba(15,23,42,0.7);border:1px solid #a855f7;border-radius:8px;padding:10px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:14px;">🚀</span>
+            <strong style="color:#c084fc;font-size:12px;">অ্যাকাউন্ট ২: Gemini Pro (জেমিনি প্রো)</strong>
+          </div>
+          <span id="gemini-status-acc2" class="badge-backup" style="font-size:9px;">Backup 1</span>
+        </div>
+        <div class="form-group" style="margin-bottom:6px;">
+          <label for="input-gemini-email-acc2" style="font-size:10px;color:#94a3b8;">প্রো জিমেইল / ইউজারনেম</label>
+          <input type="email" id="input-gemini-email-acc2" placeholder="pro.account@gmail.com" style="width:100%;font-size:11px;padding:5px 8px;background:#090d16;border:1px solid #1e293b;border-radius:5px;color:#fff;">
+        </div>
+        <div class="form-group" style="margin-bottom:6px;">
+          <label for="input-gemini-pwd-acc2" style="font-size:10px;color:#94a3b8;">পাসওয়ার্ড / সেশন টোকেন (ঐচ্ছিক / অটো-ডিটেক্ট)</label>
+          <div class="api-key-row">
+            <input type="password" id="input-gemini-pwd-acc2" placeholder="•••••••• অথবা সেশন কুকি">
+            <button id="btn-toggle-pwd-acc2" class="btn-small" type="button">👁️</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:6px;">
+          <button type="button" class="btn-connect-acc btn btn-action-primary" id="btn-connect-acc2" data-acc="2" style="flex:1;font-size:10px;padding:5px 8px;">
+            🔗 প্রো অ্যাকাউন্ট কানেক্ট / টেস্ট
+          </button>
+        </div>
+      </div>
+
+      <!-- Account 3: Gemini Ultra Pro -->
+      <div class="gemini-account-card" style="background:rgba(15,23,42,0.7);border:1px solid #eab308;border-radius:8px;padding:10px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:14px;">⚡</span>
+            <strong style="color:#fde047;font-size:12px;">অ্যাকাউন্ট ৩: Gemini Ultra Pro (আল্ট্রা প্রো / Advanced)</strong>
+          </div>
+          <span id="gemini-status-acc3" class="badge-backup" style="font-size:9px;">Ultra Power</span>
+        </div>
+        <div class="form-group" style="margin-bottom:6px;">
+          <label for="input-gemini-email-acc3" style="font-size:10px;color:#94a3b8;">আল্ট্রা প্রো জিমেইল / ইউজারনেম</label>
+          <input type="email" id="input-gemini-email-acc3" placeholder="ultra.account@gmail.com" style="width:100%;font-size:11px;padding:5px 8px;background:#090d16;border:1px solid #1e293b;border-radius:5px;color:#fff;">
+        </div>
+        <div class="form-group" style="margin-bottom:6px;">
+          <label for="input-gemini-pwd-acc3" style="font-size:10px;color:#94a3b8;">পাসওয়ার্ড / সেশন টোকেন (ঐচ্ছিক / অটো-ডিটেক্ট)</label>
+          <div class="api-key-row">
+            <input type="password" id="input-gemini-pwd-acc3" placeholder="•••••••• অথবা সেশন কুকি">
+            <button id="btn-toggle-pwd-acc3" class="btn-small" type="button">👁️</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:6px;">
+          <button type="button" class="btn-connect-acc btn btn-action-primary" id="btn-connect-acc3" data-acc="3" style="flex:1;font-size:10px;padding:5px 8px;">
+            🔗 আল্ট্রা প্রো কানেক্ট / টেস্ট
+          </button>
+        </div>
+      </div>
+      <div id="gemini-web-connect-msg" style="font-size:11px;color:#cbd5e1;margin-bottom:10px;display:none;"></div>
 
       <!-- OpenRouter API Section -->
       <div class="settings-section-title" style="margin-top:12px;">🌐 OpenRouter - Multi-Key Support</div>
       <div class="settings-group">
         <label class="checkbox-label">
           <input type="checkbox" id="check-use-openrouter" checked>
-          <span>OpenRouter সক্রিয় রাখুন (Gemini ব্যাকআপ / অল্টারনেটিভ)</span>
+          <span>OpenRouter সক্রিয় রাখুন (মেইন AI / ব্যাকআপ অল্টারনেটিভ)</span>
         </label>
-        <small class="helper-text">সক্রিয় রাখলে Gemini এর লিমিট শেষ হলেই সরাসরি OpenRouter দিয়ে কাজ সম্পন্ন করবে</small>
+        <small class="helper-text">সক্রিয় রাখলে Gemini এর অনুপস্থিতিতে বা লিমিট শেষ হলেই সরাসরি OpenRouter দিয়ে কাজ সম্পন্ন করবে</small>
       </div>
 
       <div class="settings-group" id="openrouter-settings">
@@ -521,31 +667,32 @@
           <button id="btn-toggle-or-key-3" class="btn-small" type="button">👁️</button>
         </div>
         <small class="helper-text">👉 <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a> থেকে বিনামূল্যে কী সংগ্রহ করুন</small>
+        <button type="button" id="btn-test-or-key" class="btn btn-action-secondary" style="width:100%;margin-top:8px;">
+          ⚡ OpenRouter Key টেস্ট ও যাচাই করুন (Test Key)
+        </button>
+        <div id="or-key-test-result" class="key-test-status" style="display:none;"></div>
       </div>
 
       <div class="settings-group" id="openrouter-model-settings">
         <label for="select-or-model">OpenRouter মডেল</label>
         <select id="select-or-model">
+          <optgroup label="🌟 Free Tier (সম্পূর্ণ ফ্রি - 0 ক্রেডিটেও চলবে)">
+            <option value="openrouter/free">⚡ OpenRouter Free (Auto Free Model - 0 ক্রেডিটেও লাইভ)</option>
+            <option value="meta-llama/llama-3.3-70b-instruct:free">Llama 3.3 70B (Free)</option>
+            <option value="inclusionai/ling-3.0-flash-sante:free">Ling 3.0 Flash Sante (Free)</option>
+          </optgroup>
           <optgroup label="💚 Google Gemini (via OpenRouter)">
             <option value="google/gemini-2.5-flash" selected>⚡ Google: Gemini 2.5 Flash</option>
+            <option value="google/gemini-2.5-flash-lite">⚡ Google: Gemini 2.5 Flash Lite</option>
             <option value="google/gemini-2.5-pro-preview">✨ Google: Gemini 2.5 Pro Preview</option>
-            <option value="google/gemini-2.0-flash-001">Google: Gemini 2.0 Flash</option>
           </optgroup>
-          <optgroup label="⚡ DeepSeek">
+          <optgroup label="⚡ DeepSeek & OpenAI">
             <option value="deepseek/deepseek-chat">DeepSeek V3 (Fast)</option>
-            <option value="deepseek/deepseek-r1">DeepSeek R1</option>
-          </optgroup>
-          <optgroup label="🧠 OpenAI">
             <option value="openai/gpt-4o-mini">OpenAI: GPT-4o Mini (Fast)</option>
-            <option value="openai/gpt-4o">OpenAI: GPT-4o</option>
           </optgroup>
           <optgroup label="🤖 Anthropic Claude">
             <option value="anthropic/claude-3-5-sonnet">Claude 3.5 Sonnet</option>
             <option value="anthropic/claude-3-haiku">Claude 3 Haiku</option>
-          </optgroup>
-          <optgroup label="🎙️ Meta Llama">
-            <option value="meta-llama/llama-3.3-70b-instruct">Llama 3.3 70B</option>
-            <option value="meta-llama/llama-3.1-8b-instruct:free">Llama 3.1 8B (Free)</option>
           </optgroup>
         </select>
       </div>
