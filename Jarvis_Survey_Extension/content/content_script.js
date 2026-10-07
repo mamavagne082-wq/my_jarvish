@@ -585,20 +585,34 @@
     }
   }
 
+  let userManuallyInteracting = false;
+  let userInteractionTimer = null;
+
+  document.addEventListener("click", (e) => {
+    if (e.isTrusted) {
+      // User is manually clicking or changing an answer
+      userManuallyInteracting = true;
+      clearTimeout(userInteractionTimer);
+      userInteractionTimer = setTimeout(() => {
+        userManuallyInteracting = false;
+      }, 4000);
+    }
+  }, true);
+
   function setupSpaDynamicWatcher() {
     if (spaMutationObserver) return;
     try {
       spaMutationObserver = new MutationObserver(() => {
-        if (!isAutoPilotActive || autoPilotRunningCycle) return;
+        if (!isAutoPilotActive || autoPilotRunningCycle || userManuallyInteracting) return;
         clearTimeout(spaDebounceTimer);
         spaDebounceTimer = setTimeout(() => {
-          if (!isAutoPilotActive || autoPilotRunningCycle) return;
+          if (!isAutoPilotActive || autoPilotRunningCycle || userManuallyInteracting) return;
           const currentFingerprint = getQuestionsFingerprint();
           if (currentFingerprint && currentFingerprint !== lastHandledQuestionFingerprint) {
             console.log("[Jarvis AutoPilot] SPA DOM question change detected in-place! Triggering auto-pilot cycle...");
             triggerAutoPilotCycle();
           }
-        }, 1500);
+        }, 1200);
       });
 
       if (document.body) {
@@ -685,10 +699,9 @@
         // Capture initial fingerprint of questions on page before processing
         const initialQuestionsSig = getQuestionsFingerprint();
 
-        // 5. Initial Settling & Reading Delay for new page
-        // User requirement: নেক্সট পেজ আসার পর একটু সময় নিয়ে (৩-৫/৬ সেকেন্ড) পেজ পর্যবেক্ষণ করে উত্তর সিলেক্ট করবে
-        const initialDelay = 3200 + Math.random() * 1800; // 3.2s to 5.0s
-        updateHUDStatus("analyzing", `🤖 নতুন পেজ এসেছে... মানুষের মতো পর্যবেক্ষণ করা হচ্ছে (${(initialDelay / 1000).toFixed(1)}s)...`);
+        // 5. Quick DOM Settling Delay for new page (Fast analysis under 10-second total limit)
+        const initialDelay = 450 + Math.floor(Math.random() * 200); // 450ms - 650ms
+        updateHUDStatus("analyzing", `🤖 পেজ পর্যবেক্ষণ ও বিশ্লেষণ শুরু হচ্ছে...`);
         await sleep(initialDelay);
 
         if (!isAutoPilotActive) {
@@ -699,9 +712,8 @@
         // 6. Check if this is the LAST PAGE initially
         const isLastPageInitial = isLastSurveyPage();
         if (isLastPageInitial) {
-          const lastPageDelay = 7500 + Math.random() * 2000; // 7.5s - 9.5s
-          updateHUDStatus("analyzing", `🛑 লাস্ট পেজ সনাক্ত হয়েছে! টার্মিনেশন এড়াতে ${(lastPageDelay / 1000).toFixed(1)} সেকেন্ড অপেক্ষা করে উত্তর দেওয়া হচ্ছে...`);
-          await sleep(lastPageDelay);
+          updateHUDStatus("analyzing", `🛑 লাস্ট পেজ সনাক্ত হয়েছে! সতর্কতার সাথে উত্তর সম্পন্ন হচ্ছে...`);
+          await sleep(1500);
           if (!isAutoPilotActive) {
             autoPilotRunningCycle = false;
             return;
@@ -709,7 +721,7 @@
         }
 
         // 7. Solve questions (DOM or Screenshot Fallback)
-        updateHUDStatus("analyzing", "🤖 Auto-Pilot: পেজের প্রশ্ন ও তথ্য এনালাইসিস হচ্ছে...");
+        updateHUDStatus("analyzing", "⚡ Auto-Pilot: দ্রুত পেজ এনালাইসিস হচ্ছে...");
 
         let analysisData = null;
         let filledCount = 0;
@@ -721,7 +733,7 @@
           const scanRes = await performFullScan();
           if (scanRes && scanRes.success && scanRes.data && scanRes.data.answers?.length > 0) {
             analysisData = scanRes.data;
-            updateHUDStatus("analyzing", "🤖 Auto-Pilot: মানুষের মতো বিরতি দিয়ে উত্তর সিলেক্ট করা হচ্ছে...");
+            updateHUDStatus("analyzing", "⚡ Auto-Pilot: উত্তরসমূহ দ্রুত সিলেক্ট ও পূরণ করা হচ্ছে...");
             fillRes = await autoFillAnswers(analysisData);
             filledCount = fillRes?.filledCount || 0;
           }
@@ -729,7 +741,7 @@
 
         // If DOM analysis failed, found 0 questions, or could not select elements:
         if (!analysisData || filledCount === 0 || !analysisData.answers || analysisData.answers.length === 0) {
-          updateHUDStatus("analyzing", "📸 পেজ সরাসরি সিলেক্ট করা যায়নি! সম্পূর্ণ পেজের স্ক্রিনশট নিয়ে এনালাইসিস করা হচ্ছে...");
+          updateHUDStatus("analyzing", "📸 সম্পূর্ণ পেজের স্ক্রিনশট নিয়ে এনালাইসিস করা হচ্ছে...");
           const ssRes = await performScreenshotAnalysis();
           if (ssRes && ssRes.success && ssRes.data) {
             analysisData = ssRes.data;
@@ -743,15 +755,15 @@
             const nextBtnFallback = findNextButton();
             if (nextBtnFallback && questionsOnPage.length === 0) {
               updateHUDStatus("done", "🤖 Advancing intro/transition page...");
-              await sleep(2500);
+              await sleep(1200);
               clickElementLikeHuman(nextBtnFallback);
             } else {
-              updateHUDStatus("error", "⚠️ পেজের প্রশ্ন চিহ্নিত করা যায়নি। ২ সেকেন্ড পর পুনরায় চেষ্টা হবে...");
+              updateHUDStatus("error", "⚠️ পেজের প্রশ্ন চিহ্নিত করা যায়নি। পুনরায় চেষ্টা হচ্ছে...");
               setTimeout(() => {
                 if (isAutoPilotActive && !autoPilotRunningCycle) {
                   triggerAutoPilotCycle();
                 }
-              }, 3000);
+              }, 1800);
             }
             autoPilotRunningCycle = false;
             return;
@@ -759,7 +771,7 @@
         }
 
         if (filledCount === 0 && analysisData?.answers?.length > 0) {
-          updateHUDStatus("done", "💡 পেজে উত্তর অটো-সিলেক্ট বা টাইপ করা যায়নি—নিচে ও পেজে বোল্ড করে সঠিক উত্তর লেখা হয়েছে। আপনি দেখে সিলেক্ট বা টাইপ করে Next চাপুন।");
+          updateHUDStatus("done", "💡 পেজে উত্তর নিচে বোল্ড করে প্রদর্শিত হয়েছে। দেখে সিলেক্ট করে Next চাপুন।");
           autoPilotRunningCycle = false;
           return;
         }
@@ -769,15 +781,17 @@
           return;
         }
 
-        // 8. Auto-Advance & In-Place Dynamic Question Change Watcher
-        // USER REQUIREMENT: কিছু সার্ভেতে উত্তর সিলেক্ট করলে স্বয়ংক্রিয়ভাবে নেক্সট প্রশ্নে চলে যায়, আলাদা Next বাটন চাপতে হয় না।
-        // স্ক্রিন চেঞ্জ না হয়ে ওখানেই নতুন প্রশ্ন আসে। এই ক্ষেত্রে Next বাটন চাপবে না, নতুন প্রশ্ন দ্রুত এনালাইসিস করবে।
+        // 8. Auto-Advance & Next Page Transition Logic (Strict 3-4 Second Observation Rule)
+        // User Requirement:
+        // উত্তর সিলেক্ট করার পর ৩ সেকেন্ড সময় নিয়ে দেখবে স্বয়ংক্রিয়ভাবে নেক্সট পেজ আসে কিনা।
+        // যদি স্বয়ংক্রিয়ভাবে নেক্সট পেজ আসে, তবে নতুন পেজ এনালাইসিস করে উত্তর দিবে (Next চাপবে না)।
+        // আর যদি ৩ সেকেন্ডের মধ্যে নেক্সট পেজ না আসে, তবে স্বয়ংক্রিয়ভাবে Next বাটনে ক্লিক করবে।
         let didAutoAdvance = fillRes?.autoAdvanced || false;
         if (!didAutoAdvance) {
-          // Monitor DOM for 2.6 seconds to see if choice click triggered instant AJAX transition
+          updateHUDStatus("analyzing", "👀 উত্তর সিলেক্ট সম্পন্ন! ৩ সেকেন্ড পর্যবেক্ষণ করা হচ্ছে স্বয়ংক্রিয় নেক্সট পেজ আসে কিনা...");
           const watchStart = Date.now();
-          while (Date.now() - watchStart < 2600) {
-            await sleep(300);
+          while (Date.now() - watchStart < 3000) {
+            await sleep(200);
             if (!isAutoPilotActive) { autoPilotRunningCycle = false; return; }
             const currentSig = getQuestionsFingerprint();
             if (currentSig && currentSig !== initialQuestionsSig) {
@@ -789,69 +803,36 @@
 
         if (didAutoAdvance) {
           lastHandledQuestionFingerprint = initialQuestionsSig;
-          updateHUDStatus("analyzing", "⚡ সার্ভে নিজে থেকেই পরবর্তী প্রশ্নে চলে গেছে! মানুষের মতো পর্যালোচনা শেষে নতুন উত্তর তৈরি হচ্ছে...");
+          updateHUDStatus("analyzing", "⚡ সার্ভে নিজে থেকেই পরবর্তী প্রশ্নে চলে গেছে! তাৎক্ষণিক নতুন প্রশ্ন সমাধান শুরু হচ্ছে...");
           autoPilotRunningCycle = false;
           setTimeout(() => {
             if (isAutoPilotActive && !autoPilotRunningCycle) {
               triggerAutoPilotCycle();
             }
-          }, 2800 + Math.random() * 800);
+          }, 400);
           return;
         }
 
-        // 9. Post-Answering Pause before Next / Submit
-        // Normal page: ~4.5s
-        // Last page: 8-10s before submit to avoid disqualification / screen-out
+        // If after 3 seconds it did not auto-advance, click Next / Submit
         const isFinalPage = isLastSurveyPage(analysisData) || isLastPageInitial;
-
-        if (isFinalPage) {
-          const submitWaitMs = 8000 + Math.random() * 2000; // 8.0s - 10.0s
-          updateHUDStatus("done", `🛑 লাস্ট পেজ সম্পন্ন! সার্ভে ড্রপ এড়াতে ${(submitWaitMs / 1000).toFixed(1)} সেকেন্ড পর সাবমিট করা হচ্ছে...`);
-          await sleep(submitWaitMs);
-        } else {
-          const nextWaitMs = 4200 + Math.random() * 1000;
-          updateHUDStatus("done", `🤖 মানুষের মতো পর্যালোচনা সম্পন্ন (${(nextWaitMs / 1000).toFixed(1)}s)। Next পেজে যাওয়া হচ্ছে...`);
-          await sleep(nextWaitMs);
-        }
-
-        if (!isAutoPilotActive) {
-          autoPilotRunningCycle = false;
-          return;
-        }
-
-        // Pre-click check: Verify if question changed during the post-answer pause
-        const preClickSig = getQuestionsFingerprint();
-        if (preClickSig && preClickSig !== initialQuestionsSig) {
-          lastHandledQuestionFingerprint = initialQuestionsSig;
-          updateHUDStatus("analyzing", "⚡ নতুন প্রশ্ন দৃশ্যমান হয়েছে! Next ক্লিক বাদ দিয়ে নতুন প্রশ্ন সমাধান করা হচ্ছে...");
-          autoPilotRunningCycle = false;
-          setTimeout(() => {
-            if (isAutoPilotActive && !autoPilotRunningCycle) {
-              triggerAutoPilotCycle();
-            }
-          }, 1500);
-          return;
-        }
-
-        // 10. Click Next or Submit
         const nextBtn = findNextButton();
         if (nextBtn) {
-          updateHUDStatus("done", isFinalPage ? "🛑 লাস্ট পেজ: সাবমিট বাটনে ক্লিক করা হচ্ছে..." : "🤖 Next বাটনে ক্লিক করা হচ্ছে...");
-          await sleep(400 + Math.random() * 300);
+          updateHUDStatus("done", isFinalPage ? "🛑 লাস্ট পেজ: সাবমিট বাটনে ক্লিক করা হচ্ছে..." : "🤖 ৩ সেকেন্ড অপেক্ষা শেষে Next বাটনে ক্লিক করা হচ্ছে...");
+          await sleep(250);
           lastHandledQuestionFingerprint = initialQuestionsSig;
           clickElementLikeHuman(nextBtn);
 
-          // Schedule next cycle for dynamic SPAs where no full page reload occurs
+          // Schedule next cycle for dynamic SPAs or multi-step question flow
           if (!isFinalPage) {
             setTimeout(() => {
               if (isAutoPilotActive && !autoPilotRunningCycle) {
                 triggerAutoPilotCycle();
               }
-            }, 3200);
+            }, 1400);
           }
         } else {
           lastHandledQuestionFingerprint = initialQuestionsSig;
-          updateHUDStatus("analyzing", "🤖 ইন-পেজ সার্ভে: কোনো Next বাটন নেই, স্বয়ংক্রিয়ভাবে পরবর্তী প্রশ্ন আসা পর্যবেক্ষণ করা হচ্ছে...");
+          updateHUDStatus("analyzing", "🤖 ইন-পেজ সার্ভে: কোনো Next বাটন নেই, পরবর্তী প্রশ্ন পর্যবেক্ষণ করা হচ্ছে...");
 
           // Polling loop for in-place question transitions (supports 10-15+ sequential questions on same page!)
           let detectedNextQuestion = false;
@@ -1180,22 +1161,20 @@
         const titleEl = container.querySelector(
           "legend, .QuestionText, .question-text, .title, .q-title, h1, h2, h3, h4, h5, .control-label, [role='heading']"
         );
-        const qText = cleanText(titleEl ? titleEl.innerText : container.innerText.slice(0, 150));
-        if (!qText || questions.some((q) => q.text.includes(qText.slice(0, 50)))) {
-          return;
-        }
+        const qText = cleanText(titleEl ? titleEl.innerText : container.innerText.slice(0, 150)) || `Question ${qIndex + 1}`;
 
+        // Ensure we don't skip distinct questions that share common heading text (e.g., 'Please select...')
         const rawElements = Array.from(container.querySelectorAll(
           "input, select, textarea, [role='radio'], [role='checkbox'], [role='option'], .choice, .option, .answer, .survey-option, .btn-choice, [data-choice], [data-value]"
         ));
         let validInputs = rawElements.filter((inp) => {
           const t = (inp.getAttribute("type") || inp.tagName.toLowerCase()).toLowerCase();
-          return !["hidden", "submit"].includes(t);
+          return !["hidden", "submit"].includes(t) && !trackedElements.has(inp);
         });
 
         // If no standard inputs found, search for clickable options/buttons
         if (validInputs.length === 0) {
-          const customChoices = Array.from(container.querySelectorAll("button, [role='button'], label.option-row, li, .card")).filter(isElementVisible);
+          const customChoices = Array.from(container.querySelectorAll("button, [role='button'], label.option-row, li, .card")).filter(el => isElementVisible(el) && !trackedElements.has(el));
           if (customChoices.length > 0) {
             validInputs = customChoices;
           } else {
@@ -1701,8 +1680,8 @@
 
       const { autoFillDelay } = await chrome.storage.local.get(["autoFillDelay"]);
       const isAuto = isAutoPilotActive;
-      // Human simulation: At least 3 seconds gap between questions in Auto-Pilot mode as requested
-      const baseDelay = customGapMs !== null ? customGapMs : (isAuto ? 3000 : (autoFillDelay !== undefined ? autoFillDelay : 100));
+      // High-speed human simulation: 100-180ms per option (rapid full-page filling in < 1 second)
+      const baseDelay = customGapMs !== null ? customGapMs : (autoFillDelay !== undefined ? Math.min(autoFillDelay, 180) : 120);
 
       let filledCount = 0;
       const startQuestionsSig = getQuestionsFingerprint();
@@ -1777,24 +1756,23 @@
           }
         }
 
-        // Check if clicking this option triggered an instant auto-advance to next page/question
-        if (filledThisAnswer) {
-          await sleep(350);
+        // Check if single-question survey auto-advanced upon click
+        if (filledThisAnswer && questions.length === 1) {
+          await sleep(300);
           const currentSig = getQuestionsFingerprint();
           if (startQuestionsSig && currentSig && currentSig !== startQuestionsSig) {
-            console.log("[Jarvis] Instant auto-advance detected right after option selection!");
+            console.log("[Jarvis] Instant single-question auto-advance detected right after option selection!");
             updateHUDStatus("analyzing", "⚡ উত্তর সিলেক্ট করা মাত্রই সার্ভে স্বয়ংক্রিয়ভাবে পরবর্তী প্রশ্নে চলে গেছে!");
             return { success: true, filledCount, autoAdvanced: true };
           }
         }
 
-        // Human-paced inter-question delay (at least 3 seconds in auto mode)
-        if (filledThisAnswer && isAuto && ansIdx < data.answers.length - 1) {
-          const pauseMs = baseDelay + Math.random() * 600;
-          updateHUDStatus("analyzing", `🤖 উত্তর পূরণ হয়েছে (${ansIdx + 1}/${data.answers.length}) - পরবর্তী প্রশ্নের জন্য ৩ সেকেন্ড বিরতি...`);
+        // Fast, natural inter-question delay (100-200ms) to ensure rapid full-page completion
+        if (filledThisAnswer && ansIdx < data.answers.length - 1) {
+          const pauseMs = baseDelay + Math.floor(Math.random() * 80);
           await sleep(pauseMs);
         } else {
-          await sleep(isAuto ? 60 : baseDelay);
+          await sleep(40);
         }
       }
 
@@ -2067,76 +2045,56 @@
         element.closest("label")?.querySelector("input") ||
         element.parentElement?.querySelector('input[type="radio"], input[type="checkbox"]');
 
+      // If associated native input exists:
       if (associatedInput) {
-        try {
-          const protoSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "checked")?.set;
-          if (protoSetter) {
-            protoSetter.call(associatedInput, true);
-          } else {
+        if (!associatedInput.checked) {
+          try {
+            const protoSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "checked")?.set;
+            if (protoSetter) {
+              protoSetter.call(associatedInput, true);
+            } else {
+              associatedInput.checked = true;
+            }
+          } catch (_) {
             associatedInput.checked = true;
           }
-        } catch (e) {
-          associatedInput.checked = true;
+          if (associatedInput._valueTracker) {
+            associatedInput._valueTracker.setValue(false);
+          }
         }
-
-        if (associatedInput._valueTracker) {
-          associatedInput._valueTracker.setValue(!associatedInput.checked);
-        }
-
-        associatedInput.dispatchEvent(new Event("input", { bubbles: true }));
-        associatedInput.dispatchEvent(new Event("change", { bubbles: true }));
       }
 
       if (element.hasAttribute("aria-checked")) {
         element.setAttribute("aria-checked", "true");
       }
 
-      // Dispatch complete realistic mouse and pointer event sequence
+      // Single authoritative primary target (input takes precedence so native form values update)
+      const primaryTarget = associatedInput || element;
+      try { primaryTarget.focus(); } catch (_) { }
+
       const opts = { bubbles: true, cancelable: true, view: window };
-      element.dispatchEvent(new MouseEvent("pointerover", opts));
-      element.dispatchEvent(new MouseEvent("mouseover", opts));
-      element.dispatchEvent(new MouseEvent("pointerdown", opts));
-      element.dispatchEvent(new MouseEvent("mousedown", opts));
-      try { element.focus(); } catch (e) { }
-      element.dispatchEvent(new MouseEvent("pointerup", opts));
-      element.dispatchEvent(new MouseEvent("mouseup", opts));
-      element.dispatchEvent(new MouseEvent("click", opts));
-
-      // Also trigger native clicks on element, associated input, and wrapping label
-      try { element.click(); } catch (e) { }
-      if (associatedInput && associatedInput !== element) {
-        try { associatedInput.click(); } catch (e) { }
-      }
-      const parentLabel = element.closest("label");
-      if (parentLabel && parentLabel !== element) {
-        try { parentLabel.click(); } catch (e) { }
-      }
-
-      // Bypass any invisible overlay or custom styled div by clicking visual center
+      primaryTarget.dispatchEvent(new MouseEvent("mousedown", opts));
+      primaryTarget.dispatchEvent(new MouseEvent("mouseup", opts));
       try {
-        const targetEl = associatedInput || element;
-        const rect = targetEl.getBoundingClientRect();
-        if (rect && rect.width > 0 && rect.height > 0) {
-          const cx = Math.floor(rect.left + rect.width / 2);
-          const cy = Math.floor(rect.top + rect.height / 2);
-          if (cx >= 0 && cx <= window.innerWidth && cy >= 0 && cy <= window.innerHeight) {
-            const visualPointEl = document.elementFromPoint(cx, cy);
-            if (visualPointEl && visualPointEl !== element && visualPointEl !== associatedInput) {
-              visualPointEl.click();
-              visualPointEl.dispatchEvent(new MouseEvent("click", opts));
-            }
-          }
-        }
-      } catch (_) {}
+        primaryTarget.click();
+      } catch (_) { }
+      primaryTarget.dispatchEvent(new Event("change", { bubbles: true }));
+      primaryTarget.dispatchEvent(new Event("input", { bubbles: true }));
+
+      // Safeguard: Ensure checkboxes and radios remain selected and never accidentally unchecked
+      if (associatedInput && !associatedInput.checked) {
+        associatedInput.checked = true;
+        associatedInput.dispatchEvent(new Event("change", { bubbles: true }));
+        associatedInput.dispatchEvent(new Event("input", { bubbles: true }));
+      }
 
       // Add active styling
       element.classList.add("selected", "active", "checked");
       if (associatedInput && associatedInput !== element) {
         associatedInput.classList.add("selected", "active", "checked");
-        associatedInput.checked = true;
       }
 
-      await sleep(30);
+      await sleep(25);
     }
 
     function sleep(ms) {

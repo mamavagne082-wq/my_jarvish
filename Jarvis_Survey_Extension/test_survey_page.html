@@ -212,14 +212,39 @@
         <p>Thank you for your participation. All questions were verified and successfully submitted.</p>
       </div>
     </div>
+    <div style="margin-top: 15px; padding: 10px; background: #e0f2fe; border-radius: 6px; font-size: 13px; display: flex; align-items: center; gap: 8px;">
+      <input type="checkbox" id="toggle-auto-advance">
+      <label for="toggle-auto-advance" style="cursor: pointer; font-weight: bold; color: #0369a1;">
+        ⚡ Simulate Auto-Advancing Survey (Clicking choice advances immediately after 500ms)
+      </label>
+    </div>
   </div>
 
   <script>
-    document.getElementById("next-to-page-2").addEventListener("click", () => {
+    const nextBtn1 = document.getElementById("next-to-page-2");
+    const autoAdvanceCb = document.getElementById("toggle-auto-advance");
+
+    nextBtn1.addEventListener("click", () => {
       document.getElementById("page-1").classList.remove("active");
       document.getElementById("page-2").classList.add("active");
       document.getElementById("indicator").innerText = "Page 2 of 2";
       window.scrollTo(0, 0);
+    });
+
+    document.querySelectorAll('#page-1 input[type="radio"]').forEach(radio => {
+      radio.addEventListener("change", () => {
+        if (autoAdvanceCb && autoAdvanceCb.checked) {
+          // If all 3 answered, auto-advance
+          const q1 = document.querySelector('input[name="age_group"]:checked');
+          const q2 = document.querySelector('input[name="industry"]:checked');
+          const q3 = document.querySelector('input[name="trap_check"]:checked');
+          if (q1 && q2 && q3) {
+            setTimeout(() => {
+              nextBtn1.click();
+            }, 600);
+          }
+        }
+      });
     });
 
     document.getElementById("submit-survey-btn").addEventListener("click", () => {

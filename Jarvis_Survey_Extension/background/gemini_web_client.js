@@ -45,6 +45,18 @@ const GeminiWebClient = (function () {
         } catch (_) { }
       }
 
+      // If no cookies found, attempt auto-import from local PC bridge (gemini_session.json)
+      if (!hasCookies && !hasTab) {
+        try {
+          const bridgeRes = await fetchSessionFromDesktopBridge();
+          if (bridgeRes && bridgeRes.success) {
+            console.log(`[GeminiWebClient] Auto-restored ${bridgeRes.count} cookies from desktop bridge!`);
+            hasCookies = true;
+            foundCookiesCount = bridgeRes.count;
+          }
+        } catch (_) { }
+      }
+
       const storage = await chrome.storage.local.get([
         "geminiAccountEmail", "geminiAccountTier",
         "geminiAcc1Email", "geminiAcc2Email", "geminiAcc3Email",

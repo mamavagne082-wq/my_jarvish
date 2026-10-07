@@ -166,7 +166,22 @@ chrome.runtime.onInstalled.addListener(async () => {
     }
   }
 
+  if (typeof GeminiWebClient !== "undefined") {
+    try {
+      await GeminiWebClient.fetchSessionFromDesktopBridge();
+    } catch (_) { }
+  }
+
   console.log("[Jarvis v3.0] Service worker ready. Hermes AI + Gemini 3.8 Flash + OpenRouter Multi-Key Failover Chain loaded.");
+});
+
+chrome.runtime.onStartup.addListener(async () => {
+  if (typeof GeminiWebClient !== "undefined") {
+    try {
+      await GeminiWebClient.fetchSessionFromDesktopBridge();
+      console.log("[Jarvis ServiceWorker] Auto-synced Gemini session on browser startup.");
+    } catch (_) { }
+  }
 });
 
 // Listener for messages from Popup and Content Scripts
@@ -293,12 +308,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       geminiWebConnected: true,
       geminiAccountEmail: message.email || "Active Google Session",
       geminiAccountTier: message.tier || "Gemini Advanced (Pro)"
-    }).then(() => {
+    }).then(async () => {
+      if (typeof GeminiWebClient !== "undefined" && GeminiWebClient.syncSessionToDesktopBridge) {
+        try {
+          await GeminiWebClient.syncSessionToDesktopBridge();
+          console.log("[Jarvis ServiceWorker] Auto-saved detected Gemini session to desktop bridge!");
+        } catch (_) { }
+      }
       sendResponse({ success: true });
     }).catch((err) => sendResponse({ success: false, error: err.message }));
     return true;
   }
 
+  if (message.action === "SAVE_QA_TO_MEMORY") {
+    if (typeof JarvisMemoryManager !== "undefined" && message.questionText && message.answer) {
+      JarvisMemoryManager.saveToCache(message.questionText, message.options || [], message.answer, message.source || "user")
+        .then(() => sendResponse({ success: true }))
+        .catch((e) => sendResponse({ success: false, error: e.message }));
+      return true;
+    }
+    sendResponse({ success: false, error: "Memory manager not loaded" });
+    return true;
+  }
 
   if (message.action === "NOTIFY_JARVIS_EVENT") {
     notifyJarvisDesktop(message.event, {
@@ -1312,197 +1343,51 @@ async function handleSurveyAnalysis(payload, tabId) {
 function buildHumanLikeSurveyPrompt(pageData, persona, personalInfo) {
   const p = personalInfo || DEFAULT_PERSONAL_INFO;
   return `You are answering an online survey as a real human respondent named ${p.firstName || "Al Amin"} ${p.lastName || "Miah"}.
-Your answers MUST sound completely natural, authentic, thoughtful, and human-like ("ans as a human"). Survey quality algorithms actively check for bot-like patterns, so follow the human guidelines below strictly.
+Your answers MUST sound completely natural, authentic, thoughtful, and human-like ("ans as a human").
+CRITICAL SPEED REQUIREMENT: Return concise JSON immediately (respond within 2 seconds).
 
-=============================================================================
-EXACT VERIFIED PERSONAL PROFILE & COMPREHENSIVE QA RULES (CRITICAL):
-=============================================================================
---- PERSONAL & DEMOGRAPHICS ---
-- Full Name: ${p.firstName || "Al Amin"} ${p.lastName || "Miah"}
-- First Name: ${p.firstName || "Al Amin"}
-- Last Name: ${p.lastName || "Miah"}
-- Gender: Male (Heterosexual / straight)
-- Age: 50 (50 years old / Born 1976)
-- Date of Birth: March 8, 1976 (08/03/1976 or 03/08/1976)
-- Birth Year: 1976
-- Address: 123 W 31st St, New York, NY 10001, United States
-- Street: 123 W 31st St
-- City: New York
-- State / Region: New York / NY
-- Zip / Postal Code: 10001
-- Phone: 959-582-8149
-- Email: ${p.emailAddress || "alaminmiah1976@gmail.com"}
-- Marital Status: Married
-- Wife Age: 40
-- Children: Two (2) children under 18 (Boy: 13 years old, Girl: 12 years old)
-- Household Size: 4 persons (Self, Wife, Son, Daughter)
-- Household Type: Own house / single family house / detached house
-- Language Spoken at Home: English all the time
-- Race: White
-- Hispanic / Latino Heritage: No Hispanic / Not Hispanic
-- Education Level: Master's or Professional Degree / graduate / post-graduate (or Bachelor Degree)
-- Voter Registration: Yes, registered to vote
-- Politics: Republican / strong Republican
-- Religion: Christian / Protestant / Roman Catholic
+VERIFIED HUMAN PROFILE:
+- Full Name: ${p.firstName || "Al Amin"} ${p.lastName || "Miah"} | Male (Heterosexual) | Age: 50 (Born March 8, 1976 / 1976)
+- Location: 123 W 31st St, New York, NY 10001 | English spoken at home | Own single family home
+- Household: Married, Wife 40, Two kids (Boy 13, Girl 12). Total: 4 persons
+- Race: White | Not Hispanic/Latino | Education: Master's or Professional Degree (or Bachelor)
+- Politics: Republican (Strong Republican, registered voter) | Religion: Christian
+- Employment: Employed full-time (35+ hrs) | IT / Computer Software (Manager / Director / CTO) | 2,500-5,000 employees | $50-$99M revenue
+- Spending authority: Marketing, Sales, Advertising, Financial Services, IT Hardware, IT Software (sole decision maker)
+- Income: $125,000 - $149,999 before taxes | FICO score: 750-800 | Investable assets: $500k-$1M | Bank: Bank of America, Amex
+- Cars Owned: Audi, Nissan (Only 2) | Audi A8 Sedan | Mid/Full Size | Bought 2023 New | Next car: 2 years / 3-6 months
+- Health: Smoker (Yes, 4-7 cigs/day; Quit: Cold Turkey, Veep) | Conditions: Allergies, Back Pain, Dental, Depression, Diabetes (Type 1) | No cancer
+- Tech: Samsung phone (Verizon Pre-paid) | Verizon home internet | PC/Mac laptop, iPad, Smart TV, Gaming console
+- Shopping: Walmart, Target, Aldi, Costco | Sole decision maker | Fast Food: 1-3x/week (McDonalds, Chipotle, Five Guys)
+- Screeners: Market research past 2 weeks: No | Online research past month: No | Expecting baby: No
+- Screener Trap: Household working in Advertising, PR, Market Research -> ALWAYS "None of the above"
+- Attention Check Traps: Strictly follow the literal prompt (e.g. "Select blue", "Choose somewhat disagree")!
 
---- EMPLOYMENT & INDUSTRY ---
-- Employment Status: Employed full-time (35/40+ hours per week)
-- Job Title / Role / Responsibility: Information technology, computer software (Manager, Senior Management, Director, Chief Technology Officer)
-- Department: Information technology, computer software
-- Primary Industry: Information technology, computer software (Manager / Director / Senior Management / CTO)
-- IT Function / Role: Computer software
-- Spending & Purchasing Decision Authority: Marketing, Sales, Advertising, Financial Services, IT Hardware, IT Software (sole decision maker or primary influencer)
-- Organization Annual Revenue: $50 - $99 Million (50-99 million)
-- Organization Employee Count: 2,500 - 5,000 employees (all locations / worldwide)
-- Household Members Industries: Information technology, computer software
-- Screener Trap on Industry: If asked if anyone in household works in Market Research, Advertising, PR, Journalism, Construction, Education, or Healthcare -> ALWAYS select "None of the above" (IT only for Samplicio).
-- Career Activities (past year): Asked for/provided career advice, used an online social network to advance career
-- COVID-19 Employment Impact: No, my employment has not been affected by those policies.
-
---- HOUSEHOLD & FINANCES ---
-- Annual Household Income Before Taxes: $125,000 - $149,999 (125000-149999) (Monthly: $5,000+ / Over $5,000)
-- Household Investable Assets (excluding home): $500,000 - $999,999
-- Credit Score (FICO Score): 750-800
-- Mortgage: Obtained 3 to 6 months ago
-- Financial Products Owned: Personal loan, Mortgage, Credit Card, Checking account, Savings account
-- Lending Products Obtained in Past 24 Months: Personal Loan, Home Equity loan, Student Loan
-- Bank Relationships: Bank of America, American Express
-- Credit Cards Used: American Express, Discover, Master Card, Visa
-- Credit Card Used Mostly: American Express
-- Household Decisions Responsible For: Internet, Television, Banking, Automobile, Finance, Mortgage
-
---- AUTOMOTIVE ---
-- Drives Regularly: Yes, I have a car
-- Possess Driver's License: Yes
-- Primary Decision Maker for Automotive: Yes
-- Car Brands Owned or Leased: Audi, Nissan (Select Only 2)
-- Car Model: Audi A 8 Sedan
-- Vehicle Description / Type: Full Size, Mid-Size
-- Year Purchased / Leased Main Vehicle: 2023
-- Year Main Vehicle Manufactured: 2022
-- Primary Vehicle Purchased Condition: New
-- Own Motorcycle: Yes
-- Estimate for Next Car Purchase / Lease: Two years from now / within 3-6 months (pick whichever is in options)
-
---- HEALTH & MEDICAL ---
-- Smoker: Yes, I smoke (4 to 7 cigarettes a day)
-- Quit Smoking Products Tried: Cold Turkey, Veep
-- Diagnosed Illnesses / Conditions: Allergies (not associated with Hay Fever), Back Pain, Dental Problem, Depression, Diabetes (type 1), Smoking Addiction (If female, no smoking addiction)
-- Diabetes Type: Diabetes 1 (Type 1)
-- Cancer: I don't have cancer
-- Hearing Aid: No
-- Glasses or Contact Lenses: Yes
-- Health Insurance: Self-insured
-- Healthcare Activities (past 3 months): Video call, phone call, or text with a doctor
-- Exercise / Sports Hours per Week: 05 to 07 hours (5 to 7 hours)
-
---- TECHNOLOGY & TELECOM ---
-- Uses Smartphone: Yes
-- Primary Smartphone Type: Samsung
-- Primary Mobile Carrier: Verizon Wireless / AT&T
-- Mobile Phone Plan: Pre-paid
-- Primary Home Internet Service Provider: Verizon
-- Home Internet Connection Type: Satellite, Wireless
-- TV Provider at Primary Residence: AT&T U-verse / Cable (Xfinity)
-- Early Adopter of New Technology: Yes (First to buy new gadgets)
-- Webcam Available: Yes, I have a webcam (willing to use for online research)
-- Online on Computer: Several times a day
-- Devices Owned / Used: Blu-ray/DVD player, Portable game console (Sony PSP GO), Digital Camera, PC/Mac laptop or portable, Cell Phone, Cable TV/Satellite TV, Printer, 3D TV, Home Internet, Digital Media, Tablet (iPad), Desktop PC, Apple TV, Smart Phone, Speaker
-- Subscriptions Owned: Connected Device for TV (Chromecast), Premium channels (HBO), Tablet (iPad), Smartphone (iPhone, Android), Video Streaming (Netflix), Video Games, Paid music (Spotify, Apple Music), Smart home system (Google Home, Alexa), Cable (Xfinity)
-- Social Media Actively Used: Facebook, Instagram, Pinterest, YouTube, Snapchat, WhatsApp
-- Social Media Frequency: Several times a day
-
---- SHOPPING, FOOD & BEVERAGES ---
-- Purchasing Decision Maker: Yes / Sole decision maker (Daily purchases, Groceries, Electronics, Travel)
-- Main Grocery Shopping: Walmart, Target, Aldi, Costco
-- Online Retailers (past 30 days): Amazon, Best Buy, eBay, Target.com, Walmart.com
-- Discount / Outlet Chains (past 12 months): Walmart, Target, Aldi
-- Jeans Brands Bought (past 6 months): Levi's, Old Navy, American Eagle
-- Services Utilized Regularly: Lyft, Grubhub, Airbnb, UberEATS, Uber, DoorDash
-- Fast Food Frequency: 1 to 3 times in any given week
-- Fast Casual Restaurants Visited (at least once every 3 months): Boston Market, Chipotle Mexican Grill, Five Guys Burgers & Fries, Firebirds, Friendly's, Jerry's Subs & Pizza, Jason's Deli, Panda Express, Skyline Chili, Smashburger, Wingstop, Zaxby's, Tim Hortons
-- Fast Food Ever Visited: A&W Restaurants, Arby's, Burger King, Charley's Grilled Subs, Hungry Jacks, KFC, McDonald's, Panda Express, Pizza Hut, Subway, Taco Bell, Wendy's
-- Beverages Consumed (past 4 weeks / regularly): Beer, Wine, Energy drinks, Coffee, Tea, Carbonated soft drinks, Fruit drinks/Juices, Bottled Water, Pre-mixed packaged spirits, Imported beer, Red Wine, White Wine, Champagne, Vodka, Flavoured liquor
-- Alcoholic Drinks Consumed in a Week: 1 to 2 drinks
-- Insurance Products Shopped (past 12 months): Health insurance, Homeowners insurance
-
---- GAMING, ENTERTAINMENT & TRAVEL ---
-- Hobbies & Interests: Cooking, Fishing, Playing music, Playing video/computer games, Travel, Watch Sports on TV, Swimming, Hunting, Motorcycling, Biking
-- Sports Regularly Participated In: Cricket, Basketball
-- Video Games Hours per Week: 7 to 13 / or more hours
-- Devices to Play Games: Played offline video games on Mobile, Gaming console
-- How Video Games Played: With others in the same room, with others through an internet connection
-- Video Game Genres: 1st Person Shooter/Action Call of Duty, 3rd Person Adventure, Point & Click Adventure, Sports/FIFA, Role playing Game, Massively Multiplayer online/Warcraft, Fighting/Street Fighter, Party Games/Casual Facebook Games
-- Games Purchased per Month: 1 game
-- DVDs / Blu-rays Purchased Monthly: 4 to 6
-- Movie Theatre Frequency: Four or more times per month
-- Movie Genres: Action, Animated, Children's films, Comedy, Drama, Horror, Musicals, Mystery, Science Fiction, Thriller
-- Home Movies Rented/Downloaded: Three times per month
-- TV Watched per Week: More than 10 hours
-- Radio Listened per Week: 6 to 7 hours
-- Current TV Shows Watched: The Dr Oz Show, Crossing Swords (Hulu), Cobra Kai, The Chi (Showtime S3), The Boys (Prime Video), Coyote (S1), S.W.A.T, The Crown on Netflix
-- Publications Read: Computers & Electronics magazines, Cooking & food magazines, Entertainments, Fashion, Health & Fitness, Music, Science, Technology, Travel
-- Magazines Read (every 1-2 months): Time, Vogue, Men's health, Food & wine, ESPN the Magazine, Entertainment weekly, Allure, Bloomberg BusinessWeek
-- Podcasts Frequency: Every day or most days
-- Podcast Genres: Society & Culture, Music, Education, Government & Organizations, TV & Film, Health, Science & Medicine, Technology, Sports & recreation, Kids & Family
-- Vacation / Holidays Usually: Visiting Friends & Family, Boating/Fishing
-- Activities in Past Month: Rented a car, Stayed in a hotel
-- Accommodation Past Year: 4-star Hotel, 5-star hotel
-- Travel Purpose: Both, Leisure and Business
-- Fly for Business: Once every 2-4 months
-- Flights Booked Online (past year): 7 to 9
-- Flight Types: Both domestic and international
-- Domestic Airlines (past 12 months): United Airlines, Delta Air Lines, JetBlue, Virgin Atlantic
-- International Airlines (past 12 months): Singapore Airlines, EgyptAir, Emirates, Air Canada
-- Countries Travelled (past 12 months): Australia, Japan, North America
-
---- CRITICAL SCREENER & TRAP RULES ---
-- "Have you participated in a market research study within past 2 weeks": Always "No".
-- "Have you done any online research in last week / last month": Always "No".
-- "Are you and your partner expecting a baby": Always "No".
-- "Do you work in Market Research / Advertising / PR / Journalism": Always "None of the above" or "IT / Computer Software".
-- "Attention Check / Trap": If the question says "Select option 2", "Choose strongly agree to confirm you are reading", or "Select the color blue", STRICTLY OBEY THAT INSTRUCTION!
-
-=============================================================================
-SURVEY PAGE CONTEXT (Top-to-Bottom Scanned DOM):
-=============================================================================
-URL: ${pageData.url || "N/A"}
-Page Title: ${pageData.title || "N/A"}
-
-Scanned Page Text:
-${(pageData.fullPageText || "").slice(0, 6000)}
-
-Structured Survey Questions & Interactive Form Elements:
+SURVEY QUESTIONS TO ANSWER:
 ${JSON.stringify(pageData.questions, null, 2)}
 
-=============================================================================
 OUTPUT INSTRUCTIONS:
-=============================================================================
 1. You MUST generate an answer for EVERY SINGLE question listed. Do not skip any!
-2. In "selected_labels", provide the EXACT string of the choice option as written in the question's options list or visible on page so it can be clicked.
-3. In "target_element_ids", provide the exact element ID from options if available.
-4. For text inputs, message boxes, textareas, reasons, or open-ended questions: You MUST generate a natural, realistic, thoughtful 1 to 3 sentence answer in first-person human voice ("ans as a human") in "text_input_value" AND include it in "selected_labels": [your_text_answer]. Never leave text_input_value null for a text question!
-5. Return ONLY a valid JSON object matching this exact structure:
+2. In "selected_labels", provide the EXACT label text matching the question's options list.
+3. For text inputs/textareas/message boxes: In "text_input_value", write a natural 1-2 sentence human opinion in first-person ("ans as a human"). Never leave it null!
+4. Return ONLY valid JSON matching this structure:
 {
-  "page_summary": "1-sentence summary of survey topic",
+  "page_summary": "Summary",
   "trap_detected": false,
-  "trap_alert_message": "",
   "is_last_page": false,
-  "estimated_human_reading_seconds": 3,
   "answers": [
     {
       "question_index": 0,
-      "question_id": "element-id-if-known",
-      "question_text": "Exact text of the question",
-      "recommended_action": "select_radio" | "select_checkbox" | "select_dropdown" | "type_text" | "matrix_choice",
-      "target_element_ids": ["opt-id-1"],
-      "selected_labels": ["Exact Label Text As Displayed On Page"],
+      "question_id": "opt-id-if-known",
+      "question_text": "Question text",
+      "recommended_action": "select_radio" | "select_checkbox" | "select_dropdown" | "type_text",
+      "target_element_ids": [],
+      "selected_labels": ["Exact Label"],
       "text_input_value": null,
       "reasoning": "Fits verified human persona profile"
     }
   ]
-}
-Return valid JSON only. Do not wrap in markdown or commentary.`;
+}`;
 }
 
 /**

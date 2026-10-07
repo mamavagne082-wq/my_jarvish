@@ -234,12 +234,12 @@
     const modelSelectors = 'model-response, [data-message-author="model"], .response-container';
     const initialResponseCount = document.querySelectorAll(modelSelectors).length;
 
-    // 4. Wait for response generation to complete
-    return await waitForGeminiResponse(45000, initialResponseCount, promptText);
+    // 4. Wait for response generation to complete rapidly (Max 12s, instant on stop)
+    return await waitForGeminiResponse(12000, initialResponseCount, promptText);
   }
 
   // Observe and extract Gemini's response (Exclusively targets model output, never user query)
-  function waitForGeminiResponse(timeoutMs = 45000, initialResponseCount = 0, sentPromptText = "") {
+  function waitForGeminiResponse(timeoutMs = 12000, initialResponseCount = 0, sentPromptText = "") {
     return new Promise((resolve, reject) => {
       const startTime = Date.now();
       let lastText = "";
@@ -313,16 +313,21 @@
               lastText = currentText;
             }
 
-            // If not actively generating and text was stable for >= 3 checks (1.5 sec)
-            if (!isStillGenerating && stableCount >= 3 && lastText.length > 25) {
+            // Fast Completion Check:
+            // 1. Generation finished (no stop button) and text has valid answers structure
+            const hasCompleteJson = (currentText.includes('"answers"') && currentText.includes('}')) ||
+                                    (currentText.startsWith('[') && currentText.includes(']')) ||
+                                    currentText.includes('```');
+
+            if (!isStillGenerating && (hasCompleteJson || stableCount >= 1) && lastText.length > 20) {
               clearInterval(checkInterval);
-              console.log("[Jarvis Gemini Bridge] ✅ Response captured successfully (" + lastText.length + " chars)!");
+              console.log("[Jarvis Gemini Bridge] ⚡ Instant Response Captured (" + lastText.length + " chars, " + (Date.now() - startTime) + "ms)!");
               resolve({ success: true, text: lastText });
               return;
             }
           }
         }
-      }, 500);
+      }, 180);
     });
   }
 
