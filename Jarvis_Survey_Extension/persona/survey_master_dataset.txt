@@ -421,3 +421,12 @@ Answer: None of the above
 
 To the best of your knowledge, what is your credit score (also known as your FICO score)?
 Answer: 750-800
+
+When added up, how much do you think your household's total net income is (after taxes) for paying rent, groceries, etc. per month?
+Answer: More than $7500, Between $6501 and $7500
+
+What color is a traffic Stop sign?
+Answer: Red
+
+Which of these brands do you associate with...? Select all that apply. With dinner
+Answer: Moët & Chandon, Veuve Clicquot, Chandon, Taittinger, None of the above

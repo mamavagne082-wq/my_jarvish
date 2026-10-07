@@ -1086,5 +1086,62 @@
     "selected_labels": ["None of the above", "None of these"],
     "text_input_value": "None of the above",
     "recommended_action": "select_radio"
+  },
+  {
+    "question": "When added up, how much do you think your household's total net income is (after taxes) for paying rent, groceries, etc. per month?",
+    "aliases": [
+      "monthly net income",
+      "household's total net income",
+      "income after taxes per month",
+      "paying rent groceries etc per month",
+      "household net income monthly",
+      "net income per month"
+    ],
+    "selected_labels": [
+      "More than $7500",
+      "Between $6501 and $7500",
+      "> $7500",
+      "$7,500+",
+      "Over $7,500",
+      "$6,500 - $7,500"
+    ],
+    "text_input_value": "More than $7500",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "What color is a traffic Stop sign?",
+    "aliases": [
+      "Please help us test you are not a robot by answering the following: What color is a traffic Stop sign?",
+      "color of a traffic stop sign",
+      "what color is a stop sign",
+      "stop sign color",
+      "test you are not a robot by answering the following"
+    ],
+    "selected_labels": [
+      "Red"
+    ],
+    "text_input_value": "Red",
+    "recommended_action": "select_radio"
+  },
+  {
+    "question": "Which of these brands do you associate with...? Select all that apply. With dinner",
+    "aliases": [
+      "Which of these brands do you associate with",
+      "Which of these brands do you associate with...? Select all that apply.",
+      "brands do you associate with with dinner",
+      "dinner champagne brands",
+      "brands associate with dinner",
+      "With dinner"
+    ],
+    "selected_labels": [
+      "Moët & Chandon",
+      "Veuve Clicquot",
+      "Chandon",
+      "Taittinger",
+      "None of the above"
+    ],
+    "text_input_value": "Moët & Chandon",
+    "recommended_action": "select_checkbox"
   }
 ]
+

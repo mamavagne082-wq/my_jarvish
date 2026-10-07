@@ -58,6 +58,7 @@
     "household_type": "Own house / single family house",
     "household_size": 4,
     "annual_household_income_before_taxes": "$125,000 - $149,999 (125000-149999)",
+    "monthly_household_net_income_after_taxes": "More than $7500 (Between $6501 and $7500)",
     "household_investable_assets": "$500,000 - $999,999",
     "credit_score_fico": "750-800",
     "mortgage_obtained": "3 to 6 months ago",
