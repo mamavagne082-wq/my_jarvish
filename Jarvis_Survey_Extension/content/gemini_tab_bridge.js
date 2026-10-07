@@ -179,11 +179,7 @@
 
     editor.focus();
 
-    // 1. If screenshot provided, paste it first
-    if (screenshotDataUrl) {
-      await pasteImage(screenshotDataUrl, editor);
-      await new Promise(r => setTimeout(r, 1000));
-    }
+    // Text-only input (Zero screenshot image pasting to prevent slow uploads and share modals)
 
     // 2. Set text content into editor with full Quill / Angular event simulation
     if (editor.isContentEditable) {
@@ -210,7 +206,7 @@
       editor.dispatchEvent(new Event("change", { bubbles: true }));
     }
 
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 400));
 
     // 3. Find and click send button or trigger Enter
     const sendBtn = findSendButton();
@@ -234,8 +230,8 @@
     const modelSelectors = 'model-response, [data-message-author="model"], .response-container';
     const initialResponseCount = document.querySelectorAll(modelSelectors).length;
 
-    // 4. Wait for response generation to complete rapidly (Max 12s, instant on stop)
-    return await waitForGeminiResponse(12000, initialResponseCount, promptText);
+    // 4. Wait for response generation to complete rapidly (Max 7s, instant on stop)
+    return await waitForGeminiResponse(7000, initialResponseCount, promptText);
   }
 
   // Observe and extract Gemini's response (Exclusively targets model output, never user query)

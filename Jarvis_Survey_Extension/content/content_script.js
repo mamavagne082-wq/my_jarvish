@@ -457,11 +457,28 @@
 
     updateHUDStatus("analyzing", "🤖 Gemini Vision দিয়ে স্ক্রিনশট এনালাইসিস করে সঠিক উত্তর বের করা হচ্ছে...");
 
-    const fullBodyText = document.body ? cleanText(document.body.innerText).slice(0, 3000) : "";
+    const fullBodyText = document.body ? cleanText(document.body.innerText).slice(0, 5000) : "";
+    let scannedQuestions = [];
+    try {
+      scannedQuestions = scanSurveyPage() || [];
+    } catch (_) {}
+
     const payload = {
       title: document.title,
       url: window.location.href,
       fullPageText: fullBodyText,
+      questions: scannedQuestions.map((q) => ({
+        index: q.index,
+        type: q.type,
+        text: q.text,
+        options: (q.options || []).map((o) => ({
+          id: o.id,
+          name: o.name,
+          type: o.type,
+          value: o.value,
+          label: o.label
+        }))
+      })),
       screenshot: screenshotDataUrl,
       isScreenshot: true
     };
@@ -771,9 +788,36 @@
         }
 
         if (filledCount === 0 && analysisData?.answers?.length > 0) {
-          updateHUDStatus("done", "💡 পেজে উত্তর নিচে বোল্ড করে প্রদর্শিত হয়েছে। দেখে সিলেক্ট করে Next চাপুন।");
-          autoPilotRunningCycle = false;
-          return;
+          // Emergency attempt: direct click matching text elements
+          for (const ans of analysisData.answers) {
+            for (const lbl of (ans.selected_labels || [])) {
+              const cleanL = cleanText(lbl).toLowerCase();
+              if (!cleanL || cleanL.length < 2) continue;
+              const cand = Array.from(document.querySelectorAll("button, label, [role='button'], [role='radio'], [role='checkbox'], div, span, td, a"))
+                .find(el => isElementVisible(el) && !el.closest("#jarvis-hud-container") && el.children.length <= 4 && cleanText(el.innerText || "").toLowerCase().includes(cleanL));
+              if (cand) {
+                const target = cand.closest("button, label, [role='button'], [role='radio'], [role='checkbox'], div, tr, td") || cand;
+                await simulateHumanAction(target, ans);
+                filledCount++;
+                break;
+              }
+            }
+          }
+          if (filledCount === 0) {
+            // Check if page has Next button (transition, disclosure, or single button page)
+            const nextBtnFallback = findNextButton();
+            if (nextBtnFallback) {
+              updateHUDStatus("done", "🤖 পেজের নেক্সট বাটনে ক্লিক করে অগ্রসর হওয়া হচ্ছে...");
+              await sleep(1200);
+              clickElementLikeHuman(nextBtnFallback);
+              setTimeout(() => { if (isAutoPilotActive && !autoPilotRunningCycle) triggerAutoPilotCycle(); }, 1600);
+              autoPilotRunningCycle = false;
+              return;
+            }
+            updateHUDStatus("done", "💡 পেজে উত্তর নিচে বোল্ড করে প্রদর্শিত হয়েছে। দেখে সিলেক্ট করে Next চাপুন।");
+            autoPilotRunningCycle = false;
+            return;
+          }
         }
 
         if (!isAutoPilotActive) {
@@ -1028,16 +1072,21 @@
       // Helper: check if element or its children contains right-arrow SVG or icon
       function hasRightArrowIcon(el) {
         if (!el) return false;
+        const txt = (el.innerText || el.textContent || "").trim();
+        if (txt === ">" || txt === "»" || txt === "→" || txt === ">>" || txt === "›" || txt === "▶") return true;
+
         const svgs = el.querySelectorAll("svg, i, span[class*='icon' i], [class*='chevron' i], [class*='arrow' i]");
         for (const icon of svgs) {
           const cls = (icon.getAttribute("class") || icon.className || "").toString().toLowerCase();
-          const d = icon.querySelector("path")?.getAttribute("d") || "";
-          if (cls.includes("right") || cls.includes("forward") || cls.includes("next") || cls.includes("chevron")) {
+          if (cls.includes("right") || cls.includes("forward") || cls.includes("next") || cls.includes("chevron") || cls.includes("arrow")) {
             return true;
           }
+          const paths = icon.querySelectorAll("path, polygon, polyline");
+          if (paths.length > 0) return true;
         }
-        // Check aria-label or title of SVG
-        const svgAria = el.querySelector("svg[aria-label*='next' i], svg[title*='next' i]");
+        const aria = (el.getAttribute("aria-label") || el.getAttribute("title") || "").toLowerCase();
+        if (aria.includes("next") || aria.includes("forward") || aria.includes("continue") || aria.includes("proceed")) return true;
+        const svgAria = el.querySelector("svg[aria-label*='next' i], svg[title*='next' i], svg[aria-label*='forward' i]");
         if (svgAria) return true;
         return false;
       }
@@ -1068,27 +1117,30 @@
 
       // 2. Search bottom navigation / footer bars for arrow or next buttons (e.g. sa.ktrmr.com, Decipher, Appinio)
       const bottomContainers = document.querySelectorAll(
-        "#mrForm, .survey-footer, .footer, .nav-buttons, .navigation, .bottom-bar, .survey-bottom, .buttonBar, .bottom-nav, .nav-bar, .survey-navigation, [class*='bottom-nav' i], [class*='footer' i]"
+        "#mrForm, .survey-footer, .footer, .nav-buttons, .navigation, .bottom-bar, .survey-bottom, .buttonBar, .bottom-nav, .nav-bar, .survey-navigation, [class*='bottom-nav' i], [class*='footer' i], [class*='navigation' i], [class*='nav' i], [class*='action' i]"
       );
       for (const container of bottomContainers) {
-        const btns = Array.from(container.querySelectorAll("button, input[type='button'], input[type='submit'], a, div[role='button']"))
-          .filter(b => isElementVisible(b) && !b.disabled && b.getAttribute("aria-disabled") !== "true");
+        const btns = Array.from(container.querySelectorAll("button, input[type='button'], input[type='submit'], a, div[role='button'], div[class*='btn' i], div[class*='button' i], div[class*='next' i], div[class*='nav' i], span[role='button'], div, span"))
+          .filter(b => isElementVisible(b) && !b.disabled && b.getAttribute("aria-disabled") !== "true" && !b.closest("#jarvis-hud-container"));
 
-        // If container has 2 buttons (typical: [Back <] and [Next >]), the last one is Next!
+        // If container has 2 interactive elements (typical: [Back <] on left and [Next >] on right)
         if (btns.length === 2) {
           const firstTxt = (btns[0].innerText || btns[0].value || "").trim().toLowerCase();
           const secondTxt = (btns[1].innerText || btns[1].value || "").trim().toLowerCase();
-          if (excludeKeywords.some(kw => firstTxt === kw || firstTxt.includes(kw)) || btns[0].innerText.includes("<")) {
+          if (excludeKeywords.some(kw => firstTxt === kw || firstTxt.includes(kw)) || firstTxt.includes("<")) {
             return btns[1];
           }
           if (secondTxt === ">" || hasRightArrowIcon(btns[1]) || nextKeywords.some(kw => secondTxt.includes(kw))) {
             return btns[1];
           }
+          const r0 = btns[0].getBoundingClientRect();
+          const r1 = btns[1].getBoundingClientRect();
+          if (r1.left > r0.left) return btns[1];
         }
 
         for (const btn of btns) {
           const txt = (btn.innerText || btn.value || "").trim().toLowerCase();
-          if (txt === ">" || txt === "»" || txt === "→" || txt === ">>" || hasRightArrowIcon(btn) || nextKeywords.some(kw => txt === kw || txt.includes(kw))) {
+          if (txt === ">" || txt === "»" || txt === "→" || txt === ">>" || txt === "›" || hasRightArrowIcon(btn) || nextKeywords.some(kw => txt === kw || txt.includes(kw))) {
             if (!excludeKeywords.some(kw => txt.includes(kw))) {
               return btn;
             }
@@ -1096,23 +1148,63 @@
         }
       }
 
-      // 3. All clickable buttons and anchors matching next keywords or right arrow
+      // 3. Rightmost or Centered Colored Block in bottom navigation area (Direct fix for Kantar, Decipher, Appinio)
+      // Handles Screenshots 1, 2, 3: full-width blue bar with centered '>' or split footer with '>' on right
+      const bottomElements = Array.from(document.querySelectorAll("div, button, a, footer, [class*='footer' i], [class*='bottom' i], [class*='nav' i]")).filter(el => {
+        if (!isElementVisible(el) || el.closest("#jarvis-hud-container")) return false;
+        const rect = el.getBoundingClientRect();
+        if (rect.bottom >= window.innerHeight * 0.65 && rect.height >= 26) {
+          const txt = (el.innerText || el.textContent || "").trim().toLowerCase();
+          if (excludeKeywords.some(kw => txt === kw || (txt.startsWith(kw) && txt.length < 8))) return false;
+          if (txt === ">" || txt === "»" || txt === "→" || txt === ">>" || txt === "›" || hasRightArrowIcon(el)) {
+            return true;
+          }
+          // Check if styled with blue/primary color (Kantar/Decipher brand colors)
+          const bg = window.getComputedStyle(el).backgroundColor;
+          if (bg && /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.test(bg)) {
+            const [_, r, g, b] = bg.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/).map(Number);
+            if (b > 110 && b > r + 15) {
+              // Centered or right-aligned arrow button inside blue bar
+              if (hasRightArrowIcon(el) || el.querySelector("svg, [class*='arrow' i], [class*='chevron' i], path") || rect.left > window.innerWidth * 0.25) {
+                return true;
+              }
+            }
+          }
+        }
+        return false;
+      });
+
+      if (bottomElements.length > 0) {
+        // Prioritize exact right arrow icon or chevron
+        const withArrow = bottomElements.find(el => hasRightArrowIcon(el) || (el.innerText || "").trim() === ">");
+        if (withArrow) {
+          const innerClickable = withArrow.querySelector("button, [role='button'], a, svg") || withArrow;
+          return innerClickable;
+        }
+        const sorted = bottomElements.sort((a, b) => {
+          const ra = a.getBoundingClientRect();
+          const rb = b.getBoundingClientRect();
+          return rb.left - ra.left; // Rightmost first
+        });
+        return sorted[0];
+      }
+
+      // 4. All clickable buttons and anchors matching next keywords or right arrow
       const allButtons = document.querySelectorAll("button, input[type='button'], a.btn, a.button, [role='button'], div.button");
       for (const btn of allButtons) {
         if (!isElementVisible(btn) || btn.disabled || btn.getAttribute("aria-disabled") === "true") continue;
         const txt = (btn.innerText || btn.value || "").trim().toLowerCase();
-        if (txt === ">" || txt === "»" || txt === "→" || txt === ">>" || hasRightArrowIcon(btn) || nextKeywords.some((kw) => txt === kw || txt.includes(kw))) {
+        if (txt === ">" || txt === "»" || txt === "→" || txt === ">>" || txt === "›" || hasRightArrowIcon(btn) || nextKeywords.some((kw) => txt === kw || txt.includes(kw))) {
           if (!excludeKeywords.some((kw) => txt.includes(kw))) {
             return btn;
           }
         }
       }
 
-      // 4. Primary / blue styled action button on bottom half of page (common in modern surveys like Decipher/Appinio)
+      // 5. Primary / blue styled action button on bottom half of page (common in modern surveys like Decipher/Appinio)
       const primaryButtons = Array.from(document.querySelectorAll('.btn-primary, button.primary, [class*="primary" i], .survey-button-next, .c-button--primary')).filter(isElementVisible);
       for (const pb of primaryButtons) {
         const rect = pb.getBoundingClientRect();
-        // Placed in bottom 50% of viewport / page
         if (rect.top > window.innerHeight * 0.4) {
           const txt = (pb.innerText || pb.value || "").trim().toLowerCase();
           if (!excludeKeywords.some(kw => txt.includes(kw)) && (txt === ">" || hasRightArrowIcon(pb) || nextKeywords.some(kw => txt.includes(kw)) || txt === "")) {
@@ -1121,7 +1213,7 @@
         }
       }
 
-      // 5. Fallback for Qualtrics / Decipher / Toluna specific next elements
+      // 6. Fallback for Qualtrics / Decipher / Toluna specific next elements
       const platformNext = document.querySelector(
         "#NextButton, .NextButton, .survey-page__next-button, [aria-label='Next'], [aria-label='Submit'], [title='Next']"
       );
@@ -1169,18 +1261,28 @@
     }
 
     function clickElementLikeHuman(el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (!el) return;
+      try {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      } catch (_) {}
 
-      const opts = { bubbles: true, cancelable: true, view: window };
-      el.dispatchEvent(new MouseEvent("pointerover", opts));
-      el.dispatchEvent(new MouseEvent("mouseenter", opts));
-      el.dispatchEvent(new MouseEvent("mouseover", opts));
-      el.dispatchEvent(new MouseEvent("pointerdown", opts));
-      el.dispatchEvent(new MouseEvent("mousedown", opts));
-      el.focus();
-      el.dispatchEvent(new MouseEvent("pointerup", opts));
-      el.dispatchEvent(new MouseEvent("mouseup", opts));
-      el.dispatchEvent(new MouseEvent("click", opts));
+      const opts = { bubbles: true, cancelable: true, view: window, buttons: 1 };
+      try {
+        el.dispatchEvent(new PointerEvent("pointerover", opts));
+        el.dispatchEvent(new MouseEvent("mouseenter", opts));
+        el.dispatchEvent(new MouseEvent("mouseover", opts));
+        el.dispatchEvent(new PointerEvent("pointerdown", opts));
+        el.dispatchEvent(new MouseEvent("mousedown", opts));
+        el.focus();
+        el.dispatchEvent(new PointerEvent("pointerup", opts));
+        el.dispatchEvent(new MouseEvent("mouseup", opts));
+        el.dispatchEvent(new MouseEvent("click", opts));
+        if (typeof el.click === "function") {
+          el.click();
+        }
+      } catch (err) {
+        try { el.click(); } catch (_) {}
+      }
     }
 
     /**
@@ -1195,28 +1297,53 @@
       let qIndex = 0;
       const trackedElements = new Set();
 
-      // Special helper: detect question title on any survey platform
+      // Special helper: detect question title and contextual prompt on any survey platform
       function detectPageQuestionTitle() {
+        let mainQuestion = "";
+        let contextPrompt = "";
+
         const titleCandidates = document.querySelectorAll(
           ".mrQuestionText, .mrBannerText, .mrQuestionTextContainer, .QuestionText, .question-text, .q-title, h1, h2, h3, h4, [role='heading'], legend, [class*='question' i]:not([class*='option' i]):not([class*='choice' i]):not([class*='item' i]), [class*='prompt' i], [class*='title' i]"
         );
         for (const t of titleCandidates) {
-          if (!isElementVisible(t)) continue;
+          if (!isElementVisible(t) || t.closest("#jarvis-hud-container")) continue;
           const txt = cleanText(t.innerText);
           if (txt && txt.length > 5 && !/jarvis|copilot/i.test(txt) && !/terms|privacy|cookie/i.test(txt)) {
-            return txt;
+            if (!mainQuestion) mainQuestion = txt;
+            else if (!contextPrompt && txt !== mainQuestion && txt.length < 80) contextPrompt = txt;
           }
         }
-        // Check for strong or paragraph ending with question mark
-        const pTags = document.querySelectorAll("p, strong, b, div");
-        for (const p of pTags) {
-          if (!isElementVisible(p) || p.children.length > 2) continue;
-          const txt = cleanText(p.innerText);
-          if (txt && txt.length > 10 && txt.length < 300 && (txt.includes("?") || /select|which of|how much|when added|what color/i.test(txt)) && !/jarvis|copilot/i.test(txt)) {
-            return txt;
+
+        // Check for strong, heading, or paragraph ending with question mark or asking survey question
+        if (!mainQuestion) {
+          const pTags = document.querySelectorAll("p, strong, b, div, span");
+          for (const p of pTags) {
+            if (!isElementVisible(p) || p.children.length > 3 || p.closest("#jarvis-hud-container")) continue;
+            const txt = cleanText(p.innerText);
+            if (txt && txt.length > 10 && txt.length < 350 && (txt.includes("?") || /select|which of|how much|when added|what color|associate with/i.test(txt)) && !/jarvis|copilot/i.test(txt)) {
+              mainQuestion = txt;
+              break;
+            }
           }
         }
-        return "";
+
+        // Check for intermediate context banner card (e.g. "With dinner", "For breakfast")
+        const contextCards = document.querySelectorAll('[class*="banner" i], [class*="context" i], [class*="prompt" i], [class*="card" i] strong, [class*="header" i] h2, [class*="header" i] h3');
+        for (const cc of contextCards) {
+          if (!isElementVisible(cc) || cc.closest("#jarvis-hud-container")) continue;
+          const cTxt = cleanText(cc.innerText);
+          if (cTxt && cTxt.length >= 3 && cTxt.length <= 60 && cTxt !== mainQuestion && !/next|back|jarvis/i.test(cTxt)) {
+            if (/with|for|at|during|about|category|brand/i.test(cTxt)) {
+              contextPrompt = cTxt;
+              break;
+            }
+          }
+        }
+
+        if (mainQuestion && contextPrompt && !mainQuestion.includes(contextPrompt)) {
+          return `${mainQuestion} (Context: ${contextPrompt})`;
+        }
+        return mainQuestion || "";
       }
 
       // A. Confirmit / MrlWeb / Kantar specific parser (e.g. sa.ktrmr.com)
@@ -1382,18 +1509,18 @@
         }
       });
 
-      // D. Dedicated Appinio & Modern SPA Parser (Handles Image 1: Appinio custom option rows)
+      // D. Dedicated Appinio & Modern SPA Parser (Handles Screenshot 1: Appinio custom option rows)
       if (questions.length === 0 || window.location.href.includes("appinio") || document.body.innerHTML.includes("appinio")) {
         const appinioQuestion = detectPageQuestionTitle();
         // Look for Appinio option rows: elements styled as choice boxes
         const appinioOptions = Array.from(document.querySelectorAll(
-          '[class*="option" i], [class*="answer" i], [class*="choice" i], [class*="item" i], [role="radio"], [role="checkbox"], [data-testid*="option" i], [data-testid*="choice" i], [data-testid*="answer" i]'
+          '[class*="option" i], [class*="answer" i], [class*="choice" i], [class*="item" i], [role="radio"], [role="checkbox"], [data-testid*="option" i], [data-testid*="choice" i], [data-testid*="answer" i], div:has(> [class*="radio" i]), div:has(> [class*="circle" i])'
         )).filter(el => {
           if (!isElementVisible(el) || trackedElements.has(el)) return false;
           // Filter out header, footer, HUD elements
-          if (el.closest("#jarvis-hud-container") || el.closest("header") || el.closest("nav")) return false;
+          if (el.closest("#jarvis-hud-container") || el.closest("header") || el.closest("nav") || el.closest("footer")) return false;
           const txt = cleanText(el.innerText || "");
-          return txt.length > 0 && txt.length < 150 && !/jarvis|copilot|next|back/i.test(txt);
+          return txt.length > 0 && txt.length < 150 && !/jarvis|copilot|next|back|previous/i.test(txt);
         });
 
         if (appinioOptions.length >= 2) {
@@ -1427,26 +1554,29 @@
         }
       }
 
-      // E. Dedicated Brand / Image Choice Grid Parser (Handles Image 3: Wine/Champagne brand cards)
+      // E. Dedicated Brand / Image Choice Grid Parser (Handles Screenshot 2: Wine/Champagne brand cards)
       if (questions.length === 0) {
         // Find containers with multiple image/logo cards or tiles (common in brand association surveys)
-        const brandTiles = Array.from(document.querySelectorAll(
-          'div:has(> img), div:has(> picture), div:has(> svg), [class*="tile" i], [class*="brand" i], [class*="card" i], [class*="grid-cell" i], td:has(img)'
-        )).filter(el => {
-          if (!isElementVisible(el) || trackedElements.has(el)) return false;
-          if (el.closest("#jarvis-hud-container")) return false;
-          // Must have text or brand name
-          const txt = cleanText(el.innerText || el.getAttribute("aria-label") || el.querySelector("img")?.alt || "");
-          return txt.length > 1 && txt.length < 60;
-        });
+        const candidateGridContainers = Array.from(document.querySelectorAll(
+          '[class*="grid" i], [class*="matrix" i], [class*="cards" i], [class*="brands" i], [class*="tiles" i], [class*="list" i], [class*="container" i], table, tbody, div'
+        ));
 
-        if (brandTiles.length >= 3) {
-          const topLevelTiles = brandTiles.filter(el => !brandTiles.some(p => p !== el && p.contains(el)));
-          if (topLevelTiles.length >= 3) {
+        for (const grid of candidateGridContainers) {
+          if (!isElementVisible(grid) || grid.closest("#jarvis-hud-container")) continue;
+          
+          // Children that contain either an image/logo or text like "None of the above"
+          const directTiles = Array.from(grid.children).filter(ch => {
+            if (!isElementVisible(ch) || ch.closest("#jarvis-hud-container")) return false;
+            const hasImgOrSvg = !!ch.querySelector("img, svg, picture, [class*='logo' i], [class*='icon' i]");
+            const txt = cleanText(ch.innerText || ch.getAttribute("aria-label") || ch.querySelector("img")?.alt || "");
+            return (hasImgOrSvg || /none of the above|not applicable|neither/i.test(txt)) && txt.length >= 1 && txt.length <= 80 && !/jarvis|copilot|next|back/i.test(txt);
+          });
+
+          if (directTiles.length >= 3 && directTiles.length <= 60) {
             const heading = detectPageQuestionTitle() || "Which of these brands do you associate with...? Select all that apply.";
-            const isMulti = /select all|associate with|which of these|apply/i.test(heading);
+            const isMulti = /select all|associate with|which of these|apply|multiple/i.test(heading);
             const opts = [];
-            topLevelTiles.forEach((tileEl) => {
+            directTiles.forEach((tileEl) => {
               trackedElements.add(tileEl);
               const brandName = cleanText(tileEl.innerText || tileEl.getAttribute("aria-label") || tileEl.querySelector("img")?.alt || "Option");
               opts.push({
@@ -1459,13 +1589,14 @@
               });
             });
 
-            if (opts.length > 0) {
+            if (opts.length >= 3) {
               questions.push({
                 index: qIndex++,
                 type: isMulti ? "multiple_choice" : "single_choice",
                 text: heading,
                 options: opts
               });
+              break;
             }
           }
         }
@@ -1517,13 +1648,23 @@
           const directChildren = Array.from(c.children).filter(ch => {
             if (!isElementVisible(ch)) return false;
             const t = cleanText(ch.innerText || "");
-            return t.length > 1 && t.length < 120 && !/jarvis|copilot|next|back|previous/i.test(t);
+            return t.length >= 1 && t.length <= 100 && !/jarvis|copilot|next|back|previous/i.test(t);
           });
 
-          if (directChildren.length >= 2 && directChildren.length <= 40) {
-            const heading = detectPageQuestionTitle() || findPrecedingHeading(directChildren[0]) || `Survey Question (${qIndex + 1})`;
+          const choiceLikeChildren = directChildren.filter(ch => {
+            const hasInputOrBtn = ch.querySelector("input, button, [role='button'], [role='radio'], [role='checkbox'], svg");
+            const tag = ch.tagName.toLowerCase();
+            const cls = (ch.className || "").toString().toLowerCase();
+            const isChoiceTag = ["li", "button", "label"].includes(tag);
+            const isChoiceClass = /choice|option|answer|item|card|tile|brand|response|btn|row/i.test(cls);
+            const shortText = (ch.innerText || "").trim().length >= 1 && (ch.innerText || "").trim().length <= 90;
+            return (hasInputOrBtn || isChoiceTag || isChoiceClass || shortText);
+          });
+
+          if (choiceLikeChildren.length >= 2 && choiceLikeChildren.length <= 40) {
+            const heading = detectPageQuestionTitle() || findPrecedingHeading(choiceLikeChildren[0]) || `Survey Question (${qIndex + 1})`;
             const isMulti = /select all|select any|apply|multiple/i.test(heading);
-            const opts = directChildren.map(el => {
+            const opts = choiceLikeChildren.map(el => {
               trackedElements.add(el);
               const label = cleanText(el.innerText || "");
               return {
@@ -2067,6 +2208,28 @@
           }
         }
 
+        // 2.5 Emergency Direct DOM Text Finder (Handles custom Kantar buttons, Stop sign options, Champagne brand cards)
+        if ((!filledThisAnswer || isMultiple) && labels.length > 0) {
+          for (const label of labels) {
+            const cleanLbl = cleanText(label).toLowerCase();
+            if (!cleanLbl || cleanLbl.length < 2) continue;
+            const candidates = Array.from(document.querySelectorAll("button, label, [role='button'], [role='radio'], [role='checkbox'], div, span, p, td, li, a"))
+              .filter(el => isElementVisible(el) && !el.closest("#jarvis-hud-container") && el.children.length <= 4);
+
+            for (const cand of candidates) {
+              const cText = cleanText(cand.innerText || cand.textContent || "").toLowerCase();
+              if (cText === cleanLbl || (cText.length >= 3 && cleanLbl.length >= 3 && (cText.includes(cleanLbl) || cleanLbl.includes(cText)))) {
+                const target = cand.closest("button, label, [role='button'], [role='radio'], [role='checkbox'], div, tr, td") || cand;
+                await simulateHumanAction(target, ans);
+                filledCount++;
+                filledThisAnswer = true;
+                if (!isMultiple) break;
+              }
+            }
+            if (filledThisAnswer && !isMultiple) break;
+          }
+        }
+
         // 3. If action is type_text, message box, or open-ended textarea
         if (!filledThisAnswer && (ans.recommended_action === "type_text" || ans.text_input_value || (labels.length > 0 && labels[0].length > 15))) {
           const qObj = questions[ans.question_index];
@@ -2420,46 +2583,50 @@
 
       const cardContainer = element.closest('.mrCard, .card, .choice, .option, [class*="option" i], [class*="choice" i], [class*="answer" i], [class*="item" i], [class*="tile" i], [class*="brand" i], [role="radio"], [role="checkbox"], [role="button"], tr, td, li') || element;
 
-      // 1. If associated native input exists, ensure checked state
-      if (associatedInput) {
-        if (!associatedInput.checked) {
-          try {
-            const protoSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "checked")?.set;
-            if (protoSetter) {
-              protoSetter.call(associatedInput, true);
-            } else {
-              associatedInput.checked = true;
-            }
-          } catch (_) {
+      // 1. Select ONE best visible target to click (DO NOT click multiple nested targets, which inverts checkboxes and cancels selections)
+      let clickTarget = null;
+      if (associatedLabel && isElementVisible(associatedLabel)) {
+        clickTarget = associatedLabel;
+      } else if (element && isElementVisible(element) && element !== associatedInput) {
+        clickTarget = element;
+      } else if (cardContainer && isElementVisible(cardContainer)) {
+        clickTarget = cardContainer;
+      } else if (associatedInput) {
+        clickTarget = associatedInput;
+      } else {
+        clickTarget = element;
+      }
+
+      // If it's a checkbox and already checked, do not click to avoid unchecking
+      const isAlreadyChecked = associatedInput && associatedInput.type === "checkbox" && associatedInput.checked;
+
+      if (!isAlreadyChecked && clickTarget) {
+        const mouseOpts = { bubbles: true, cancelable: true, view: window, buttons: 1 };
+        try { clickTarget.focus(); } catch (_) { }
+        clickTarget.dispatchEvent(new PointerEvent("pointerdown", mouseOpts));
+        clickTarget.dispatchEvent(new MouseEvent("mousedown", mouseOpts));
+        clickTarget.dispatchEvent(new PointerEvent("pointerup", mouseOpts));
+        clickTarget.dispatchEvent(new MouseEvent("mouseup", mouseOpts));
+        try { clickTarget.click(); } catch (_) { }
+        clickTarget.dispatchEvent(new Event("change", { bubbles: true }));
+        clickTarget.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+
+      // 2. Safeguard: Ensure native input has checked property set (via prototype descriptor for React/Vue)
+      if (associatedInput && !associatedInput.checked) {
+        try {
+          const protoSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "checked")?.set;
+          if (protoSetter) {
+            protoSetter.call(associatedInput, true);
+          } else {
             associatedInput.checked = true;
           }
-          if (associatedInput._valueTracker) {
-            associatedInput._valueTracker.setValue(false);
-          }
+        } catch (_) {
+          associatedInput.checked = true;
         }
-      }
-
-      // 2. Dispatch full human pointer & mouse events to the VISIBLE clickable element
-      // (the label or card container or element itself) as well as the input
-      const clickTargets = [associatedLabel, (element !== associatedInput ? element : null), cardContainer, associatedInput].filter(Boolean);
-      const uniqueTargets = [...new Set(clickTargets)];
-
-      const mouseOpts = { bubbles: true, cancelable: true, view: window, buttons: 1 };
-
-      for (const tgt of uniqueTargets) {
-        try { tgt.focus(); } catch (_) { }
-        tgt.dispatchEvent(new PointerEvent("pointerdown", mouseOpts));
-        tgt.dispatchEvent(new MouseEvent("mousedown", mouseOpts));
-        tgt.dispatchEvent(new PointerEvent("pointerup", mouseOpts));
-        tgt.dispatchEvent(new MouseEvent("mouseup", mouseOpts));
-        try { tgt.click(); } catch (_) { }
-        tgt.dispatchEvent(new Event("change", { bubbles: true }));
-        tgt.dispatchEvent(new Event("input", { bubbles: true }));
-      }
-
-      // Safeguard: Ensure checkboxes and radios remain selected and never accidentally unchecked
-      if (associatedInput && !associatedInput.checked) {
-        associatedInput.checked = true;
+        if (associatedInput._valueTracker) {
+          associatedInput._valueTracker.setValue(false);
+        }
         associatedInput.dispatchEvent(new Event("change", { bubbles: true }));
         associatedInput.dispatchEvent(new Event("input", { bubbles: true }));
       }
@@ -2859,6 +3026,9 @@
       `;
         resultsContainer.appendChild(card);
       });
+
+      // Always update and show prominent answers box inside the HUD
+      renderProminentAnswersBox(data);
     }
 
     /**

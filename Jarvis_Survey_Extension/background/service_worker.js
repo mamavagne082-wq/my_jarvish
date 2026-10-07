@@ -58,9 +58,8 @@ const DEFAULT_SETTINGS = {
   geminiApiKey: "",
   geminiApiKey2: "",
   geminiApiKey3: "",
-  geminiModel: "gemini-3.8-flash",
-  openRouterApiKey: "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",
-  openRouterApiKey2: "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",
+  openRouterApiKey: "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",
+  openRouterApiKey2: "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",
   openRouterApiKey3: "",
   openRouterModel: "google/gemini-2.5-flash",
   torveAiApiKey: "sk-v1-43ef5710114097156125b9b556c77f5df84982f05911c34667d2e1c5d2dadbfd",
@@ -69,8 +68,8 @@ const DEFAULT_SETTINGS = {
   torveAiModel: "claude-opus-4-8",
   useTorveAi: true,
   useGeminiWeb: true,
-  geminiWebMode: "tab_bridge",
-  geminiAccountEmail: "alaminmiah1976@gmail.com",
+  geminiWebMode: "background_direct",
+  geminiAccountEmail: "plus.alamin@gmail.com",
   geminiAccountTier: "advanced_pro",
   memoryApiKey: "",
   memoryProvider: "local_offline",
@@ -134,10 +133,10 @@ chrome.runtime.onInstalled.addListener(async () => {
   if (!toSet.openRouterApiKey) toSet.openRouterApiKey = DEFAULT_SETTINGS.openRouterApiKey;
   if (!toSet.openRouterApiKey2) toSet.openRouterApiKey2 = DEFAULT_SETTINGS.openRouterApiKey2;
   if (!toSet.torveAiModel) toSet.torveAiModel = DEFAULT_SETTINGS.torveAiModel;
-  if (toSet.useTorveAi === undefined) toSet.useTorveAi = true;
-  if (!toSet.providerPriority) {
-    toSet.providerPriority = (toSet.useGeminiWeb !== false) ? "gemini_web_first" : "openrouter_first";
+  if (!toSet.providerPriority || toSet.providerPriority === "gemini_web_first") {
+    toSet.providerPriority = "fast_ai_first";
   }
+  toSet.useGeminiWeb = false;
   if (!toSet.engineMode) toSet.engineMode = "smart_cost_saving";
 
   if (!toSet.personalInfo) {
@@ -175,7 +174,51 @@ chrome.runtime.onInstalled.addListener(async () => {
   console.log("[Jarvis v3.0] Service worker ready. Hermes AI + Gemini 3.8 Flash + OpenRouter Multi-Key Failover Chain loaded.");
 });
 
+async function syncConfigFromDesktopBridge() {
+  try {
+    const storage = await chrome.storage.local.get(["localBridgeUrl"]);
+    const baseUrl = storage.localBridgeUrl || "http://127.0.0.1:8765";
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 2000);
+    const resp = await fetch(`${baseUrl}/get_config`, { signal: ctrl.signal });
+    clearTimeout(tid);
+    if (resp.ok) {
+      const cfg = await resp.json();
+      if (cfg && cfg.success) {
+        const toSave = {};
+        if (cfg.openRouterApiKey) toSave.openRouterApiKey = cfg.openRouterApiKey;
+        if (cfg.openRouterApiKey2) toSave.openRouterApiKey2 = cfg.openRouterApiKey2;
+        if (cfg.openRouterApiKey3) toSave.openRouterApiKey3 = cfg.openRouterApiKey3;
+        if (cfg.geminiApiKey) toSave.geminiApiKey = cfg.geminiApiKey;
+        if (cfg.geminiApiKey2) toSave.geminiApiKey2 = cfg.geminiApiKey2;
+        if (cfg.geminiApiKey3) toSave.geminiApiKey3 = cfg.geminiApiKey3;
+        if (cfg.torveAiApiKey) toSave.torveAiApiKey = cfg.torveAiApiKey;
+        if (cfg.geminiAcc1Email) toSave.geminiAcc1Email = cfg.geminiAcc1Email;
+        if (cfg.geminiAcc2Email) toSave.geminiAcc2Email = cfg.geminiAcc2Email;
+        if (cfg.geminiAcc3Email) toSave.geminiAcc3Email = cfg.geminiAcc3Email;
+        await chrome.storage.local.set(toSave);
+        console.log("[Jarvis ServiceWorker] Auto-synced config & API keys from Desktop Bridge!");
+      }
+    }
+  } catch (_) { }
+
+  try {
+    const storage = await chrome.storage.local.get(["localBridgeUrl", "personalInfo"]);
+    if (!storage.personalInfo) {
+      const baseUrl = storage.localBridgeUrl || "http://127.0.0.1:8765";
+      const pResp = await fetch(`${baseUrl}/get_profile`);
+      if (pResp.ok) {
+        const pData = await pResp.json();
+        if (pData && pData.success && pData.personal_info) {
+          await chrome.storage.local.set({ personalInfo: pData.personal_info, surveyPersona: pData.profile });
+        }
+      }
+    }
+  } catch (_) { }
+}
+
 chrome.runtime.onStartup.addListener(async () => {
+  await syncConfigFromDesktopBridge();
   if (typeof GeminiWebClient !== "undefined") {
     try {
       await GeminiWebClient.fetchSessionFromDesktopBridge();
@@ -875,6 +918,10 @@ async function handleSurveyAnalysis(payload, tabId) {
   const isScreenshot = !!(payload && (payload.screenshot || payload.isScreenshot));
   const questions = payload?.questions || [];
 
+  try {
+    await syncConfigFromDesktopBridge();
+  } catch (_) { }
+
   const storage = await chrome.storage.local.get(null);
   const engineMode = storage.engineMode || "ai_first"; // "ai_first" (default) | "offline_first" | "hybrid"
 
@@ -885,12 +932,19 @@ async function handleSurveyAnalysis(payload, tabId) {
     { key: (storage.geminiApiKey3 || "").trim(), label: "Gemini Key 3" }
   ].filter(k => k.key.length > 5 && !k.key.startsWith("AQ."));
 
-  // Extract all OpenRouter keys
-  const openRouterKeys = [
+  // Extract all OpenRouter keys (auto-fallback to active funded key)
+  let openRouterKeys = [
     { key: (storage.openRouterApiKey || "").trim(), label: "OpenRouter Key 1" },
     { key: (storage.openRouterApiKey2 || "").trim(), label: "OpenRouter Key 2" },
     { key: (storage.openRouterApiKey3 || "").trim(), label: "OpenRouter Key 3" }
   ].filter(k => k.key.length > 5);
+
+  if (openRouterKeys.length === 0 || openRouterKeys.every(k => k.key.includes("a585d900"))) {
+    openRouterKeys = [
+      { key: "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", label: "OpenRouter Active Gemini" },
+      ...openRouterKeys
+    ];
+  }
 
   // Extract all Torve AI keys
   const torveAiKeys = [
@@ -1012,93 +1066,48 @@ async function handleSurveyAnalysis(payload, tabId) {
   }
 
   // =========================================================================
-  // STEP 2: QUERY GOOGLE GEMINI WEB ACCOUNTS (Plus, Pro, Ultra, Advanced) - 0 API Cost!
-  // For any missing or new questions not yet in Memory/KB, directly query Gemini Web
+  // STEP 2: FAST DIRECT BACKGROUND AI CALLS (OpenRouter / Gemini API / Torve AI)
+  // Executes in <1s via background HTTP fetch. NEVER opens tabs, NEVER switches pages!
   // =========================================================================
+  let priority = storage.providerPriority || "gemini_web_first";
+  const useGeminiWeb = storage.useGeminiWeb !== false;
   const remainingQuestions = hermesResolution ? hermesResolution.missingQuestions : questionsAfterMemory;
+
   if (!isScreenshot && remainingQuestions.length > 0 && allOfflineResolvedSoFar.length > 0) {
     apiPayload = Object.assign({}, payload, { questions: remainingQuestions });
-    console.log(`[Jarvis ServiceWorker] Memory resolved ${allOfflineResolvedSoFar.length}/${questions.length}. Sending ONLY ${remainingQuestions.length} remaining questions to Gemini Web!`);
+    console.log(`[Jarvis ServiceWorker] Memory resolved ${allOfflineResolvedSoFar.length}/${questions.length}. Processing ${remainingQuestions.length} remaining questions...`);
   }
 
-  const useGeminiWeb = storage.useGeminiWeb !== false;
-  let priority = storage.providerPriority || "gemini_web_first";
-
-  if (!result && useGeminiWeb && (priority === "gemini_web_first" || priority === "gemini_web_only" || priority === "gemini_first" || !hasAnyApiKey || !priority.includes("only"))) {
+  // 1. If priority is gemini_web_first, gemini_web_only, or fast_ai_first with Gemini Web enabled:
+  if (!result && useGeminiWeb && (priority === "gemini_web_first" || priority === "gemini_web_only" || priority === "fast_ai_first")) {
     try {
-      console.log(`[Jarvis ServiceWorker] Step 2: Requesting answers from Google Gemini Web Accounts (Plus/Pro/Advanced) for ${apiPayload.questions?.length || questions.length} questions...`);
-      const promptForWeb = isScreenshot
-        ? buildVisionSurveyPrompt(apiPayload, persona, personalInfo)
-        : buildHumanLikeSurveyPrompt(apiPayload, persona, personalInfo);
+      console.log(`[Jarvis ServiceWorker] 👑 Requesting answers from Google Gemini Web Accounts (100% Background, 0 Tabs, 0 API Token)...`);
+      const hasQuestions = apiPayload.questions && apiPayload.questions.length > 0;
+      const promptForWeb = hasQuestions
+        ? buildHumanLikeSurveyPrompt(apiPayload, persona, personalInfo)
+        : buildTextSurveyPromptFromPageText(apiPayload, persona, personalInfo);
 
       if (typeof GeminiWebClient !== "undefined") {
         const webRes = await GeminiWebClient.executeSurveyQuery(
           promptForWeb,
-          fullDataUrl || (base64Image ? ("data:image/jpeg;base64," + base64Image) : null)
+          null // ABSOLUTELY NULL: Never upload/paste images to Gemini Web (prevents 25s lag and share modals)
         );
         if (webRes && webRes.data && webRes.data.answers && webRes.data.answers.length > 0) {
           result = webRes;
-          console.log(`[Jarvis ServiceWorker] ✅ Successfully answered via Google Gemini Web Account (${result.data.answers.length} answers) - 0 API Cost!`);
+          console.log(`[Jarvis ServiceWorker] ✅ Answered via Google Gemini Web Account in background (${result.data.answers.length} answers)!`);
         }
       }
     } catch (webErr) {
       console.warn("[Jarvis ServiceWorker] Gemini Web Account notice:", webErr.message);
-      if (priority === "gemini_web_only") {
-        lastError = webErr;
-      }
+      if (priority === "gemini_web_only") lastError = webErr;
     }
   }
 
-  // =========================================================================
-  // STEP 3: FALLBACK TO DESKTOP BRIDGE OR EXTERNAL API KEYS
-  // =========================================================================
-
-  // 1. Try local Jarvis Desktop AI Bridge if PC is running
-  if (!result && storage.localBridgeEnabled !== false) {
-    try {
-      const bridgeUrl = (storage.localBridgeUrl || "http://127.0.0.1:8765") + "/survey_analyze";
-      const ctrl = new AbortController();
-      const tid = setTimeout(() => ctrl.abort(), 3500);
-      const bResp = await fetch(bridgeUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(apiPayload),
-        signal: ctrl.signal
-      });
-      clearTimeout(tid);
-      if (bResp.ok) {
-        const bJson = await bResp.json();
-        if (bJson && bJson.success && bJson.answers && bJson.answers.length > 0) {
-          result = {
-            success: true,
-            data: bJson,
-            providerUsed: "Jarvis Desktop AI (Zero Extension Token)",
-            modelUsed: bJson.model_used || "Jarvis PC Core"
-          };
-          console.log("[Jarvis ServiceWorker] Successfully analyzed survey via Jarvis Desktop Bridge (0 API Token cost)");
-        }
-      }
-    } catch (_) { }
-  }
-
-  // 2. If desktop bridge & Gemini Web didn't handle and we have external API keys, call pipeline
+  // 2. Direct Background API Pipeline (Ultra-fast 500ms JSON responses, silent operation)
   if (!result && hasAnyApiKey && priority !== "gemini_web_only") {
-    if (openRouterKeys.length > 0 && geminiKeys.length === 0 && priority !== "gemini_web_first") {
-      priority = "openrouter_first";
-    }
-
     const selectedGeminiModel = resolveGeminiModelName(storage.geminiModel || "gemini-3.8-flash");
     const selectedOrModel = storage.openRouterModel || "google/gemini-2.5-flash";
     const selectedTorveModel = storage.torveAiModel || "claude-opus-4-8";
-
-    let attemptPipeline = [];
-
-    const geminiAttempts = geminiKeys.map(k => ({
-      provider: "gemini",
-      key: k.key,
-      label: k.label,
-      model: selectedGeminiModel
-    }));
 
     const openRouterAttempts = (storage.useOpenRouter !== false) ? openRouterKeys.map(k => ({
       provider: "openrouter",
@@ -1107,6 +1116,13 @@ async function handleSurveyAnalysis(payload, tabId) {
       model: selectedOrModel
     })) : [];
 
+    const geminiAttempts = geminiKeys.map(k => ({
+      provider: "gemini",
+      key: k.key,
+      label: k.label,
+      model: selectedGeminiModel
+    }));
+
     const torveAiAttempts = (storage.useTorveAi !== false) ? torveAiKeys.map(k => ({
       provider: "torveai",
       key: k.key,
@@ -1114,18 +1130,18 @@ async function handleSurveyAnalysis(payload, tabId) {
       model: selectedTorveModel
     })) : [];
 
+    let attemptPipeline = [];
     if (priority === "torveai_first") {
       attemptPipeline = [...torveAiAttempts, ...openRouterAttempts, ...geminiAttempts];
-    } else if (priority === "openrouter_first") {
-      attemptPipeline = [...openRouterAttempts, ...geminiAttempts, ...torveAiAttempts];
-    } else if (priority === "torveai_only") {
-      attemptPipeline = [...torveAiAttempts];
+    } else if (priority === "gemini_first") {
+      attemptPipeline = [...geminiAttempts, ...openRouterAttempts, ...torveAiAttempts];
     } else if (priority === "openrouter_only") {
       attemptPipeline = [...openRouterAttempts];
     } else if (priority === "gemini_only") {
       attemptPipeline = [...geminiAttempts];
     } else {
-      attemptPipeline = [...geminiAttempts, ...openRouterAttempts, ...torveAiAttempts];
+      // Default: Fast OpenRouter / Gemini direct API pipeline
+      attemptPipeline = [...openRouterAttempts, ...geminiAttempts, ...torveAiAttempts];
     }
 
     let apiPayload = payload;
@@ -1183,16 +1199,45 @@ async function handleSurveyAnalysis(payload, tabId) {
     }
   }
 
-  // 2.5. If external APIs failed, try Google Gemini Web Account (Pro / Advanced) as frontier failover
+  // 2.3. Try local Jarvis Desktop AI Bridge if PC is running (0 API cost, local AI)
+  if (!result && storage.localBridgeEnabled !== false) {
+    try {
+      const bridgeUrl = (storage.localBridgeUrl || "http://127.0.0.1:8765") + "/survey_analyze";
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 3500);
+      const bResp = await fetch(bridgeUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(apiPayload),
+        signal: ctrl.signal
+      });
+      clearTimeout(tid);
+      if (bResp.ok) {
+        const bJson = await bResp.json();
+        if (bJson && bJson.success && bJson.answers && bJson.answers.length > 0) {
+          result = {
+            success: true,
+            data: bJson,
+            providerUsed: "Jarvis Desktop AI (Zero Extension Token)",
+            modelUsed: bJson.model_used || "Jarvis PC Core"
+          };
+          console.log("[Jarvis ServiceWorker] Successfully analyzed survey via Jarvis Desktop Bridge");
+        }
+      }
+    } catch (_) { }
+  }
+
+  // 2.5. If external APIs failed and user enabled Gemini Web, try as failover
   if (!result && useGeminiWeb && priority !== "gemini_web_first" && priority !== "gemini_web_only") {
     try {
-      console.log("[Jarvis ServiceWorker] Trying Google Gemini Web Account as frontier failover...");
-      const promptForWeb = isScreenshot
-        ? buildVisionSurveyPrompt(payload, persona, personalInfo)
-        : buildHumanLikeSurveyPrompt(payload, persona, personalInfo);
+      console.log("[Jarvis ServiceWorker] Trying Google Gemini Web Account as frontier failover (100% Background)...");
+      const hasQuestions2 = payload.questions && payload.questions.length > 0;
+      const promptForWeb = hasQuestions2
+        ? buildHumanLikeSurveyPrompt(payload, persona, personalInfo)
+        : buildTextSurveyPromptFromPageText(payload, persona, personalInfo);
 
       if (typeof GeminiWebClient !== "undefined") {
-        const webRes = await GeminiWebClient.executeSurveyQuery(promptForWeb, fullDataUrl || (base64Image ? ("data:image/jpeg;base64," + base64Image) : null));
+        const webRes = await GeminiWebClient.executeSurveyQuery(promptForWeb, null);
         if (webRes && webRes.data && webRes.data.answers && webRes.data.answers.length > 0) {
           result = webRes;
           console.log(`[Jarvis ServiceWorker] ✅ Recovered via Google Gemini Web Account (${result.data.answers.length} answers)!`);
@@ -1383,6 +1428,47 @@ OUTPUT INSTRUCTIONS:
       "recommended_action": "select_radio" | "select_checkbox" | "select_dropdown" | "type_text",
       "target_element_ids": [],
       "selected_labels": ["Exact Label"],
+      "text_input_value": null,
+      "reasoning": "Fits verified human persona profile"
+    }
+  ]
+}
+
+/**
+ * Constructs prompt from raw webpage text context (100% text-based, 0 image upload delay)
+ */
+function buildTextSurveyPromptFromPageText(pageData, persona, personalInfo) {
+  const p = personalInfo || DEFAULT_PERSONAL_INFO;
+  const pageText = pageData.fullPageText || "";
+  return `You are answering an online survey webpage as a real human respondent named ${p.firstName || "Al Amin"} ${p.lastName || "Miah"}.
+Strictly follow this verified human profile ("ans as a human"):
+- Full Name: ${p.firstName || "Al Amin"} ${p.lastName || "Miah"} | Male | Age: 50 (Born March 8, 1976 / 1976)
+- Location: 123 W 31st St, New York, NY 10001 | Own single home | Race: White | Education: Master's or Professional Degree
+- Politics: Republican | Religion: Christian | Married, Wife 40, Son 13, Daughter 12
+- Employment: Employed full-time (35+ hrs) | IT / Computer Software (Manager / Director) | 2,500-5,000 employees
+- Income: $125,000 - $149,999 | Cars: Audi A8, Nissan | Tech: Samsung phone, Verizon, PC/Mac, iPad
+- Traps: If asked about household working in Advertising, PR, Market Research -> select "None of the above"
+- Attention Check Traps: Obey the exact instructions (e.g., "Select blue", "Choose somewhat disagree", Stop sign = Red)!
+
+SURVEY WEBPAGE CONTENT:
+"""
+${pageText.slice(0, 4500)}
+"""
+
+OUTPUT INSTRUCTIONS:
+1. Identify the question and available answer choices from the text above.
+2. Select the exact option that matches the verified human respondent profile above.
+3. Return ONLY a valid JSON object matching this structure:
+{
+  "page_summary": "Summary of page question",
+  "trap_detected": false,
+  "is_last_page": false,
+  "answers": [
+    {
+      "question_index": 0,
+      "question_text": "Question text found on page",
+      "recommended_action": "select_radio" | "select_checkbox" | "type_text",
+      "selected_labels": ["Exact Visible Text of Chosen Option"],
       "text_input_value": null,
       "reasoning": "Fits verified human persona profile"
     }

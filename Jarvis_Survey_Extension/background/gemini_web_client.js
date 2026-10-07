@@ -570,33 +570,278 @@ const GeminiWebClient = (function () {
     };
   }
 
-  // Helper: locate or switch to the appropriate Gemini Account tab (authuser=0, 1, or 2)
-  async function getOrSwitchGeminiAccountTab(accountIndex = 1) {
+  // Token cache for fast direct background execution
+  const tokenCache = {};
+
+  // Fetch CSRF (SNlM0e) token and session IDs directly via background fetch (0 tabs, 0 windows)
+  async function fetchGeminiTokens(accountIndex = 1) {
     const authUserIdx = Math.max(0, parseInt(accountIndex, 10) - 1);
-    const tabs = await chrome.tabs.query({ url: "*://gemini.google.com/*" });
-
-    const exactTab = tabs.find(t => t.url && (
-      t.url.includes(`authuser=${authUserIdx}`) ||
-      (authUserIdx === 0 && !t.url.includes("authuser="))
-    ));
-    if (exactTab) {
-      return exactTab;
+    const cached = tokenCache[accountIndex];
+    if (cached && (Date.now() - cached.timestamp < 600000) && cached.atToken) {
+      return cached;
     }
 
-    const targetUrl = `https://gemini.google.com/app?authuser=${authUserIdx}`;
-    if (tabs && tabs.length > 0) {
-      await chrome.tabs.update(tabs[0].id, { url: targetUrl });
-      await waitForTabLoadComplete(tabs[0].id);
-      await new Promise(r => setTimeout(r, 1500));
-      return tabs[0];
-    }
+    try {
+      const appUrl = `https://gemini.google.com/app?authuser=${authUserIdx}`;
+      console.log(`[GeminiWebClient] Fetching background Gemini session tokens for Account ${accountIndex} (${appUrl})...`);
 
-    return await openOrConnectGeminiTab(accountIndex);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+      const resp = await fetch(appUrl, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        },
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status} when accessing gemini.google.com/app`);
+      }
+
+      const html = await resp.text();
+
+      // Extract SNlM0e (the 'at' CSRF token)
+      let atToken = null;
+      const atMatch1 = html.match(/"SNlM0e":"([^"]+)"/);
+      if (atMatch1) atToken = atMatch1[1];
+      if (!atToken) {
+        const atMatch2 = html.match(/\["SNlM0e","([^"]+)"\]/);
+        if (atMatch2) atToken = atMatch2[1];
+      }
+      if (!atToken) {
+        const atMatch3 = html.match(/"SNlM0e",\s*"([^"]+)"/);
+        if (atMatch3) atToken = atMatch3[1];
+      }
+
+      // Extract cfb2h (build label)
+      let buildLabel = "boq_assistant-bard-web-server_20261001.00_p0";
+      const blMatch = html.match(/"cfb2h":"([^"]+)"/);
+      if (blMatch) buildLabel = blMatch[1];
+
+      // Extract FdrFJe (session id)
+      let sessionId = "";
+      const sidMatch = html.match(/"FdrFJe":"([^"]+)"/);
+      if (sidMatch) sessionId = sidMatch[1];
+
+      if (atToken) {
+        console.log(`[GeminiWebClient] ✅ Extracted Gemini tokens for Account ${accountIndex}!`);
+        tokenCache[accountIndex] = {
+          atToken,
+          buildLabel,
+          sessionId,
+          timestamp: Date.now()
+        };
+        return tokenCache[accountIndex];
+      } else {
+        console.warn(`[GeminiWebClient] SNlM0e token not found for Account ${accountIndex}. Checking cookies...`);
+        return null;
+      }
+    } catch (err) {
+      console.warn(`[GeminiWebClient] Token fetch error for Account ${accountIndex}:`, err.message);
+      return null;
+    }
   }
 
-  // Main execution function with Multi-Account Failover (Plus -> Pro -> Ultra/Advanced)
+  // Parse StreamGenerate response body into plain text
+  function parseStreamGenerateResponse(raw) {
+    if (!raw) return null;
+    let fullOutput = "";
+
+    // 1. Try splitting lines and parsing batchexecute chunks
+    const lines = raw.split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith(")]}'") || /^\d+$/.test(trimmed)) continue;
+
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          for (const item of parsed) {
+            if (Array.isArray(item) && item[0] === "wrb.fr" && typeof item[2] === "string") {
+              try {
+                const inner = JSON.parse(item[2]);
+                if (Array.isArray(inner)) {
+                  const candidate = findDeepTextWithAnswers(inner);
+                  if (candidate && candidate.length > fullOutput.length) {
+                    fullOutput = candidate;
+                  }
+                }
+              } catch (_) { }
+            }
+          }
+        }
+      } catch (_) { }
+    }
+
+    // 2. Fallback: Search for JSON markdown blocks or raw JSON in stream
+    if (!fullOutput) {
+      const codeBlockMatch = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+      if (codeBlockMatch && codeBlockMatch[1]) {
+        fullOutput = codeBlockMatch[1].trim();
+      }
+    }
+
+    if (!fullOutput) {
+      const jsonMatch = raw.match(/\{[\s\S]*?"answers"\s*:\s*\[[\s\S]*?\][\s\S]*?\}/);
+      if (jsonMatch) fullOutput = jsonMatch[0];
+    }
+
+    return fullOutput || null;
+  }
+
+  function findDeepTextWithAnswers(obj) {
+    if (!obj) return "";
+    if (typeof obj === "string") {
+      if (obj.includes('"answers"') || obj.includes('question_index') || (obj.includes('selected_labels') && obj.length > 20)) {
+        return obj;
+      }
+      return "";
+    }
+    if (Array.isArray(obj)) {
+      for (const item of obj) {
+        const found = findDeepTextWithAnswers(item);
+        if (found) return found;
+      }
+    } else if (typeof obj === "object") {
+      for (const key of Object.keys(obj)) {
+        const found = findDeepTextWithAnswers(obj[key]);
+        if (found) return found;
+      }
+    }
+    return "";
+  }
+
+  // Level 1: Direct Background HTTP Call to Gemini Web (0 tabs, 0 windows, pure background fetch in ~1.5s)
+  async function executeDirectBackgroundWebQuery(promptText, accountIndex = 1) {
+    const tokens = await fetchGeminiTokens(accountIndex);
+    if (!tokens || !tokens.atToken) {
+      throw new Error(`Account ${accountIndex} tokens unavailable`);
+    }
+
+    const authUserIdx = Math.max(0, parseInt(accountIndex, 10) - 1);
+    const reqId = Math.floor(100000 + Math.random() * 900000);
+    const url = `https://gemini.google.com/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate?bl=${encodeURIComponent(tokens.buildLabel)}&f.sid=${encodeURIComponent(tokens.sessionId)}&_reqid=${reqId}&rt=c&authuser=${authUserIdx}`;
+
+    const innerReq = [
+      [promptText, 0, null, null, null, null, 0],
+      ["en"],
+      ["", "", ""],
+      null, null, null, [1], 0, [], [], 1, 0
+    ];
+    const fReq = JSON.stringify([null, JSON.stringify(innerReq)]);
+
+    const params = new URLSearchParams();
+    params.append("f.req", fReq);
+    params.append("at", tokens.atToken);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 7500); // 7.5s max timeout
+
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+      },
+      body: params.toString(),
+      credentials: "include",
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (!resp.ok) {
+      if (resp.status === 401 || resp.status === 403) delete tokenCache[accountIndex];
+      throw new Error(`Gemini StreamGenerate HTTP ${resp.status}`);
+    }
+
+    const rawStreamText = await resp.text();
+    const parsedText = parseStreamGenerateResponse(rawStreamText);
+    if (!parsedText) {
+      throw new Error("Could not parse response from Gemini stream");
+    }
+
+    const parsedJson = extractJsonFromGeminiResponse(parsedText);
+    if (!parsedJson || !parsedJson.answers || parsedJson.answers.length === 0) {
+      throw new Error("Gemini stream did not return structured survey answers");
+    }
+
+    return {
+      success: true,
+      text: parsedText,
+      data: parsedJson
+    };
+  }
+
+  // Level 2: Headless Background Tab Fallback (STRICTLY active: false, NEVER focused, ZERO screenshot paste)
+  async function executeHeadlessTabQuery(promptText, accountIndex = 1) {
+    const authUserIdx = Math.max(0, parseInt(accountIndex, 10) - 1);
+    const targetUrl = `https://gemini.google.com/app?authuser=${authUserIdx}`;
+    const tabs = await chrome.tabs.query({ url: "*://gemini.google.com/*" });
+
+    let targetTab = null;
+    if (tabs && tabs.length > 0) {
+      targetTab = tabs.find(t => t.url && (
+        t.url.includes(`authuser=${authUserIdx}`) ||
+        (authUserIdx === 0 && !t.url.includes("authuser="))
+      )) || tabs[0];
+    } else {
+      // Create background tab strictly inactive and pinned so user never sees it
+      targetTab = await chrome.tabs.create({
+        url: targetUrl,
+        pinned: true,
+        active: false // STRICTLY INACTIVE: User never loses focus on survey page!
+      });
+      await waitForTabLoadComplete(targetTab.id, 6000);
+      await new Promise(r => setTimeout(r, 1200));
+    }
+
+    if (!targetTab || !targetTab.id) {
+      throw new Error(`Unable to establish background tab for Account ${accountIndex}`);
+    }
+
+    let bridgeResponse = null;
+    try {
+      bridgeResponse = await chrome.tabs.sendMessage(targetTab.id, {
+        action: "EXECUTE_GEMINI_WEB_QUERY",
+        prompt: promptText,
+        screenshot: null // ABSOLUTELY NULL: Never paste screenshots into Gemini web chat!
+      });
+    } catch (_) {
+      // Inject bridge script silently into background tab
+      await chrome.scripting.executeScript({
+        target: { tabId: targetTab.id },
+        files: ["content/gemini_tab_bridge.js"]
+      });
+      await new Promise(r => setTimeout(r, 1000));
+      bridgeResponse = await chrome.tabs.sendMessage(targetTab.id, {
+        action: "EXECUTE_GEMINI_WEB_QUERY",
+        prompt: promptText,
+        screenshot: null
+      });
+    }
+
+    if (!bridgeResponse || !bridgeResponse.success || !bridgeResponse.text) {
+      throw new Error(bridgeResponse?.error || "Background tab did not return answers");
+    }
+
+    const parsedData = extractJsonFromGeminiResponse(bridgeResponse.text);
+    if (!parsedData || !parsedData.answers || parsedData.answers.length === 0) {
+      throw new Error("Could not extract structured answers from background tab output");
+    }
+
+    return {
+      success: true,
+      text: bridgeResponse.text,
+      data: parsedData
+    };
+  }
+
+  // Main execution function with 100% Background Execution ("ভিতরে ভিতরেই") & Multi-Account Failover
   async function executeSurveyQuery(prompt, screenshotDataUrl) {
-    console.log("[GeminiWebClient] Dispatching query to Google Gemini Web Accounts (Plus, Pro, Ultra)...");
+    console.log("[GeminiWebClient] Dispatching 100% background query to Google Gemini Accounts (Plus, Pro, Ultra)...");
 
     const storage = await chrome.storage.local.get([
       "geminiActiveAccountIndex", "geminiAcc1Email", "geminiAcc2Email", "geminiAcc3Email"
@@ -605,64 +850,53 @@ const GeminiWebClient = (function () {
     const activeIdx = storage.geminiActiveAccountIndex || 1;
     const accountOrder = [activeIdx, 1, 2, 3].filter((v, i, a) => a.indexOf(v) === i);
     let lastError = null;
+    const accLabels = { 1: "Gemini Plus", 2: "Gemini Pro", 3: "Gemini Ultra Pro" };
 
+    // Pass 1: Try Direct Background HTTP Fetch (Fastest: 1-2.5s, 0 tabs, 0 windows)
     for (const accIdx of accountOrder) {
       try {
-        console.log(`[GeminiWebClient] Sending survey query to Gemini Account ${accIdx}...`);
-        const targetTab = await getOrSwitchGeminiAccountTab(accIdx);
-        if (!targetTab || !targetTab.id) {
-          throw new Error(`Unable to connect to Gemini Account ${accIdx} tab`);
-        }
-
-        let bridgeResponse = null;
-        try {
-          bridgeResponse = await chrome.tabs.sendMessage(targetTab.id, {
-            action: "EXECUTE_GEMINI_WEB_QUERY",
-            prompt: prompt,
-            screenshot: screenshotDataUrl
-          });
-        } catch (msgErr) {
-          console.warn(`[GeminiWebClient] Injecting bridge script into tab ${targetTab.id}:`, msgErr);
-          await chrome.scripting.executeScript({
-            target: { tabId: targetTab.id },
-            files: ["content/gemini_tab_bridge.js"]
-          });
-          await new Promise(r => setTimeout(r, 1200));
-          bridgeResponse = await chrome.tabs.sendMessage(targetTab.id, {
-            action: "EXECUTE_GEMINI_WEB_QUERY",
-            prompt: prompt,
-            screenshot: screenshotDataUrl
-          });
-        }
-
-        if (!bridgeResponse || !bridgeResponse.success) {
-          throw new Error(bridgeResponse?.error || "Gemini Web did not return a valid response");
-        }
-
-        const rawText = bridgeResponse.text || "";
-        const parsedData = extractJsonFromGeminiResponse(rawText);
-
-        if (parsedData && parsedData.answers && Array.isArray(parsedData.answers) && parsedData.answers.length > 0) {
-          console.log(`[GeminiWebClient] ✅ Received ${parsedData.answers.length} verified answers from Account ${accIdx}!`);
+        console.log(`[GeminiWebClient] Level 1: Direct Background Web Fetch via Account ${accIdx} (${accLabels[accIdx] || "Pro"})...`);
+        const res = await executeDirectBackgroundWebQuery(prompt, accIdx);
+        if (res && res.data && res.data.answers && res.data.answers.length > 0) {
+          console.log(`[GeminiWebClient] ✅ Level 1 SUCCESS: Received ${res.data.answers.length} verified answers from Account ${accIdx} in background!`);
           chrome.storage.local.set({ geminiActiveAccountIndex: accIdx });
-          const accLabels = { 1: "Gemini Plus", 2: "Gemini Pro", 3: "Gemini Ultra Pro" };
           return {
             success: true,
-            modelUsed: `${accLabels[accIdx] || "Gemini Advanced"} (Web)`,
-            providerUsed: `Google Gemini Web Account (${accLabels[accIdx] || "Pro"})`,
-            data: parsedData,
-            rawText: rawText
+            modelUsed: `${accLabels[accIdx] || "Gemini Advanced"} (Background Web)`,
+            providerUsed: `Google Gemini (${accLabels[accIdx] || "Pro"})`,
+            data: res.data,
+            rawText: res.text
           };
-        } else {
-          throw new Error("Could not extract valid answers from Gemini output");
         }
-      } catch (accErr) {
-        console.warn(`[GeminiWebClient] Account ${accIdx} error (${accErr.message}). Switching to backup account...`);
-        lastError = accErr;
+      } catch (directErr) {
+        console.warn(`[GeminiWebClient] Level 1 Account ${accIdx} notice: ${directErr.message}`);
+        lastError = directErr;
       }
     }
 
-    throw lastError || new Error("All Gemini Web accounts failed to generate survey answers.");
+    // Pass 2: Fallback to Headless Background Tab (strictly active: false, text only, 0 UI popups)
+    for (const accIdx of accountOrder) {
+      try {
+        console.log(`[GeminiWebClient] Level 2: Headless Background Tab via Account ${accIdx} (${accLabels[accIdx] || "Pro"})...`);
+        const tabRes = await executeHeadlessTabQuery(prompt, accIdx);
+        if (tabRes && tabRes.data && tabRes.data.answers && tabRes.data.answers.length > 0) {
+          console.log(`[GeminiWebClient] ✅ Level 2 SUCCESS: Received ${tabRes.data.answers.length} answers from Account ${accIdx}!`);
+          chrome.storage.local.set({ geminiActiveAccountIndex: accIdx });
+          return {
+            success: true,
+            modelUsed: `${accLabels[accIdx] || "Gemini Advanced"} (Silent Tab)`,
+            providerUsed: `Google Gemini (${accLabels[accIdx] || "Pro"})`,
+            data: tabRes.data,
+            rawText: tabRes.text
+          };
+        }
+      } catch (tabErr) {
+        console.warn(`[GeminiWebClient] Level 2 Account ${accIdx} notice: ${tabErr.message}`);
+        lastError = tabErr;
+      }
+    }
+
+    throw lastError || new Error("All Gemini Web accounts failed. Using instant local fallback...");
   }
 
 

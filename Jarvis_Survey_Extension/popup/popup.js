@@ -176,8 +176,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (selectEngineMode) {
     selectEngineMode.value = storage.engineMode || "smart_cost_saving";
   }
-  if (selectProviderPriority && storage.providerPriority) {
-    selectProviderPriority.value = storage.providerPriority;
+  if (selectProviderPriority) {
+    selectProviderPriority.value = storage.providerPriority || "gemini_web_first";
   }
 
   if (storage.autoFillDelay && inputFillDelay) {
@@ -460,10 +460,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         geminiApiKey3: inputApiKey3 ? inputApiKey3.value.trim() : "",
         geminiModel: selectModel ? selectModel.value : "gemini-3.8-flash",
         engineMode: selectEngineMode ? selectEngineMode.value : "ai_first",
-        providerPriority: selectProviderPriority ? selectProviderPriority.value : "gemini_web_first",
+        providerPriority: selectProviderPriority ? selectProviderPriority.value : "fast_ai_first",
         autoFillDelay: inputFillDelay ? parseInt(inputFillDelay.value, 10) || 350 : 350,
         localBridgeEnabled: checkLocalBridge ? checkLocalBridge.checked : true,
-        useGeminiWeb: checkUseGeminiWeb ? checkUseGeminiWeb.checked : true,
+        useGeminiWeb: checkUseGeminiWeb ? checkUseGeminiWeb.checked : false,
         geminiAcc1Email: inputEmailAcc1 ? inputEmailAcc1.value.trim() : "plus.alamin@gmail.com",
         geminiAcc1Pwd: inputPwdAcc1 ? inputPwdAcc1.value.trim() : "",
         geminiAcc2Email: inputEmailAcc2 ? inputEmailAcc2.value.trim() : "pro.alamin@gmail.com",

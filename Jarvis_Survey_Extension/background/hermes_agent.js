@@ -500,7 +500,23 @@
     // FINANCES
     // =========================================================================
 
-    // Household income
+    // Household monthly net income after taxes (e.g. Appinio income question: rent, groceries, per month)
+    if (hasKeyword(qText, ["net income", "after taxes", "per month", "monthly income", "rent, groceries", "added up", "total net income", "groceries, etc. per month"])) {
+      let ans = findBestOption(options, [
+        "More than $7500", "More than $7,500", "> $7500", "> $7,500", "Over $7,500", "$7,500+", "7500+",
+        "Between $6501 and $7500", "Between $6,501 and $7,500", "$6,501 - $7,500", "6501-7500",
+        "Between $5501 and $6500", "$5,501 - $6,500"
+      ], false);
+      if (!ans) {
+        for (const opt of options) {
+          const label = typeof opt === "string" ? opt : (opt.label || opt.value || "");
+          if (/more than|over|>|7,?500|6,?501/i.test(label)) { ans = label; break; }
+        }
+      }
+      if (ans) return makeAnswer(question, [ans], "Hermes: Monthly Net Income → More than $7500 / Between $6501 and $7500");
+    }
+
+    // Household annual income before tax
     if (hasKeyword(qText, ["household income", "annual income", "total income", "income before tax", "yearly income", "annual household"])) {
       let ans = findBestOption(options, [
         "$125,000 - $149,999", "$125,000-$149,999", "$125,000 to $149,999",
@@ -794,6 +810,29 @@
       }
       const matches = findMultipleOptions(options, P.beverages);
       if (matches.length > 0) return makeAnswer(question, matches, "Hermes: Beverages");
+    }
+
+    // Brand Associations (e.g. Wine/Champagne brands associated with dinner / celebration)
+    if (hasKeyword(qText, ["brands do you associate", "with dinner", "associate with", "which of these brands", "champagne brands", "wine brands"])) {
+      const preferredBrands = [
+        "Moët & Chandon", "Veuve Clicquot", "Chandon", "Taittinger", "Perrier Jouët", "Laurent Perrier",
+        "Luc Belaire", "Nicolas Feuillatte", "Mumm Napa", "GH Mumm", "Barefoot Bubbly", "La Marca", "Mionetto", "Piper Heidsieck"
+      ];
+      const matches = findMultipleOptions(options, preferredBrands);
+      if (matches.length > 0) {
+        // Return 2 to 4 representative preferred brands
+        return makeAnswer(question, matches.slice(0, 3), "Hermes: Brands associated with dinner → Moët & Chandon, Veuve Clicquot, Chandon");
+      }
+      const singleMatch = findBestOption(options, preferredBrands, false);
+      if (singleMatch) return makeAnswer(question, [singleMatch], "Hermes: Brand Choice");
+      const noneAbove = findBestOption(options, ["None of the above"], true);
+      if (noneAbove) return makeAnswer(question, [noneAbove], "Hermes: None of the above");
+    }
+
+    // Attention check trap: Stop sign color
+    if (hasKeyword(qText, ["stop sign", "traffic stop", "color of a stop sign"])) {
+      const redOpt = findBestOption(options, ["Red", "Color red"], true);
+      if (redOpt) return makeAnswer(question, [redOpt], "Hermes Trap Guard: Stop sign is Red");
     }
 
     // =========================================================================
