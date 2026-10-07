@@ -50,30 +50,40 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ── Inactivity Auto-Minimize (20-30s timeout matching PC) ─────────────
-    private val AUTO_MINIMIZE_DELAY_MS = 25000L // 25 seconds idle timeout
+    // ── Inactivity Auto-Minimize ──────────────────────────────────────────
+    // ONLY auto-minimize if the app was awakened hands-free via wake word.
+    // If the user opened the app normally by tapping the app icon, keep it open!
+    private var isAwakenedByWakeWord = false
+    private val AUTO_MINIMIZE_DELAY_MS = 60000L // 60s idle timeout when woken by voice
     private val idleHandler = Handler(Looper.getMainLooper())
     private val autoMinimizeRunnable = Runnable {
-        Log.i(TAG, "25s of inactivity elapsed. Automatically returning to background...")
-        try {
-            moveTaskToBack(true)
-        } catch (e: Exception) {
-            Log.w(TAG, "Error moving task to back: ${e.message}")
+        if (isAwakenedByWakeWord) {
+            Log.i(TAG, "Inactivity after wake word elapsed. Returning to background...")
+            try {
+                moveTaskToBack(true)
+            } catch (e: Exception) {
+                Log.w(TAG, "Error moving task to back: ${e.message}")
+            }
+            isAwakenedByWakeWord = false
         }
     }
 
     fun resetAutoMinimizeTimer() {
         idleHandler.removeCallbacks(autoMinimizeRunnable)
-        idleHandler.postDelayed(autoMinimizeRunnable, AUTO_MINIMIZE_DELAY_MS)
+        if (isAwakenedByWakeWord) {
+            idleHandler.postDelayed(autoMinimizeRunnable, AUTO_MINIMIZE_DELAY_MS)
+        }
     }
 
     fun cancelAutoMinimizeTimer() {
+        isAwakenedByWakeWord = false
         idleHandler.removeCallbacks(autoMinimizeRunnable)
     }
 
     override fun onUserInteraction() {
         super.onUserInteraction()
-        resetAutoMinimizeTimer()
+        // User touched or interacted with screen -> cancel auto-minimize so app stays open
+        cancelAutoMinimizeTimer()
     }
 
     // ── Wake Word, Session State & Idle Receiver ─────────────────────────
@@ -112,6 +122,7 @@ class MainActivity : AppCompatActivity() {
                     putExtra("phrase", phrase)
                 }
                 startActivity(bringToFront)
+                isAwakenedByWakeWord = true
                 handleWakeWordActivation(phrase)
                 resetAutoMinimizeTimer()
             }
@@ -144,8 +155,13 @@ class MainActivity : AppCompatActivity() {
 
         // Handle launch from wake word (intent extra)
         if (intent?.getBooleanExtra("from_wake_word", false) == true) {
+            isAwakenedByWakeWord = true
             val phrase = intent?.getStringExtra("phrase") ?: "hey jarvis"
             handleWakeWordActivation(phrase)
+            resetAutoMinimizeTimer()
+        } else {
+            isAwakenedByWakeWord = false
+            cancelAutoMinimizeTimer()
         }
     }
 
@@ -208,10 +224,14 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         if (intent.getBooleanExtra("from_wake_word", false)) {
+            isAwakenedByWakeWord = true
             val phrase = intent.getStringExtra("phrase") ?: "hey jarvis"
             handleWakeWordActivation(phrase)
+            resetAutoMinimizeTimer()
+        } else {
+            isAwakenedByWakeWord = false
+            cancelAutoMinimizeTimer()
         }
-        resetAutoMinimizeTimer()
     }
 
     override fun onResume() {
@@ -228,7 +248,11 @@ class MainActivity : AppCompatActivity() {
             }, 600)
         }
         updateUIState()
-        resetAutoMinimizeTimer()
+        if (isAwakenedByWakeWord) {
+            resetAutoMinimizeTimer()
+        } else {
+            cancelAutoMinimizeTimer()
+        }
     }
 
     override fun onPause() {
@@ -246,9 +270,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        // When back button is pressed, exit and close app cleanly
-        Toast.makeText(this, "বাই বাই! Jarvis বন্ধ হচ্ছে...", Toast.LENGTH_SHORT).show()
-        JarvisNativeBridge(this).exitAndCloseApp(true)
+        // If webView can go back in history, go back
+        if (webView.canGoBack()) {
+            webView.goBack()
+            return
+        }
+        // Switch back to home tab first if in another tab, or smoothly minimize to background
+        webView.evaluateJavascript(
+            "(function() { if (window.state && window.state.currentTab !== 'home') { window.switchTab('home'); return true; } return false; })()",
+            { result ->
+                if (result != "true") {
+                    // Minimize to background so Jarvis stays running silently in background
+                    moveTaskToBack(true)
+                }
+            }
+        )
     }
 
     fun updateUIState() {

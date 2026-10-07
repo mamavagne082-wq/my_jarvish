@@ -1432,6 +1432,7 @@ OUTPUT INSTRUCTIONS:
       "reasoning": "Fits verified human persona profile"
     }
   ]
+}`;
 }
 
 /**
