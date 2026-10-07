@@ -1,0 +1,35 @@
+R_DEF: Internal format may change without notice
+local
+color accent
+color bg_dark
+color card_bg
+color cyan_bright
+color primary
+color primary_dark
+color success_green
+color text_muted
+color text_white
+drawable ic_launcher
+drawable ic_launcher_background
+drawable ic_launcher_foreground
+id loadingOverlay
+id progressLoading
+id webViewMain
+layout activity_main
+mipmap ic_launcher
+mipmap ic_launcher_round
+string accessibility_service_description
+string app_name
+string btn_grant_accessibility
+string btn_ignore_battery
+string btn_start_service
+string btn_stop_service
+string service_running_desc
+string service_running_title
+string status_connected
+string status_disconnected
+style Theme.JarvisAssistant
+xml accessibility_service_config
+xml backup_rules
+xml data_extraction_rules
+xml file_paths

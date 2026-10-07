@@ -516,12 +516,17 @@ class JarvisForegroundService : Service() {
         Log.i(TAG, "Executing Autonomous Command: \"$clean\"")
 
         // 1. BYE / SHUTDOWN
-        if (isMatch(lower, listOf("বাই বাই", "বিদায়", "বিদায়", "বন্ধ করো", "থাক", "ঘুমিয়ে পড়ো", "stop", "exit", "bye", "goodbye", "good bye"))) {
+        if (isMatch(lower, listOf("বাই বাই", "বিদায়", "বিদায়", "বন্ধ করো", "অ্যাপ বন্ধ করো", "থাক", "ঘুমিয়ে পড়ো", "stop", "exit", "bye", "goodbye", "good bye"))) {
             MainActivity.instance?.runOnUiThread {
                 MainActivity.instance?.postDirectTranscript(clean, "বাই বাই জানু, ধন্যবাদ তোমাকে!")
             }
             speakTextLocally("বাই বাই জানু, ধন্যবাদ তোমাকে!")
             disconnectSession(sendByePacket = false)
+            MainActivity.instance?.let { act ->
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    MainActivity.JarvisNativeBridge(act).exitAndCloseApp(false)
+                }, 850L)
+            }
             return
         }
 

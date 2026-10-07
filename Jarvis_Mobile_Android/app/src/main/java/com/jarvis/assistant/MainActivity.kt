@@ -245,6 +245,12 @@ class MainActivity : AppCompatActivity() {
         try { unregisterReceiver(wakeWordReceiver) } catch (_: Exception) {}
     }
 
+    override fun onBackPressed() {
+        // When back button is pressed, exit and close app cleanly
+        Toast.makeText(this, "বাই বাই! Jarvis বন্ধ হচ্ছে...", Toast.LENGTH_SHORT).show()
+        JarvisNativeBridge(this).exitAndCloseApp(true)
+    }
+
     fun updateUIState() {
         val isServiceRunning = JarvisForegroundService.isRunning
         val isAccEnabled = isAccessibilityEnabled()
@@ -738,11 +744,45 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
-        fun shutdownJarvis() {
+        fun exitAndCloseApp(playByeVoice: Boolean) {
             activity.runOnUiThread {
+                Log.i(TAG, "Full 1-Click App Exit triggered by user.")
+                activity.cancelAutoMinimizeTimer()
+                Toast.makeText(activity, "বাই বাই! Jarvis ও মাইক্রোফোন সম্পূর্ণ বন্ধ হচ্ছে...", Toast.LENGTH_SHORT).show()
+
+                // Play verbal Bye if requested
+                if (playByeVoice) {
+                    try {
+                        JarvisForegroundService.instance?.speakTextLocally("বাই বাই জানু, ধন্যবাদ তোমাকে!")
+                    } catch (_: Exception) {}
+                }
+
+                // Disconnect session and release microphone immediately
+                try {
+                    JarvisForegroundService.instance?.disconnectSession(sendByePacket = true)
+                } catch (_: Exception) {}
+
+                // Disable service and stop it completely
+                JarvisForegroundService.setServiceEnabled(activity, false)
                 activity.stopJarvisService()
-                Toast.makeText(activity, "Jarvis সম্পূর্ণ বন্ধ করা হয়েছে।", Toast.LENGTH_SHORT).show()
+
+                // Finish activity and kill process cleanly
+                Handler(Looper.getMainLooper()).postDelayed({
+                    try {
+                        activity.finishAffinity()
+                    } catch (_: Exception) {
+                        activity.finish()
+                    }
+                    try {
+                        android.os.Process.killProcess(android.os.Process.myPid())
+                    } catch (_: Exception) {}
+                }, if (playByeVoice) 850L else 200L)
             }
+        }
+
+        @JavascriptInterface
+        fun shutdownJarvis() {
+            exitAndCloseApp(true)
         }
 
         @JavascriptInterface
