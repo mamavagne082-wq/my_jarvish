@@ -986,6 +986,81 @@
       }
     }
 
+    // 7.5. Matrix Row Questions (Evaluation grids, medication awareness, treatment usage, statement ratings)
+    if (question.type === "matrix_row" || question.row_label || (options.length >= 2 && question.text && question.text.includes("—"))) {
+      // Check for familiarity / awareness / usage scales (like in pet itch treatments / meds)
+      const familiarOpt = findBestOption(options, [
+        "Yes, I have heard of",
+        "I've used this to treat",
+        "I've heard of as treatment",
+        "Heard of",
+        "Aware",
+        "Yes"
+      ], true);
+      if (familiarOpt) {
+        return makeAnswer(question, [familiarOpt], "Hermes: Matrix row awareness/usage → " + familiarOpt);
+      }
+
+      // Check for agreement scale in matrix
+      const agreeOpt = findBestOption(options, [
+        "Agree", "Somewhat Agree", "Strongly Agree", "Completely Agree"
+      ]);
+      if (agreeOpt) {
+        return makeAnswer(question, [agreeOpt], "Hermes: Matrix agreement → " + agreeOpt);
+      }
+
+      // Balanced streaming service usage profile (strictly matching human habits):
+      if (hasKeyword(qText, ["netflix", "prime video", "amazon prime", "hulu"])) {
+        const highOpt = findBestOption(options, ["Daily", "4-6x a week", "4-6 times a week", "Every day"]);
+        if (highOpt) return makeAnswer(question, [highOpt], "Hermes: Streaming usage → " + highOpt);
+      } else if (hasKeyword(qText, ["disney", "hbo", "youtube tv", "peacock"])) {
+        const medOpt = findBestOption(options, ["1-3x a week", "1-3 times a week", "Several times a week", "Weekly"]);
+        if (medOpt) return makeAnswer(question, [medOpt], "Hermes: Streaming usage → " + medOpt);
+      } else if (hasKeyword(qText, ["espn", "paramount"])) {
+        const lowOpt = findBestOption(options, ["Monthly", "Less often", "Bi-weekly", "Occasionally"]);
+        if (lowOpt) return makeAnswer(question, [lowOpt], "Hermes: Streaming usage → " + lowOpt);
+      } else if (hasKeyword(qText, ["roku", "sling"])) {
+        const noneOpt = findBestOption(options, ["Don't use or watch it", "Never", "Do not use", "None"]);
+        if (noneOpt) return makeAnswer(question, [noneOpt], "Hermes: Streaming usage → " + noneOpt);
+      }
+
+      // Check for ad comprehension / clarity questions
+      if (hasKeyword(qText, ["applicable to the ad", "statement is most applicable", "about the ad", "understand"])) {
+        const clearOpt = findBestOption(options, [
+          "It was clear to me that the ad was for medication",
+          "It was clear",
+          "Clear",
+          "Understood"
+        ]);
+        if (clearOpt) return makeAnswer(question, [clearOpt], "Hermes: Ad clarity comprehension → " + clearOpt);
+      }
+
+      // Check for general frequency scale in matrix
+      const freqOpt = findBestOption(options, [
+        "Often", "Sometimes", "Regularly", "Frequently", "1 to 3 times", "Daily", "Weekly"
+      ]);
+      if (freqOpt) {
+        return makeAnswer(question, [freqOpt], "Hermes: Matrix frequency → " + freqOpt);
+      }
+
+      // Check for positive / satisfactory option
+      const posMatrixOpt = findBestOption(options, [
+        "Satisfied", "Important", "Likely", "Good", "Very Good", "4", "5"
+      ]);
+      if (posMatrixOpt) {
+        return makeAnswer(question, [posMatrixOpt], "Hermes: Matrix positive rating → " + posMatrixOpt);
+      }
+
+      // Fallback for matrix row: pick first non-trap / non-negative option from options
+      const nonTrapOpts = options.filter(o => {
+        const lbl = (typeof o === "string" ? o : (o.label || o.value || "")).toLowerCase();
+        return !lbl.includes("not sure") && !lbl.includes("prefer not") && !lbl.includes("don't know") && !lbl.includes("none");
+      });
+      const chosenMatrixOpt = (nonTrapOpts.length > 0 ? nonTrapOpts[0] : options[0]);
+      const chosenMatrixLabel = typeof chosenMatrixOpt === "string" ? chosenMatrixOpt : (chosenMatrixOpt.label || chosenMatrixOpt.value || "Option");
+      return makeAnswer(question, [chosenMatrixLabel], "Hermes: Matrix default column → " + chosenMatrixLabel);
+    }
+
     // 8. Open-ended / Text Input Questions
     if (question.type === "text_input" || options.length === 0 || (options.length === 1 && (options[0].type === "text_input" || options[0].type === "textarea"))) {
       let textFeedback = "Overall reliable service with positive experience and dependable quality.";
@@ -1028,14 +1103,15 @@
       // 1. Look for moderate-positive option
       const posOpt = findBestOption(options, [
         "Agree", "Somewhat Agree", "Satisfied", "Likely", "Important", "Yes",
-        "Good", "Very Good", "4", "5", "8", "9"
+        "Good", "Very Good", "4", "5", "8", "9",
+        "Yes, I have heard of", "I've used this to treat", "I've heard of as treatment"
       ]);
       if (posOpt) return makeAnswer(question, [posOpt], "Hermes Smart Fallback: " + posOpt);
 
       // 2. Avoid "Prefer not to say" or "None of the above" unless trapped
       const normalOpts = options.filter(o => {
         const lbl = (typeof o === "string" ? o : (o.label || o.value || "")).toLowerCase();
-        return !lbl.includes("prefer not") && !lbl.includes("don't know");
+        return !lbl.includes("prefer not") && !lbl.includes("don't know") && !lbl.includes("not sure");
       });
 
       const chosenOpt = (normalOpts.length > 0 ? normalOpts[0] : options[0]);

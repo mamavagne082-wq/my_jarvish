@@ -1382,75 +1382,141 @@
         }
       });
 
-      // B. Matrix / table questions
-      const tables = document.querySelectorAll("table, .matrix-table, .grid-table");
-      tables.forEach((table) => {
-        if (!isElementVisible(table) || table.closest(".mrQuestionTable")) return;
-        const rows = table.querySelectorAll("tbody tr, tr");
-        if (rows.length > 1) {
-          const headers = [];
-          const headerCells = table.querySelectorAll("thead th, tr:first-child th, tr:first-child td");
-          headerCells.forEach((th) => headers.push(cleanText(th.innerText)));
+      // B. Matrix / table questions (Handles Qualtrics, Toluna, Decipher, Confirmit, SurveyMonkey, and modern grid cards)
+      const matrixCandidates = Array.from(document.querySelectorAll(
+        "table, .matrix-table, .grid-table, .matrix, [class*='matrix' i], [class*='grid-question' i], [class*='gridTable' i], [role='grid'], [role='table']"
+      )).filter(t => isElementVisible(t) && !t.closest(".mrQuestionTable") && !t.closest("#jarvis-hud-container"));
 
-          rows.forEach((row, rIdx) => {
-            const radios = row.querySelectorAll('input[type="radio"], input[type="checkbox"]');
-            if (radios.length > 0) {
-              const rowLabel = row.querySelector("th, td:first-child, .row-label")?.innerText || `Row ${rIdx + 1}`;
-              const opts = [];
-              radios.forEach((input, cIdx) => {
-                trackedElements.add(input);
-                const colLabel = headers[cIdx + 1] || headers[cIdx] || `Column ${cIdx + 1}`;
-                opts.push({
-                  id: assignTemporaryId(input),
-                  name: input.name,
-                  type: input.type,
-                  value: input.value,
-                  label: colLabel,
-                  element: input
-                });
-              });
+      matrixCandidates.forEach((table) => {
+        const isHtmlTable = table.tagName.toLowerCase() === "table";
+        const rawRows = isHtmlTable
+          ? Array.from(table.querySelectorAll("tr"))
+          : Array.from(table.querySelectorAll("[class*='row' i], [role='row']"));
 
-              questions.push({
-                index: qIndex++,
-                type: "matrix_row",
-                text: cleanText(rowLabel),
-                options: opts
-              });
-            }
+        if (rawRows.length < 2) return;
+
+        // Overarching question heading
+        const mainHeading = findPrecedingHeading(table) || detectPageQuestionTitle() || "";
+
+        // Collect header row and column titles
+        const headerRow = isHtmlTable
+          ? (table.querySelector("thead tr") || rawRows[0])
+          : (table.querySelector("[class*='header' i], [class*='head' i]") || rawRows[0]);
+
+        const headerCells = Array.from(headerRow.querySelectorAll("th, td, [class*='col' i], [class*='header' i]"))
+          .map(cell => cleanText(cell.innerText || cell.textContent || ""));
+
+        const validHeaders = headerCells.filter(h => h.length > 0 && !/jarvis|copilot/i.test(h));
+
+        // Data rows (exclude the header row)
+        const dataRows = rawRows.filter(r => r !== headerRow && isElementVisible(r));
+
+        dataRows.forEach((row, rIdx) => {
+          let rowLabelEl = isHtmlTable
+            ? (row.querySelector("th, td:first-child, .row-label, [class*='statement' i], [class*='row-header' i]") || row.firstElementChild)
+            : (row.querySelector("[class*='label' i], [class*='statement' i], [class*='title' i], [class*='text' i]") || row.firstElementChild);
+
+          let rowLabel = cleanText(rowLabelEl?.innerText || `Row ${rIdx + 1}`);
+
+          // Find radios/checkboxes in this row
+          const inputs = Array.from(row.querySelectorAll(
+            'input[type="radio"], input[type="checkbox"], [role="radio"], [role="checkbox"], .radio, .custom-control-input, label:has(input), td.clickable'
+          )).filter(el => {
+            if (el.tagName.toLowerCase() === "label" && el.querySelector("input")) return false;
+            return isElementVisible(el);
           });
-        }
+
+          if (inputs.length === 0) return;
+
+          const isCheck = inputs.some(i => i.type === "checkbox" || i.getAttribute("role") === "checkbox");
+          const opts = [];
+
+          inputs.forEach((input, cIdx) => {
+            trackedElements.add(input);
+            const nativeInput = input.tagName.toLowerCase() === "input" ? input : (input.querySelector("input") || input);
+            if (nativeInput !== input) trackedElements.add(nativeInput);
+
+            // Determine accurate column label
+            let colLabel = "";
+            const cell = input.closest("td, th, [role='gridcell'], [role='cell']");
+            if (cell && cell.cellIndex !== undefined && headerCells[cell.cellIndex]) {
+              colLabel = headerCells[cell.cellIndex];
+            }
+            if (!colLabel) {
+              const offset = (headerCells.length > inputs.length) ? (headerCells.length - inputs.length) : 0;
+              colLabel = headerCells[cIdx + offset] || validHeaders[cIdx] || `Column ${cIdx + 1}`;
+            }
+
+            opts.push({
+              id: assignTemporaryId(nativeInput),
+              name: nativeInput.name || `matrix_${rIdx}`,
+              type: isCheck ? "checkbox" : "radio",
+              value: nativeInput.value || colLabel,
+              label: cleanText(colLabel),
+              element: nativeInput,
+              rowElement: row
+            });
+          });
+
+          if (opts.length > 0) {
+            const fullQText = mainHeading ? `${mainHeading} — ${rowLabel}` : rowLabel;
+            questions.push({
+              index: qIndex++,
+              type: isCheck ? "matrix_checkbox" : "matrix_row",
+              text: fullQText,
+              row_label: rowLabel,
+              main_question: mainHeading,
+              row_element: row,
+              options: opts
+            });
+          }
+        });
       });
 
-      // C. Explicit Question Containers (Qualtrics, Decipher, Kantar, SurveyMonkey, etc.)
+      // C. Explicit Question Containers (Qualtrics, Toluna Wix, Decipher, Kantar, SurveyMonkey, etc.)
       const containerSelectors = [
-        ".QuestionOuter", ".question", ".survey-question", "fieldset", "[role='radiogroup']",
-        ".form-group", ".ss-form-question", ".survey-page__question", ".question-block",
-        ".survey-card", ".survey-row", ".q-container", "[data-question-id]", ".survey-question-item",
-        ".mrQuestionTable", ".mrQuestion", ".mrQuestionTextContainer", ".mrGrid", ".mrMultiple", ".mrSingle",
-        "form#mrForm", "form[name='mrForm']", ".mrlWeb", ".card-question", ".grid-question",
-        ".answers-list", ".options-container", ".choice-group", ".choice-table", "[data-question-name]",
-        "[class*='question-container' i]", "[class*='question_container' i]", "[class*='survey-question' i]"
+        ".QuestionOuter", ".survey-question", "fieldset", "[role='radiogroup']",
+        ".question-block", ".card-question", ".grid-question",
+        "[data-question-id]", "[data-question-name]", ".survey-page__question",
+        ".mrQuestionTable", ".mrQuestion", ".mrQuestionTextContainer",
+        "[class*='question-container' i]", "[class*='question_container' i]",
+        "form#mrForm", ".mrlWeb", ".q-container"
       ].join(", ");
 
-      const questionContainers = document.querySelectorAll(containerSelectors);
-      questionContainers.forEach((container) => {
-        if (!isElementVisible(container)) return;
+      const rawContainers = Array.from(document.querySelectorAll(containerSelectors)).filter(c => {
+        if (!isElementVisible(c) || c.closest("#jarvis-hud-container")) return false;
+        // Skip if inside an already processed table/matrix from Section B
+        if (c.closest("table, .matrix-table, .grid-table, .matrix, [role='grid'], [role='table']")) return false;
+        return true;
+      });
+
+      // Filter to TOP-LEVEL question containers only (discard any container nested inside another question container)
+      const topLevelContainers = rawContainers.filter(c => !rawContainers.some(parent => parent !== c && parent.contains(c)));
+
+      topLevelContainers.forEach((container) => {
         const titleEl = container.querySelector(
           "legend, .QuestionText, .question-text, .title, .q-title, h1, h2, h3, h4, h5, .control-label, [role='heading'], .mrQuestionText, .mrBannerText"
         );
-        const qText = cleanText(titleEl ? titleEl.innerText : container.innerText.slice(0, 150)) || detectPageQuestionTitle() || `Question ${qIndex + 1}`;
+        const qText = cleanText(titleEl ? titleEl.innerText : "") || detectPageQuestionTitle() || `Question ${qIndex + 1}`;
 
         const rawElements = Array.from(container.querySelectorAll(
-          "input, select, textarea, [role='radio'], [role='checkbox'], [role='option'], .choice, .option, .answer, .survey-option, .btn-choice, [data-choice], [data-value], .mrCard, [class*='option' i], [class*='choice' i], [class*='answer' i]"
+          "input, select, textarea, [role='radio'], [role='checkbox'], [role='option'], .choice, .option, .answer, .survey-option, .btn-choice, [data-choice], [data-value]"
         ));
         let validInputs = rawElements.filter((inp) => {
           const t = (inp.getAttribute("type") || inp.tagName.toLowerCase()).toLowerCase();
-          return !["hidden", "submit"].includes(t) && !trackedElements.has(inp);
+          return !["hidden", "submit", "button"].includes(t) && !trackedElements.has(inp) && isElementVisible(inp);
         });
 
+        // If actual form controls exist, prioritize them and ignore outer wrapper divs
+        const realFormControls = validInputs.filter(el => ["input", "select", "textarea"].includes(el.tagName.toLowerCase()) || el.getAttribute("role") === "radio" || el.getAttribute("role") === "checkbox");
+        if (realFormControls.length > 0) {
+          validInputs = realFormControls;
+        }
+
+        // Only use custom button/div choices if at least 2 exist and no real form controls were found
         if (validInputs.length === 0) {
-          const customChoices = Array.from(container.querySelectorAll("button, [role='button'], label.option-row, li, .card, .mrCard, td.mrGridCell")).filter(el => isElementVisible(el) && !trackedElements.has(el));
-          if (customChoices.length > 0) {
+          const customChoices = Array.from(container.querySelectorAll("button, [role='button'], label.option-row, li, .card, .mrCard, td.mrGridCell")).filter(el => isElementVisible(el) && !trackedElements.has(el) && !/next|back|previous|submit|continue/i.test(el.innerText || ""));
+          if (customChoices.length >= 2) {
             validInputs = customChoices;
           } else {
             return;
@@ -1458,7 +1524,10 @@
         }
 
         const options = [];
-        let qType = "single_choice";
+        let hasRadio = false;
+        let hasCheckbox = false;
+        let hasText = false;
+        let hasSelect = false;
 
         validInputs.forEach((input) => {
           trackedElements.add(input);
@@ -1467,11 +1536,11 @@
           const label = getElementVisualLabel(input) || input.innerText || "";
 
           if (type === "radio" || input.getAttribute("role") === "radio") {
-            qType = "single_choice";
+            hasRadio = true;
           } else if (type === "checkbox" || input.getAttribute("role") === "checkbox") {
-            qType = "multiple_choice";
+            hasCheckbox = true;
           } else if (tag === "select") {
-            qType = "dropdown";
+            hasSelect = true;
             Array.from(input.options).forEach((opt) => {
               if (opt.value) {
                 options.push({
@@ -1485,8 +1554,8 @@
               }
             });
             return;
-          } else if (tag === "textarea" || ["text", "email", "number", "tel", "search"].includes(type) || !input.type) {
-            qType = "text_input";
+          } else if (tag === "textarea" || (tag === "input" && ["text", "email", "number", "tel", "search"].includes(type))) {
+            hasText = true;
           }
 
           options.push({
@@ -1500,6 +1569,13 @@
         });
 
         if (options.length > 0) {
+          let qType = "single_choice";
+          if (hasCheckbox) qType = "multiple_choice";
+          else if (hasRadio) qType = "single_choice";
+          else if (hasSelect) qType = "dropdown";
+          else if (hasText && options.length === 1) qType = "text_input";
+          else if (options.length >= 2) qType = "single_choice";
+
           questions.push({
             index: qIndex++,
             type: qType,
@@ -1911,15 +1987,15 @@
     function findInputByLabelOrValue(text, answerContext = null) {
       if (!text) return null;
       const cleanTarget = cleanText(text).toLowerCase()
-        .replace(/^[•\-\*\d\.\)\s]+/, "") // Remove bullet points or numbers
+        .replace(/^[•\-\*\d\.\)\s…]+/, "") // Remove bullet points, numbers, ellipses
         .trim();
       if (!cleanTarget) return null;
 
       // Helper: Checks whole-word / token boundary match, with strict exclusion of opposite or substring traps
       function isWordMatch(textToCheck, target) {
         if (!textToCheck || !target) return false;
-        const t = textToCheck.toLowerCase().trim();
-        const tgt = target.toLowerCase().trim();
+        const t = textToCheck.toLowerCase().replace(/^[•\-\*\d\.\)\s…]+/, "").trim();
+        const tgt = target.toLowerCase().replace(/^[•\-\*\d\.\)\s…]+/, "").trim();
         if (t === tgt) return true;
 
         // Anti-trap 1: "Male" must NEVER match "Female"
@@ -1935,7 +2011,6 @@
         if (re.test(t)) return true;
 
         // Inverse check: If candidate label is a key word inside the target
-        // (e.g. candidate is "Audi", target is "Audi, Nissan (Select Only 2)")
         if (t.length >= 3) {
           const escapedT = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
           const reT = new RegExp("(^|[^a-zA-Z0-9])" + escapedT + "([^a-zA-Z0-9]|$)", "i");
@@ -1943,6 +2018,26 @@
         }
 
         return false;
+      }
+
+      // Check if answerContext points to a known question with options
+      if (answerContext && (answerContext.question_index !== undefined || answerContext.question_text)) {
+        const questionsList = extractSurveyQuestions();
+        const matchedQ = (typeof answerContext.question_index === "number" && questionsList[answerContext.question_index])
+          ? questionsList[answerContext.question_index]
+          : questionsList.find(q => q.text === answerContext.question_text || (q.row_label && answerContext.question_text && answerContext.question_text.includes(q.row_label)));
+
+        if (matchedQ && matchedQ.options && matchedQ.options.length > 0) {
+          const directOpt = matchedQ.options.find(o => 
+            isWordMatch(o.label, cleanTarget) ||
+            cleanText(o.label).toLowerCase() === cleanTarget ||
+            (cleanText(o.label).length >= 4 && cleanTarget.includes(cleanText(o.label).toLowerCase())) ||
+            (cleanTarget.length >= 4 && cleanText(o.label).toLowerCase().includes(cleanTarget))
+          );
+          if (directOpt && directOpt.element) {
+            return resolveInteractiveTarget(directOpt.element);
+          }
+        }
       }
 
       // Scoped container candidates: If question text or index provided, search within its container first!
@@ -2060,7 +2155,7 @@
       }
 
       // Check parent row or cell for input
-      const siblingInput = el.closest("tr, td, .mrRow, .mrCard")?.querySelector('input[type="radio"], input[type="checkbox"]');
+      const siblingInput = el.closest("tr, td, [role='gridcell'], [role='cell'], .mrRow, .mrCard")?.querySelector('input[type="radio"], input[type="checkbox"]');
       if (siblingInput) return siblingInput;
 
       // Check if clickable parent card/box exists (e.g. Appinio option row or brand card)
@@ -2076,12 +2171,36 @@
       clearAllHighlights();
       if (!data || !data.answers) return;
 
+      const questions = extractSurveyQuestions();
+      data.answers = normalizeAndSanitizeAnswers(data.answers, questions);
+
       data.answers.forEach((ans, idx) => {
+        const isMsg = ans.recommended_action === "type_text" || Boolean(ans.text_input_value) || Boolean(ans.text);
+        if (isMsg) return; // Never highlight text inputs with choice badges
+
         const targetIds = ans.target_element_ids || [];
         const labels = ans.selected_labels || [];
+        const qObj = questions[ans.question_index];
 
         let foundEl = false;
-        if (targetIds.length > 0) {
+        // Check qObj.options first
+        if (qObj && qObj.options && qObj.options.length > 0 && labels.length > 0) {
+          for (const lbl of labels) {
+            const matchedOpt = qObj.options.find(o => 
+              isWordMatch(o.label, lbl) ||
+              cleanText(o.label).toLowerCase() === cleanText(lbl).toLowerCase() ||
+              (cleanText(o.label).length >= 4 && cleanText(lbl).toLowerCase().includes(cleanText(o.label).toLowerCase())) ||
+              (cleanText(lbl).length >= 4 && cleanText(o.label).toLowerCase().includes(cleanText(lbl).toLowerCase()))
+            );
+            if (matchedOpt && matchedOpt.element) {
+              applyHighlightStyle(matchedOpt.element, ans, idx + 1);
+              foundEl = true;
+              break;
+            }
+          }
+        }
+
+        if (!foundEl && targetIds.length > 0) {
           targetIds.forEach((targetId) => {
             let el = document.getElementById(targetId) || document.querySelector(`[data-jarvis-optid="${targetId}"]`);
             if (el) {
@@ -2104,7 +2223,12 @@
     }
 
     function applyHighlightStyle(element, answer, index) {
-      const parentContainer = element.closest("label") || element.parentElement || element;
+      if (!element) return;
+      if (element.tagName.toLowerCase() === "tr" || element.tagName.toLowerCase() === "table") {
+        const inner = element.querySelector('input[type="radio"], input[type="checkbox"], [role="radio"], [role="checkbox"]');
+        if (inner) element = inner;
+      }
+      const parentContainer = element.closest("label, td, [role='gridcell'], div.form-check, .choice, .option") || element.parentElement || element;
       parentContainer.classList.add("jarvis-highlighted-container");
 
       const existingBadge = parentContainer.querySelector(".jarvis-pick-badge");
@@ -2128,6 +2252,79 @@
     }
 
     /**
+     * Sanitizes AI answers to guarantee matrix rows have column labels (never row names)
+     * and text inputs are flagged properly for auto-typing.
+     */
+    function normalizeAndSanitizeAnswers(answers, questions = null) {
+      if (!answers || !Array.isArray(answers)) return [];
+      const qs = questions || extractSurveyQuestions();
+
+      return answers.map((ans, idx) => {
+        let qIdx = (typeof ans.question_index === "number") ? ans.question_index : (typeof ans.question_number === "number" ? ans.question_number - 1 : idx);
+        let labels = Array.isArray(ans.selected_labels) ? [...ans.selected_labels] : [];
+        if (labels.length === 0) {
+          if (ans.selected_label) labels.push(String(ans.selected_label));
+          else if (ans.answer && typeof ans.answer === "string") labels.push(ans.answer);
+          else if (ans.choice) labels.push(String(ans.choice));
+          else if (ans.value) labels.push(String(ans.value));
+        }
+
+        const qObj = (typeof qIdx === "number" && qs[qIdx])
+          ? qs[qIdx]
+          : qs.find(q => q.text === ans.question_text || (q.row_label && ans.question_text && ans.question_text.includes(q.row_label)));
+
+        // MATRIX ROW VALIDATION: Guarantee chosen option is a COLUMN label, never row name!
+        if (qObj && qObj.options && qObj.options.length > 0 && (qObj.type === "matrix_row" || qObj.type === "matrix_checkbox" || qObj.row_label)) {
+          const rowName = cleanText(qObj.row_label || qObj.text || "").toLowerCase();
+          const isAccidentalRowName = labels.some(lbl => {
+            const cLbl = cleanText(lbl).toLowerCase();
+            const matchesRow = rowName && (cLbl === rowName || (cLbl.length >= 4 && rowName.includes(cLbl)) || (rowName.length >= 4 && cLbl.includes(rowName)));
+            const matchesAnyCol = qObj.options.some(opt => isWordMatch(opt.label, lbl));
+            return matchesRow && !matchesAnyCol;
+          });
+
+          if (isAccidentalRowName || labels.length === 0) {
+            const bestCol = findBestMatrixOption(qObj.options);
+            if (bestCol) {
+              console.log(`[Jarvis Sanitizer] 🔄 Fixed matrix row "${rowName}": replaced row name with column option "${bestCol.label}"`);
+              labels = [bestCol.label];
+            }
+          }
+        }
+
+        let action = ans.recommended_action || "select_radio";
+        if (action === "type_text" || ans.text_input_value || ans.text) {
+          action = "type_text";
+        }
+
+        return {
+          ...ans,
+          question_index: qIdx,
+          selected_labels: labels,
+          recommended_action: action,
+          target_element_ids: Array.isArray(ans.target_element_ids) ? ans.target_element_ids : [],
+          text_input_value: ans.text_input_value || ans.text || (action === "type_text" && labels[0] ? labels[0] : null)
+        };
+      });
+    }
+
+    function findBestMatrixOption(options) {
+      if (!options || options.length === 0) return null;
+      const targets = [
+        "Yes, I have heard of", "I've used this to treat", "I've heard of as treatment",
+        "Yes", "Agree", "Somewhat Agree", "Satisfied", "Often", "Frequently", "Regularly",
+        "Important", "Likely", "4", "5"
+      ];
+      for (const target of targets) {
+        for (const opt of options) {
+          if (isWordMatch(opt.label, target)) return opt;
+        }
+      }
+      const nonNegative = options.find(o => !/prefer not|don't know|not sure|none of|never/i.test(o.label));
+      return nonNegative || options[0];
+    }
+
+    /**
      * =========================================================================
      * 5. HIGH-PRECISION FILL & ACTION SIMULATOR
      * Compatible with React, Vue, Angular, jQuery and Pure HTML DOM
@@ -2138,69 +2335,38 @@
         return { success: false, message: "No analyzed answers available to fill." };
       }
 
-      // Universal answer normalization (guarantees seamless matching for Gemini Web & all AI formats)
-      const normalizedAnswers = (data.answers || []).map((ans, idx) => {
-        let qIdx = (typeof ans.question_index === "number") ? ans.question_index : (typeof ans.question_number === "number" ? ans.question_number - 1 : idx);
-        let labels = Array.isArray(ans.selected_labels) ? [...ans.selected_labels] : [];
-        if (labels.length === 0) {
-          if (ans.selected_label) labels.push(String(ans.selected_label));
-          else if (ans.answer && typeof ans.answer === "string") labels.push(ans.answer);
-          else if (ans.choice) labels.push(String(ans.choice));
-          else if (ans.value) labels.push(String(ans.value));
-        }
-        let action = ans.recommended_action || "select_radio";
-        if (ans.recommended_action === "type_text" || ans.text_input_value || ans.text) {
-          action = "type_text";
-        }
-        return {
-          ...ans,
-          question_index: qIdx,
-          selected_labels: labels,
-          recommended_action: action,
-          target_element_ids: Array.isArray(ans.target_element_ids) ? ans.target_element_ids : [],
-          text_input_value: ans.text_input_value || ans.text || (action === "type_text" && labels[0] ? labels[0] : null)
-        };
-      });
-
-      if (normalizedAnswers.length > 0 && normalizedAnswers[0].question_index === 1 && !normalizedAnswers.some(a => a.question_index === 0)) {
-        normalizedAnswers.forEach(a => { a.question_index -= 1; });
-      }
-      data.answers = normalizedAnswers;
+      const questions = extractSurveyQuestions();
+      data.answers = normalizeAndSanitizeAnswers(data.answers, questions);
 
       const { autoFillDelay } = await chrome.storage.local.get(["autoFillDelay"]);
       const isAuto = isAutoPilotActive;
-      // High-speed human simulation: 100-180ms per option (rapid full-page filling in < 1 second)
       const baseDelay = customGapMs !== null ? customGapMs : (autoFillDelay !== undefined ? Math.min(autoFillDelay, 180) : 120);
 
       let filledCount = 0;
       const startQuestionsSig = getQuestionsFingerprint();
-      const questions = extractSurveyQuestions();
 
       for (let ansIdx = 0; ansIdx < data.answers.length; ansIdx++) {
         const ans = data.answers[ansIdx];
         let filledThisAnswer = false;
         const targetIds = ans.target_element_ids || [];
         const labels = ans.selected_labels || [];
-        const isMultiple = ans.recommended_action === "select_checkbox";
+        const isMultiple = ans.recommended_action === "select_checkbox" || ans.recommended_action === "matrix_checkbox";
+        const qObj = (typeof ans.question_index === "number" && questions[ans.question_index])
+          ? questions[ans.question_index]
+          : questions.find(q => q.text === ans.question_text || (q.row_label && ans.question_text && ans.question_text.includes(q.row_label)));
 
-        // 1. Try target_element_ids
-        for (const targetId of targetIds) {
-          if (!targetId) continue;
-          const el = document.getElementById(targetId) || document.querySelector(`[data-jarvis-optid="${targetId}"]`);
-          if (el) {
-            await simulateHumanAction(el, ans);
-            filledCount++;
-            filledThisAnswer = true;
-            if (!isMultiple) break;
-          }
-        }
-
-        // 2. If not filled (or multiple choice), search by selected_labels
-        if ((!filledThisAnswer || isMultiple) && labels.length > 0) {
+        // 0. High-Precision Scoped Option Matcher: Check this question's known options first!
+        if (qObj && qObj.options && qObj.options.length > 0 && labels.length > 0) {
           for (const label of labels) {
-            const el = findInputByLabelOrValue(label, ans);
-            if (el) {
-              await simulateHumanAction(el, ans);
+            const matchedOpt = qObj.options.find(o => 
+              isWordMatch(o.label, label) ||
+              cleanText(o.label).toLowerCase() === cleanText(label).toLowerCase() ||
+              (cleanText(o.label).length >= 4 && cleanText(label).toLowerCase().includes(cleanText(o.label).toLowerCase())) ||
+              (cleanText(label).length >= 4 && cleanText(o.label).toLowerCase().includes(cleanText(label).toLowerCase()))
+            );
+            if (matchedOpt && matchedOpt.element) {
+              await simulateHumanAction(matchedOpt.element, ans);
+              applyHighlightStyle(matchedOpt.element, ans, ansIdx + 1);
               filledCount++;
               filledThisAnswer = true;
               if (!isMultiple) break;
@@ -2208,7 +2374,47 @@
           }
         }
 
-        // 2.5 Emergency Direct DOM Text Finder (Handles custom Kantar buttons, Stop sign options, Champagne brand cards)
+        // If matrix row but no column matched yet, use best matrix column option
+        if (!filledThisAnswer && qObj && (qObj.type === "matrix_row" || qObj.row_label) && qObj.options && qObj.options.length > 0) {
+          const bestOpt = findBestMatrixOption(qObj.options);
+          if (bestOpt && bestOpt.element) {
+            await simulateHumanAction(bestOpt.element, ans);
+            applyHighlightStyle(bestOpt.element, ans, ansIdx + 1);
+            filledCount++;
+            filledThisAnswer = true;
+          }
+        }
+
+        // 1. Try target_element_ids
+        if (!filledThisAnswer || isMultiple) {
+          for (const targetId of targetIds) {
+            if (!targetId) continue;
+            const el = document.getElementById(targetId) || document.querySelector(`[data-jarvis-optid="${targetId}"]`);
+            if (el) {
+              await simulateHumanAction(el, ans);
+              applyHighlightStyle(el, ans, ansIdx + 1);
+              filledCount++;
+              filledThisAnswer = true;
+              if (!isMultiple) break;
+            }
+          }
+        }
+
+        // 2. Search by selected_labels globally
+        if ((!filledThisAnswer || isMultiple) && labels.length > 0) {
+          for (const label of labels) {
+            const el = findInputByLabelOrValue(label, ans);
+            if (el) {
+              await simulateHumanAction(el, ans);
+              applyHighlightStyle(el, ans, ansIdx + 1);
+              filledCount++;
+              filledThisAnswer = true;
+              if (!isMultiple) break;
+            }
+          }
+        }
+
+        // 2.5 Emergency Direct DOM Text Finder (Never clicks bare table rows)
         if ((!filledThisAnswer || isMultiple) && labels.length > 0) {
           for (const label of labels) {
             const cleanLbl = cleanText(label).toLowerCase();
@@ -2219,8 +2425,17 @@
             for (const cand of candidates) {
               const cText = cleanText(cand.innerText || cand.textContent || "").toLowerCase();
               if (cText === cleanLbl || (cText.length >= 3 && cleanLbl.length >= 3 && (cText.includes(cleanLbl) || cleanLbl.includes(cText)))) {
-                const target = cand.closest("button, label, [role='button'], [role='radio'], [role='checkbox'], div, tr, td") || cand;
+                let target = cand.closest("button, label, [role='button'], [role='radio'], [role='checkbox'], div, tr, td") || cand;
+                if (target.tagName.toLowerCase() === "tr" || target.tagName.toLowerCase() === "table") {
+                  const innerInput = target.querySelector('input[type="radio"], input[type="checkbox"], [role="radio"], [role="checkbox"]');
+                  if (innerInput) {
+                    target = innerInput;
+                  } else {
+                    continue; // Skip bare table row
+                  }
+                }
                 await simulateHumanAction(target, ans);
+                applyHighlightStyle(target, ans, ansIdx + 1);
                 filledCount++;
                 filledThisAnswer = true;
                 if (!isMultiple) break;
@@ -2230,23 +2445,26 @@
           }
         }
 
-        // 3. If action is type_text, message box, or open-ended textarea
+        // 3. Direct Message Box / Textarea Typing
         if (!filledThisAnswer && (ans.recommended_action === "type_text" || ans.text_input_value || (labels.length > 0 && labels[0].length > 15))) {
-          const qObj = questions[ans.question_index];
           let targetEl = null;
 
-          // Check options with text/textarea/input types
-          const textOpt = qObj?.options?.find(o => ["text_input", "textarea", "text", "email", "number", "search", "url"].includes(o.type)) ||
-            questions.flatMap(q => q.options).find(o => ["text_input", "textarea", "text", "email", "number"].includes(o.type) && isElementVisible(o.element));
-          if (textOpt && textOpt.element) {
-            targetEl = textOpt.element;
+          if (qObj?.options) {
+            const textOpt = qObj.options.find(o => ["text_input", "textarea", "text", "email", "number", "search", "url"].includes(o.type)) ||
+              questions.flatMap(q => q.options).find(o => ["text_input", "textarea", "text", "email", "number"].includes(o.type) && isElementVisible(o.element));
+            if (textOpt && textOpt.element) {
+              targetEl = textOpt.element;
+            }
           }
 
-          // Search in question container or document
           if (!targetEl) {
             const allContainers = document.querySelectorAll(".QuestionOuter, .question, .survey-question, fieldset, .form-group, .survey-card, .survey-row, tr");
             const qContainer = allContainers[ans.question_index] || document;
             targetEl = qContainer.querySelector('textarea, input[type="text"], input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]):not([type="submit"]):not([type="button"]), [contenteditable="true"]');
+          }
+
+          if (!targetEl) {
+            targetEl = Array.from(document.querySelectorAll('textarea, input[type="text"], input:not([type]), [contenteditable="true"]')).filter(isElementVisible)[0];
           }
 
           if (targetEl && isElementVisible(targetEl)) {
@@ -2262,6 +2480,7 @@
           const targetOpt = matchOptionByLabels(qObj, labels) || matchOptionToPersona(qObj);
           if (targetOpt && targetOpt.element) {
             await simulateHumanAction(targetOpt.element, ans);
+            applyHighlightStyle(targetOpt.element, ans, ansIdx + 1);
             filledCount++;
             filledThisAnswer = true;
           }
@@ -2963,6 +3182,10 @@
       const trapMsg = document.getElementById("jarvis-trap-message");
 
       resultsContainer.innerHTML = "";
+      if (!data) return;
+      if (data.answers && Array.isArray(data.answers)) {
+        data.answers = normalizeAndSanitizeAnswers(data.answers);
+      }
 
       if (data.trap_detected) {
         trapBox.classList.remove("jarvis-hidden");
@@ -3044,6 +3267,8 @@
         box.classList.add("jarvis-hidden");
         return;
       }
+
+      data.answers = normalizeAndSanitizeAnswers(data.answers);
 
       list.innerHTML = "";
       data.answers.forEach((ans, idx) => {
@@ -3143,17 +3368,45 @@
       if (!data || !data.answers || data.answers.length === 0) return;
 
       const questions = extractSurveyQuestions();
+      data.answers = normalizeAndSanitizeAnswers(data.answers, questions);
 
       data.answers.forEach((ans, idx) => {
         const isMsg = ans.recommended_action === "type_text" || Boolean(ans.text_input_value) || Boolean(ans.text);
-        const answerText = isMsg
-          ? (ans.text_input_value || ans.text || (ans.selected_labels && ans.selected_labels[0]) || "")
-          : ((ans.selected_labels && ans.selected_labels.length > 0) ? ans.selected_labels.join(", ") : (ans.text_input_value || "সঠিক বিকল্প"));
+        
+        // 1. MESSAGE BOX / TEXTAREA: Directly type into the input field!
+        // No floating banner or copy/type buttons sitting above the message box!
+        if (isMsg) {
+          try {
+            let targetEl = null;
+            if (typeof ans.question_index === "number" && questions[ans.question_index]?.options?.[0]?.element) {
+              const optEl = questions[ans.question_index].options[0].element;
+              const tag = optEl.tagName.toLowerCase();
+              if (tag === "textarea" || (tag === "input" && !["radio", "checkbox", "button", "submit"].includes(optEl.type)) || optEl.isContentEditable) {
+                targetEl = optEl;
+              } else {
+                targetEl = optEl.closest("form, .question-block, .survey-question, fieldset, tr, td, div")?.querySelector("textarea, input[type='text'], input:not([type]), [contenteditable='true']");
+              }
+            }
+            if (!targetEl) {
+              const allInputs = Array.from(document.querySelectorAll("textarea, input[type='text'], input:not([type]), [contenteditable='true']")).filter(isElementVisible);
+              targetEl = allInputs[ans.question_index] || allInputs[0];
+            }
+            if (targetEl) {
+              simulateHumanAction(targetEl, ans);
+            }
+          } catch (e) {
+            console.warn("[Jarvis] Direct typing into message box error:", e);
+          }
+          return; // Skip creating in-page callout banner over the message box!
+        }
+
+        // 2. RADIO / CHECKBOX / MATRIX OPTIONS: Prominent in-page helper badge
+        const answerText = (ans.selected_labels && ans.selected_labels.length > 0) ? ans.selected_labels.join(", ") : "সঠিক বিকল্প";
 
         let targetContainer = null;
         if (typeof ans.question_index === "number" && questions[ans.question_index]?.options?.[0]?.element) {
           const firstOptEl = questions[ans.question_index].options[0].element;
-          targetContainer = firstOptEl.closest(".question-block, .survey-question, .question, .QuestionOuter, fieldset, [role='radiogroup'], .form-group, .survey-card, .survey-row, tr, td, li, form") || firstOptEl.parentElement;
+          targetContainer = firstOptEl.closest(".question-block, .survey-question, .question, .QuestionOuter, fieldset, [role='radiogroup'], .form-group, .survey-card, .survey-row, tr, [role='row'], td, li, form") || firstOptEl.parentElement;
         }
 
         if (!targetContainer && ans.question_text) {
@@ -3161,7 +3414,7 @@
           const allElements = document.querySelectorAll(".QuestionText, .question-text, .title, .q-title, h1, h2, h3, h4, legend, strong, b, .survey-question");
           for (const el of allElements) {
             if (cleanText(el.innerText).toLowerCase().includes(qSnippet)) {
-              targetContainer = el.closest(".question-block, .survey-question, .question, .QuestionOuter, fieldset, [role='radiogroup'], .form-group, .survey-card, .survey-row, tr, td, li") || el.parentElement;
+              targetContainer = el.closest(".question-block, .survey-question, .question, .QuestionOuter, fieldset, [role='radiogroup'], .form-group, .survey-card, .survey-row, tr, [role='row'], td, li") || el.parentElement;
               break;
             }
           }
@@ -3169,36 +3422,22 @@
 
         if (!targetContainer && questions[idx]?.options?.[0]?.element) {
           const firstOptEl = questions[idx].options[0].element;
-          targetContainer = firstOptEl.closest(".question-block, .survey-question, .question, .QuestionOuter, fieldset, [role='radiogroup'], .form-group, .survey-card, .survey-row, tr, td, li") || firstOptEl.parentElement;
+          targetContainer = firstOptEl.closest(".question-block, .survey-question, .question, .QuestionOuter, fieldset, [role='radiogroup'], .form-group, .survey-card, .survey-row, tr, [role='row'], td, li") || firstOptEl.parentElement;
         }
 
         if (targetContainer && !targetContainer.querySelector(`.jarvis-inline-question-callout[data-ans-idx="${idx}"]`)) {
           const callout = document.createElement("div");
-          callout.className = `jarvis-inline-question-callout ${isMsg ? "jarvis-callout-msg-type" : ""}`;
+          callout.className = "jarvis-inline-question-callout";
           callout.setAttribute("data-ans-idx", String(idx));
           callout.innerHTML = `
             <div class="jarvis-callout-text">
-              <span class="jarvis-callout-icon">${isMsg ? "📝" : "👉"}</span>
+              <span class="jarvis-callout-icon">👉</span>
               <span><strong>এটা হবে সঠিক উত্তর:</strong> <strong>${escapeHtml(answerText)}</strong></span>
             </div>
             <div class="jarvis-callout-btn-group">
-              ${isMsg ? `<button class="jarvis-callout-copy-btn" type="button" title="ক্লিপবোর্ডে কপি করুন">📋 কপি করুন</button>` : ""}
-              <button class="jarvis-callout-pick-btn" type="button" title="${isMsg ? "মেসেজ বক্সে বসান" : "এই উত্তরটি পেজে অটো-সিলেক্ট করতে চাপুন"}">${isMsg ? "টাইপ করুন ✍️" : "সিলেক্ট করুন 🎯"}</button>
+              <button class="jarvis-callout-pick-btn" type="button" title="এই উত্তরটি পেজে অটো-সিলেক্ট করতে চাপুন">সিলেক্ট করুন 🎯</button>
             </div>
           `;
-
-          const copyBtn = callout.querySelector(".jarvis-callout-copy-btn");
-          if (copyBtn) {
-            copyBtn.addEventListener("click", (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              copyTextSafely(answerText, copyBtn);
-              const ta = targetContainer.querySelector("textarea, input[type='text'], [contenteditable='true']");
-              if (ta) {
-                simulateHumanAction(ta, ans);
-              }
-            });
-          }
 
           const pickBtn = callout.querySelector(".jarvis-callout-pick-btn");
           if (pickBtn) {
@@ -3206,44 +3445,84 @@
               e.preventDefault();
               e.stopPropagation();
               pickBtn.disabled = true;
-              pickBtn.innerText = isMsg ? "টাইপ হচ্ছে..." : "সিলেক্ট হচ্ছে...";
+              pickBtn.innerText = "সিলেক্ট হচ্ছে...";
               try {
                 let el = null;
-                if (isMsg) {
-                  el = targetContainer.querySelector("textarea, input[type='text'], input:not([type]), [contenteditable='true']");
+                const qObj = questions[ans.question_index] || questions[idx];
+                const targetLabel = ans.selected_labels && ans.selected_labels[0];
+
+                // 1. Try matching option in qObj.options
+                if (qObj && qObj.options && qObj.options.length > 0 && targetLabel) {
+                  const matchedOpt = qObj.options.find(o => 
+                    isWordMatch(o.label, targetLabel) ||
+                    cleanText(o.label).toLowerCase() === cleanText(targetLabel).toLowerCase() ||
+                    (cleanText(o.label).length >= 4 && cleanText(targetLabel).toLowerCase().includes(cleanText(o.label).toLowerCase())) ||
+                    (cleanText(targetLabel).length >= 4 && cleanText(o.label).toLowerCase().includes(cleanText(targetLabel).toLowerCase()))
+                  );
+                  if (matchedOpt && matchedOpt.element) {
+                    el = matchedOpt.element;
+                  }
                 }
-                if (!el && ans.selected_labels && ans.selected_labels.length > 0) {
-                  el = findInputByLabelOrValue(ans.selected_labels[0], ans);
+
+                // 2. If targetContainer is a row (tr or grid row), find input in matching column
+                if (!el && targetContainer && targetLabel) {
+                  const rowInputs = Array.from(targetContainer.querySelectorAll('input[type="radio"], input[type="checkbox"], [role="radio"], [role="checkbox"]')).filter(isElementVisible);
+                  if (rowInputs.length > 0) {
+                    if (qObj && qObj.options) {
+                      const optIdx = qObj.options.findIndex(o => isWordMatch(o.label, targetLabel));
+                      if (optIdx >= 0 && rowInputs[optIdx]) {
+                        el = rowInputs[optIdx];
+                      }
+                    }
+                    if (!el) {
+                      el = rowInputs[0];
+                    }
+                  }
                 }
+
+                // 3. Fallback to target element ids or findInputByLabelOrValue
                 if (!el && ans.target_element_ids && ans.target_element_ids.length > 0) {
                   el = document.getElementById(ans.target_element_ids[0]);
                 }
-                if (!el) {
-                  el = targetContainer.querySelector("textarea, input[type='text'], input[type='radio'], input[type='checkbox'], select");
+                if (!el && targetLabel) {
+                  el = findInputByLabelOrValue(targetLabel, ans);
                 }
+                if (!el) {
+                  el = targetContainer.querySelector("input[type='radio'], input[type='checkbox'], select");
+                }
+
                 if (el) {
                   await simulateHumanAction(el, ans);
                   applyHighlightStyle(el, ans, idx + 1);
-                  pickBtn.innerText = isMsg ? "✅ টাইপ সম্পন্ন" : "✅ সিলেক্টেড";
+                  pickBtn.innerText = "✅ সিলেক্টেড";
                 } else {
-                  copyTextSafely(answerText, pickBtn);
+                  pickBtn.innerText = "⚠️ পাওয়া যায়নি";
                 }
               } finally {
                 setTimeout(() => {
                   if (pickBtn) {
                     pickBtn.disabled = false;
-                    pickBtn.innerText = isMsg ? "টাইপ করুন ✍️" : "সিলেক্ট করুন 🎯";
+                    pickBtn.innerText = "সিলেক্ট করুন 🎯";
                   }
                 }, 2000);
               }
             });
           }
 
-          const titleEl = targetContainer.querySelector("legend, .QuestionText, .question-text, .title, .q-title, h1, h2, h3, h4, h5, .control-label, [role='heading']");
-          if (titleEl && titleEl.nextSibling) {
-            titleEl.parentNode.insertBefore(callout, titleEl.nextSibling);
+          if (targetContainer.tagName && targetContainer.tagName.toLowerCase() === "tr") {
+            const firstCell = targetContainer.querySelector("th, td") || targetContainer.firstElementChild;
+            if (firstCell) {
+              firstCell.insertBefore(callout, firstCell.firstChild);
+            } else {
+              targetContainer.insertBefore(callout, targetContainer.firstChild);
+            }
           } else {
-            targetContainer.insertBefore(callout, targetContainer.firstChild);
+            const titleEl = targetContainer.querySelector("legend, .QuestionText, .question-text, .title, .q-title, h1, h2, h3, h4, h5, .control-label, [role='heading']");
+            if (titleEl && titleEl.nextSibling) {
+              titleEl.parentNode.insertBefore(callout, titleEl.nextSibling);
+            } else {
+              targetContainer.insertBefore(callout, targetContainer.firstChild);
+            }
           }
         }
       });

@@ -74,7 +74,7 @@ const DEFAULT_SETTINGS = {
   memoryApiKey: "",
   memoryProvider: "local_offline",
   providerPriority: "gemini_web_first",
-  engineMode: "smart_cost_saving",
+  engineMode: "ai_first",
   useOpenRouter: true,
   autoPilotActive: false,
   autoFillDelay: 350,
@@ -132,12 +132,9 @@ chrome.runtime.onInstalled.addListener(async () => {
   // Ensure working OpenRouter keys exist
   if (!toSet.openRouterApiKey) toSet.openRouterApiKey = DEFAULT_SETTINGS.openRouterApiKey;
   if (!toSet.openRouterApiKey2) toSet.openRouterApiKey2 = DEFAULT_SETTINGS.openRouterApiKey2;
-  if (!toSet.torveAiModel) toSet.torveAiModel = DEFAULT_SETTINGS.torveAiModel;
-  if (!toSet.providerPriority || toSet.providerPriority === "gemini_web_first") {
-    toSet.providerPriority = "fast_ai_first";
-  }
-  toSet.useGeminiWeb = false;
-  if (!toSet.engineMode) toSet.engineMode = "smart_cost_saving";
+  toSet.useGeminiWeb = true;
+  toSet.providerPriority = "gemini_web_first";
+  toSet.engineMode = "ai_first";
 
   if (!toSet.personalInfo) {
     toSet.personalInfo = { ...DEFAULT_PERSONAL_INFO };
@@ -972,58 +969,44 @@ async function handleSurveyAnalysis(payload, tabId) {
   }
 
   // =========================================================================
-  // STEP 1: CHECK KNOWLEDGE BASE (USER FILES) & LOCAL MEMORY CACHE FIRST!
-  // Checks previously completed survey QA & user uploaded files (0 API, 0 Gemini message)
+  // STEP 1: CHECK KNOWLEDGE BASE (USER FILES) & EXACT MEMORY CACHE FIRST!
+  // Only exact confirmed matches from user uploaded dataset or previous exact QA
   // =========================================================================
   let memoryResolution = null;
-  let hermesResolution = null;
   let memAnswers = [];
-  let hermesAnswers = [];
   let questionsAfterMemory = questions;
-  let allOfflineResolvedSoFar = [];
 
-  if (engineMode !== "ai_only" && !isScreenshot && questions.length > 0) {
+  if (engineMode === "offline_only") {
+    // User explicitly requested offline-only mode
+    if (typeof HermesAgent !== "undefined") {
+      const hermesRes = HermesAgent.resolveAllOffline(questions);
+      memAnswers = hermesRes.resolvedAnswers || [];
+      questionsAfterMemory = [];
+    }
+  } else if (!isScreenshot && questions.length > 0) {
     if (typeof JarvisMemoryManager !== "undefined") {
       try {
         memoryResolution = await JarvisMemoryManager.resolveSurveyQuestions(questions);
         console.log(`[Jarvis Memory] Checked ${questions.length} questions: ${memoryResolution.resolvedAnswers.length} hits (${memoryResolution.kbHitCount} KB, ${memoryResolution.cacheHitCount} Cache), ${memoryResolution.missingQuestions.length} misses`);
+        memAnswers = (memoryResolution && memoryResolution.resolvedAnswers) ? memoryResolution.resolvedAnswers : [];
+        questionsAfterMemory = memoryResolution ? memoryResolution.missingQuestions : questions;
       } catch (e) {
         console.warn("[Jarvis ServiceWorker] Memory resolution error:", e);
       }
     }
 
-    questionsAfterMemory = memoryResolution ? memoryResolution.missingQuestions : questions;
-
-    if (questionsAfterMemory.length > 0 && typeof HermesAgent !== "undefined") {
-      try {
-        hermesResolution = HermesAgent.resolveQuestions(questionsAfterMemory);
-        console.log(`[Hermes AI] Resolved ${hermesResolution.hitCount}/${questionsAfterMemory.length} questions offline (${hermesResolution.missCount} need Gemini/API)`);
-      } catch (e) {
-        console.warn("[Jarvis ServiceWorker] Hermes resolution error:", e);
-      }
-    }
-
-    memAnswers = (memoryResolution && memoryResolution.resolvedAnswers) ? memoryResolution.resolvedAnswers : [];
-    hermesAnswers = (hermesResolution && hermesResolution.resolvedAnswers) ? hermesResolution.resolvedAnswers : [];
-    allOfflineResolvedSoFar = [...memAnswers, ...hermesAnswers];
-    allOfflineResolvedSoFar.sort((a, b) => (a.question_index || 0) - (b.question_index || 0));
-
-    // COMPLETE 100% HIT: Every question found in Knowledge Base / Memory Cache!
-    if (allOfflineResolvedSoFar.length === questions.length && questions.length > 0) {
+    // COMPLETE 100% HIT: Every single question found in Knowledge Base / verified Cache!
+    if (memAnswers.length === questions.length && questions.length > 0) {
       if (memoryResolution && memoryResolution.cacheHitCount > 0) {
         for (let c = 0; c < memoryResolution.cacheHitCount; c++) await JarvisMemoryManager.recordHit("cache");
       }
       if (memoryResolution && memoryResolution.kbHitCount > 0) {
         for (let k = 0; k < memoryResolution.kbHitCount; k++) await JarvisMemoryManager.recordHit("kb");
       }
-      if (hermesAnswers.length > 0 && typeof JarvisMemoryManager !== "undefined") {
-        for (let h = 0; h < hermesAnswers.length; h++) await JarvisMemoryManager.recordHit("hermes");
-      }
 
       let providerLabel = "User Knowledge Base & Memory Cache ⚡📄";
       if (memoryResolution?.kbHitCount > 0 && memoryResolution?.cacheHitCount === 0) providerLabel = "User Knowledge Base Files 📄 (Master Dataset)";
       else if (memoryResolution?.cacheHitCount > 0 && memoryResolution?.kbHitCount === 0) providerLabel = "Local Memory Cache ⚡ (Previous Survey QA)";
-      else if (hermesAnswers.length > 0 && memAnswers.length === 0) providerLabel = "Hermes AI Local Agent 🤖";
 
       const synthesizedData = {
         page_summary: `Answered by ${providerLabel} (0 API Calls, 0 Gemini Web used, 100% Instant)`,
@@ -1031,7 +1014,7 @@ async function handleSurveyAnalysis(payload, tabId) {
         trap_alert_message: "",
         is_last_page: false,
         estimated_human_reading_seconds: 1,
-        answers: allOfflineResolvedSoFar,
+        answers: memAnswers,
         is_screenshot_analysis: false,
         analyzed_at: Date.now(),
         page_title: payload.title || "",
@@ -1040,7 +1023,6 @@ async function handleSurveyAnalysis(payload, tabId) {
         provider_used: providerLabel,
         source: memoryResolution ? memoryResolution.dominantSource : "cache",
         is_from_cache: true,
-        hermes_hit_count: hermesAnswers.length,
         memory_hit_count: memAnswers.length,
         kb_hit_count: memoryResolution?.kbHitCount || 0
       };
@@ -1066,16 +1048,16 @@ async function handleSurveyAnalysis(payload, tabId) {
   }
 
   // =========================================================================
-  // STEP 2: FAST DIRECT BACKGROUND AI CALLS (OpenRouter / Gemini API / Torve AI)
-  // Executes in <1s via background HTTP fetch. NEVER opens tabs, NEVER switches pages!
+  // STEP 2: GEMINI AI ANALYSIS (Google Gemini Web Accounts / Gemini API / OpenRouter)
+  // Evaluates complete page top-to-bottom like an attentive human respondent
   // =========================================================================
   let priority = storage.providerPriority || "gemini_web_first";
   const useGeminiWeb = storage.useGeminiWeb !== false;
-  const remainingQuestions = hermesResolution ? hermesResolution.missingQuestions : questionsAfterMemory;
+  const remainingQuestions = questionsAfterMemory;
 
-  if (!isScreenshot && remainingQuestions.length > 0 && allOfflineResolvedSoFar.length > 0) {
+  if (!isScreenshot && remainingQuestions.length > 0 && memAnswers.length > 0) {
     apiPayload = Object.assign({}, payload, { questions: remainingQuestions });
-    console.log(`[Jarvis ServiceWorker] Memory resolved ${allOfflineResolvedSoFar.length}/${questions.length}. Processing ${remainingQuestions.length} remaining questions...`);
+    console.log(`[Jarvis ServiceWorker] Memory resolved ${memAnswers.length}/${questions.length}. Sending ${remainingQuestions.length} remaining questions to Gemini AI...`);
   }
 
   // 1. If priority is gemini_web_first, gemini_web_only, or fast_ai_first with Gemini Web enabled:
@@ -1145,14 +1127,9 @@ async function handleSurveyAnalysis(payload, tabId) {
     }
 
     let apiPayload = payload;
-    const remainingAfterHermes = hermesResolution ? hermesResolution.missingQuestions : questionsAfterMemory;
-    const allOfflineResolvedSoFar = [...memAnswers, ...hermesAnswers];
-
-    if (!isScreenshot && remainingAfterHermes.length > 0 && allOfflineResolvedSoFar.length > 0) {
-      apiPayload = Object.assign({}, payload, { questions: remainingAfterHermes });
-      console.log(`[Jarvis API] Sending only ${remainingAfterHermes.length}/${originalQuestions.length} questions to API`);
-    } else if (!isScreenshot && hermesResolution && hermesResolution.missingQuestions.length > 0 && memAnswers.length === 0) {
-      apiPayload = Object.assign({}, payload, { questions: hermesResolution.missingQuestions });
+    if (!isScreenshot && questionsAfterMemory.length > 0 && memAnswers.length > 0) {
+      apiPayload = Object.assign({}, payload, { questions: questionsAfterMemory });
+      console.log(`[Jarvis API] Sending ${questionsAfterMemory.length}/${originalQuestions.length} questions to API`);
     }
 
     const prompt = isScreenshot
@@ -1329,12 +1306,9 @@ async function handleSurveyAnalysis(payload, tabId) {
     await JarvisMemoryManager.recordHit("api");
   }
 
-  // Merge with offline answers (Memory + Hermes) if partial offline hit occurred
-  if (!isScreenshot && allOfflineResolvedSoFar.length > 0) {
+  // Merge with verified memory answers if partial cache hit occurred
+  if (!isScreenshot && memAnswers.length > 0) {
     if (typeof JarvisMemoryManager !== "undefined") {
-      if (hermesAnswers.length > 0) {
-        for (let h = 0; h < hermesAnswers.length; h++) await JarvisMemoryManager.recordHit("hermes");
-      }
       if (memoryResolution && memoryResolution.cacheHitCount > 0) {
         for (let c = 0; c < memoryResolution.cacheHitCount; c++) await JarvisMemoryManager.recordHit("cache");
       }
@@ -1342,22 +1316,13 @@ async function handleSurveyAnalysis(payload, tabId) {
         for (let k = 0; k < memoryResolution.kbHitCount; k++) await JarvisMemoryManager.recordHit("kb");
       }
     }
-    const combinedAnswers = [...allOfflineResolvedSoFar, ...rawApiAnswers];
-    // Re-sort by original question index
-    combinedAnswers.sort((a, b) => (a.question_index !== undefined ? a.question_index : 0) - (b.question_index !== undefined ? b.question_index : 0));
-    result.data.answers = combinedAnswers;
-    result.data.source = "mixed_api";
-    const offlineLabel = hermesAnswers.length > 0 ? "Hermes AI 🤖 + Memory ⚡" : "Memory Cache ⚡";
-    result.providerUsed = `${result.providerUsed} + ${offlineLabel}`;
-    result.data.hermes_hit_count = hermesAnswers.length;
-    result.data.memory_hit_count = memAnswers.length;
-    result.data.api_question_count = rawApiAnswers.length;
-  } else if (!isScreenshot && memoryResolution && memoryResolution.resolvedAnswers.length > 0) {
-    const combinedAnswers = [...memoryResolution.resolvedAnswers, ...rawApiAnswers];
+    const combinedAnswers = [...memAnswers, ...rawApiAnswers];
     combinedAnswers.sort((a, b) => (a.question_index !== undefined ? a.question_index : 0) - (b.question_index !== undefined ? b.question_index : 0));
     result.data.answers = combinedAnswers;
     result.data.source = "mixed_api";
     result.providerUsed = `${result.providerUsed} + Memory Cache ⚡`;
+    result.data.memory_hit_count = memAnswers.length;
+    result.data.api_question_count = rawApiAnswers.length;
   } else {
     result.data.source = "api";
   }
@@ -1408,14 +1373,36 @@ VERIFIED HUMAN PROFILE:
 - Screener Trap: Household working in Advertising, PR, Market Research -> ALWAYS "None of the above"
 - Attention Check Traps: Strictly follow the literal prompt (e.g. "Select blue", "Choose somewhat disagree")!
 
-SURVEY QUESTIONS TO ANSWER:
-${JSON.stringify(pageData.questions, null, 2)}
+HUMAN SURVEY RESPONDENT GUIDELINES (CRITICAL):
+1. REALISTIC, BALANCED USAGE (STRICTLY NO STRAIGHT-LINING):
+   - When asked about frequency or usage of various services, apps, or streaming platforms (e.g., Netflix, Hulu, Disney+, Amazon Prime, HBO Max, YouTube TV, Peacock, ESPN+, Paramount+, Roku, Sling):
+     DO NOT choose the same answer or the last column ("Don't use", "Never") for every row!
+     Provide a realistic, thoughtful, natural human distribution:
+     * Popular daily/weekly services (Netflix, Amazon Prime, Hulu): "Daily" or "4-6x a week"
+     * Regular services (Disney+, HBO Max, YouTube TV, Peacock): "1-3x a week"
+     * Occasional/niche (ESPN+, Paramount+): "Monthly" or "Less often"
+     * Seldom used or not subscribed (Sling, Roku): "Don't use or watch it"
+2. ATTENTIVE AD & BRAND COMPREHENSION:
+   - When an ad/commercial was just shown and survey asks what it was about or if it was clear:
+     Attentive, genuine respondents select the clear, positive statement (e.g., "It was clear to me that the ad was for medication for dogs with itchy skin from Apoquel").
+     NEVER select negative answers like "It was not clear to me..." unless the question specifically tests confusion!
+   - On rating scales (1 to 5 or 0 to 10) regarding agreement or likelihood to recommend: choose natural, positive ratings (4 or 5 on 1-5 scale; 7 to 9 on 0-10 scale), NEVER extreme 0 / "Extremely unlikely" unless it's a negative question!
+3. NEVER DEFAULT TO THE LAST OPTION:
+   - Carefully pick the most authentic option for each question. Do not pick the bottom/last option simply because it is at the end.
+4. CRITICAL FOR MATRIX / GRID QUESTIONS (type: "matrix_row"):
+   - For every matrix_row, the "text" is the row item (e.g. "Apoquel (tablet)" or "prevent scratching").
+   - The "options" array contains the COLUMN HEADERS (e.g. "Yes, I have heard of", "No, I have not heard of", "Not sure", or frequency/agreement scales).
+   - In "selected_labels", YOU MUST CHOOSE ONE OF THE COLUMN HEADERS from the "options" list (e.g. ["Yes, I have heard of"] or ["I've used this to treat my dog's itching in the past year"]).
+   - NEVER put the row item name in "selected_labels"! The selectable choices are ALWAYS the column headers on the right/top!
+5. For text inputs/textareas/message boxes: In "text_input_value", write a natural 1-2 sentence human opinion in first-person based on the exact survey question and topic ("ans as a human"). Never leave it null!
 
-OUTPUT INSTRUCTIONS:
-1. You MUST generate an answer for EVERY SINGLE question listed. Do not skip any!
-2. In "selected_labels", provide the EXACT label text matching the question's options list.
-3. For text inputs/textareas/message boxes: In "text_input_value", write a natural 1-2 sentence human opinion in first-person ("ans as a human"). Never leave it null!
-4. Return ONLY valid JSON matching this structure:
+SURVEY QUESTIONS TO ANSWER:
+${pageData.questions.map((q, i) => {
+  const optList = (q.options || []).map(o => `  - "${o.label || o.value}"`).join("\n");
+  return `Q${i + 1} [Type: ${q.type}]: ${q.text}\nOptions:\n${optList}`;
+}).join("\n\n")}
+
+OUTPUT FORMAT (JSON ONLY):
 {
   "page_summary": "Summary",
   "trap_detected": false,
@@ -1459,7 +1446,12 @@ ${pageText.slice(0, 4500)}
 OUTPUT INSTRUCTIONS:
 1. Identify the question and available answer choices from the text above.
 2. Select the exact option that matches the verified human respondent profile above.
-3. Return ONLY a valid JSON object matching this structure:
+3. FOR MATRIX / GRID QUESTIONS: Choose the COLUMN HEADER label on the right/top (e.g. "Yes, I have heard of" / "Agree"), NEVER the row item name!
+4. REALISTIC BALANCED ANSWERS & ATTENTIVE AD RECALL:
+   - Provide a natural balanced usage distribution on lists of services (e.g. streaming services: Netflix daily, Prime/Hulu 4-6x/week, Disney+ 1-3x/week, Sling/Roku don't use). Never straight-line!
+   - On ad comprehension: select the clear attentive positive statement (e.g., ad was clear for dog itchy skin medication Apoquel), NEVER select negative ("not clear")!
+   - Never default to the last option!
+5. Return ONLY a valid JSON object matching this structure:
 {
   "page_summary": "Summary of page question",
   "trap_detected": false,
@@ -1482,6 +1474,18 @@ OUTPUT INSTRUCTIONS:
  */
 function buildVisionSurveyPrompt(pageData, persona, personalInfo) {
   const p = personalInfo || DEFAULT_PERSONAL_INFO;
+  const domQuestionsContext = (pageData?.questions && pageData.questions.length > 0)
+    ? `\n=============================================================================
+DETECTED DOM QUESTIONS / ROWS & COLUMNS (FOR REFERENCE):
+=============================================================================
+${JSON.stringify(pageData.questions.map(q => ({
+  index: q.index,
+  type: q.type,
+  text: q.text,
+  options: (q.options || []).map(o => o.label)
+})), null, 2)}\n`
+    : "";
+
   return `You are analyzing a complete full-page survey screenshot as a real human respondent named ${p.firstName || "Al Amin"} ${p.lastName || "Miah"}.
 Answer strictly according to the verified human profile below ("ans as a human").
 
@@ -1507,15 +1511,33 @@ VERIFIED RESPONDENT PROFILE & KEY ANSWERS:
 - Travel: Sole decision maker | Leisure & Business | Domestic: Delta, United, JetBlue | International: Singapore Airlines, Emirates | Hotels: 4-star, 5-star
 - Screeners: Market research in past 2 weeks: No | Online research: No | Expecting baby: No
 - Attention Check Traps: Obey the exact instructions (e.g., "Select blue", "Choose somewhat disagree")!
-
+${domQuestionsContext}
 =============================================================================
 VISION ANALYSIS INSTRUCTIONS:
 =============================================================================
 1. Read all visual text, questions, options, radio buttons, checkboxes, dropdowns, and input boxes visible in the screenshot.
 2. For EVERY question visible in the image, pick the exact option matching the respondent profile above.
-3. In "selected_labels", write the EXACT text of the option as printed on screen so the extension can find and click it on the page.
-4. Detect if this is the last page (Submit/Finish/Complete button, or 100% progress).
-5. Return ONLY a valid JSON object matching this exact structure:
+3. HUMAN RESPONDENT REALISM & BALANCED DISTRIBUTION (CRITICAL):
+   - When rating or reporting usage of multiple services/apps/streaming platforms (e.g. Netflix, Prime Video, Hulu, Disney+, HBO Max, YouTube TV, Peacock, ESPN+, Paramount+, Roku, Sling):
+     DO NOT straight-line or choose the last column ("Don't use", "Never") for all items!
+     Provide a balanced human usage profile:
+     * Popular daily/weekly: Netflix (Daily or 4-6x/week), Amazon Prime (4-6x/week), Hulu (4-6x/week)
+     * Regular: Disney+ (1-3x/week), HBO Max (1-3x/week), YouTube TV (1-3x/week), Peacock (1-3x/week)
+     * Occasional: ESPN+ (Monthly or Less often), Paramount+ (Less often)
+     * Seldom or not subscribed: Roku (Don't use), Sling (Don't use)
+   - When asked about ad clarity or brand message: attentive respondents select the clear, positive statement (e.g. "It was clear to me that the ad was for medication for dogs with itchy skin from Apoquel"), NEVER choose negative options like "It was not clear" unless explicitly asked for confusion!
+   - On rating scales (1-5 or 0-10): Choose natural, positive ratings (4 or 5 on 1-5 scale; 7 to 9 on 0-10 scale), NEVER extreme negative (0 or "Extremely unlikely") unless complaining!
+   - NEVER default to the last option on questions!
+4. In "selected_labels", write the EXACT text of the option as printed on screen so the extension can find and click it on the page.
+5. CRITICAL RULE FOR MATRIX / TABLE / GRID SURVEY QUESTIONS (ROWS & COLUMNS):
+   - When a survey presents questions in a table or matrix where items are listed in rows on the left (e.g., "Apoquel (tablet)", "Oatmeal baths", "prevent scratching") and radio buttons / options are in columns on the right / top (e.g., "Yes, I have heard of", "No, I have not heard of", "Not sure", or "I've not heard of this...", "I've used this in the past year", or Likert scales):
+   - FOR EVERY SINGLE ROW in the table, generate a separate answer object:
+     - "question_text": The row item name (e.g. "Apoquel (tablet)")
+     - "selected_labels": [The chosen COLUMN HEADER text from the right / top, e.g. "Yes, I have heard of" or "No, I have not heard of" or "I've used this to treat my dog's itching in the past year"].
+     - STRICT PROHIBITION: NEVER set "selected_labels" to the row item name itself! Setting selected_labels to "Apoquel (tablet)" is completely WRONG because the user must select one of the radio buttons under the column headers on the right side!
+6. For text inputs/textareas/message boxes: In "text_input_value", write a natural 1-2 sentence human opinion in first-person ("ans as a human").
+7. Detect if this is the last page (Submit/Finish/Complete button, or 100% progress).
+8. Return ONLY a valid JSON object matching this exact structure:
 {
   "page_summary": "1-sentence summary of survey topic",
   "trap_detected": false,
