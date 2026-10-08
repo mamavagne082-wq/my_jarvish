@@ -781,25 +781,18 @@ const GeminiWebClient = (function () {
     const targetUrl = `https://gemini.google.com/app?authuser=${authUserIdx}`;
     const tabs = await chrome.tabs.query({ url: "*://gemini.google.com/*" });
 
-    let targetTab = null;
     if (tabs && tabs.length > 0) {
       targetTab = tabs.find(t => t.url && (
         t.url.includes(`authuser=${authUserIdx}`) ||
         (authUserIdx === 0 && !t.url.includes("authuser="))
       )) || tabs[0];
     } else {
-      // Create background tab strictly inactive and pinned so user never sees it
-      targetTab = await chrome.tabs.create({
-        url: targetUrl,
-        pinned: true,
-        active: false // STRICTLY INACTIVE: User never loses focus on survey page!
-      });
-      await waitForTabLoadComplete(targetTab.id, 6000);
-      await new Promise(r => setTimeout(r, 1200));
+      // User strictly forbids opening browser tabs for Gemini. All analysis must happen strictly inside extension background!
+      throw new Error(`[GeminiWebClient] No existing Gemini tab open for Account ${accountIndex}. Using 100% background extension engine.`);
     }
 
     if (!targetTab || !targetTab.id) {
-      throw new Error(`Unable to establish background tab for Account ${accountIndex}`);
+      throw new Error(`Unable to establish background connection for Account ${accountIndex}`);
     }
 
     let bridgeResponse = null;

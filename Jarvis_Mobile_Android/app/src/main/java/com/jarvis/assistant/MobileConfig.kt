@@ -16,14 +16,14 @@ object MobileConfig {
     const val DEFAULT_USER_NAME = "ALAMIN"
     const val DEFAULT_ASSISTANT_NAME = "Jarvis"
     const val DEFAULT_LLM_PROVIDER = "openrouter"
-    const val DEFAULT_LLM_MODEL = "google/gemini-2.0-flash-exp:free"
+    const val DEFAULT_LLM_MODEL = "openrouter/auto"
 
     const val DEFAULT_LIVEKIT_URL = "wss://jarvish-cdq66wc9.livekit.cloud"
     const val DEFAULT_LIVEKIT_KEY = "APIudafoJVHneWA"
     const val DEFAULT_LIVEKIT_SECRET = "QQlG0TxB5wxhZ3hiSkTNnXVNgsgbwSY1Yh1XFTzuTgL"
 
-    const val DEFAULT_OPENROUTER_KEY = "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"
-    const val DEFAULT_OPENROUTER_KEY_2 = "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"
+    const val DEFAULT_OPENROUTER_KEY = "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"
+    const val DEFAULT_OPENROUTER_KEY_2 = "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"
     const val DEFAULT_TORVE_KEY = "sk-v1-43ef5710114097156125b9b556c77f5df84982f05911c34667d2e1c5d2dadbfd"
     const val DEFAULT_GROK_KEY = "xai-LvoLgGHbxHJ6PV3SJpc4MbrRysgqKEuGSY8qJiVJCOIgoojJexEOPGMZwkmW4s3mK7IF8lDfdJLlGy2e"
 
@@ -61,7 +61,8 @@ object MobileConfig {
 
     fun getLlmModel(context: Context): String {
         val v = getPrefs(context).getString("llm_model", DEFAULT_LLM_MODEL) ?: DEFAULT_LLM_MODEL
-        return if (v.isNotBlank()) v else DEFAULT_LLM_MODEL
+        if (v.isBlank() || v.contains("gemini-2.0-flash-exp")) return DEFAULT_LLM_MODEL
+        return v
     }
 
     fun getLiveKitUrl(context: Context): String {
@@ -96,7 +97,8 @@ object MobileConfig {
 
     fun getOpenRouterKey(context: Context): String {
         val v = getPrefs(context).getString("openrouter_key", DEFAULT_OPENROUTER_KEY) ?: DEFAULT_OPENROUTER_KEY
-        return if (v.isNotBlank()) v else DEFAULT_OPENROUTER_KEY
+        if (v.isBlank() || v.contains("a585d900") || v.contains("71c379e9")) return DEFAULT_OPENROUTER_KEY
+        return v
     }
 
     fun getGeminiPlusAccount(context: Context): String {

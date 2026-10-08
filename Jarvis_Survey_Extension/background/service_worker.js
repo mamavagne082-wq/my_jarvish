@@ -936,9 +936,9 @@ async function handleSurveyAnalysis(payload, tabId) {
     { key: (storage.openRouterApiKey3 || "").trim(), label: "OpenRouter Key 3" }
   ].filter(k => k.key.length > 5);
 
-  if (openRouterKeys.length === 0 || openRouterKeys.every(k => k.key.includes("a585d900"))) {
+  if (openRouterKeys.length === 0 || openRouterKeys.every(k => k.key.includes("a585d900") || k.key.includes("71c379e9"))) {
     openRouterKeys = [
-      { key: "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", label: "OpenRouter Active Gemini" },
+      { key: "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", label: "OpenRouter Active Gemini" },
       ...openRouterKeys
     ];
   }
@@ -1061,7 +1061,7 @@ async function handleSurveyAnalysis(payload, tabId) {
   }
 
   // 1. If priority is gemini_web_first, gemini_web_only, or fast_ai_first with Gemini Web enabled:
-  if (!result && useGeminiWeb && (priority === "gemini_web_first" || priority === "gemini_web_only" || priority === "fast_ai_first")) {
+  if (!result && !isScreenshot && useGeminiWeb && (priority === "gemini_web_first" || priority === "gemini_web_only" || priority === "fast_ai_first")) {
     try {
       console.log(`[Jarvis ServiceWorker] 👑 Requesting answers from Google Gemini Web Accounts (100% Background, 0 Tabs, 0 API Token)...`);
       const hasQuestions = apiPayload.questions && apiPayload.questions.length > 0;
@@ -1088,7 +1088,7 @@ async function handleSurveyAnalysis(payload, tabId) {
   // 2. Direct Background API Pipeline (Ultra-fast 500ms JSON responses, silent operation)
   if (!result && hasAnyApiKey && priority !== "gemini_web_only") {
     const selectedGeminiModel = resolveGeminiModelName(storage.geminiModel || "gemini-3.8-flash");
-    const selectedOrModel = storage.openRouterModel || "google/gemini-2.5-flash";
+    const selectedOrModel = storage.openRouterModel || "openrouter/auto";
     const selectedTorveModel = storage.torveAiModel || "claude-opus-4-8";
 
     const openRouterAttempts = (storage.useOpenRouter !== false) ? openRouterKeys.map(k => ({
@@ -1703,15 +1703,14 @@ async function callOpenRouterAPI(apiKey, model, promptText, base64Image = null) 
   const endpoint = "https://openrouter.ai/api/v1/chat/completions";
   const primaryModel = model || "google/gemini-2.5-flash";
 
-  // Build robust candidate model chain: primary -> gemini 2.5 flash -> openrouter/free -> lightweight free fallbacks
+  // Build robust candidate model chain: primary -> openrouter/auto -> gemini 2.5 flash -> deepseek
   const candidateModels = [
     primaryModel,
+    "openrouter/auto",
     "google/gemini-2.5-flash",
-    "openrouter/free",
-    "google/gemini-2.5-flash-lite",
+    "deepseek/deepseek-chat",
     "meta-llama/llama-3.3-70b-instruct:free",
-    "inclusionai/ling-3.0-flash-sante:free",
-    "deepseek/deepseek-chat"
+    "openrouter/free"
   ].filter((m, i, arr) => arr.indexOf(m) === i);
 
   let lastError = null;

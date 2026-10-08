@@ -230,10 +230,20 @@ class JarvisForegroundService : Service() {
                 if (status == TextToSpeech.SUCCESS) {
                     ttsReady = true
                     try {
-                        val bn = Locale("bn", "BD")
-                        if (textToSpeech?.isLanguageAvailable(bn) == TextToSpeech.LANG_AVAILABLE) {
-                            textToSpeech?.language = bn
+                        val bnBD = Locale("bn", "BD")
+                        val bnIN = Locale("bn", "IN")
+                        val bnGeneric = Locale("bn")
+                        if ((textToSpeech?.isLanguageAvailable(bnBD) ?: -2) >= TextToSpeech.LANG_AVAILABLE) {
+                            textToSpeech?.language = bnBD
+                        } else if ((textToSpeech?.isLanguageAvailable(bnIN) ?: -2) >= TextToSpeech.LANG_AVAILABLE) {
+                            textToSpeech?.language = bnIN
+                        } else if ((textToSpeech?.isLanguageAvailable(bnGeneric) ?: -2) >= TextToSpeech.LANG_AVAILABLE) {
+                            textToSpeech?.language = bnGeneric
+                        } else {
+                            textToSpeech?.language = Locale.getDefault()
                         }
+                        textToSpeech?.setPitch(1.05f)
+                        textToSpeech?.setSpeechRate(1.0f)
                     } catch (_: Exception) {}
 
                     // Setup listener so mic resumes listening immediately after speaking
@@ -389,6 +399,27 @@ class JarvisForegroundService : Service() {
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
+    }
+
+    fun updateNotification(title: String, text: String) {
+        try {
+            val notificationIntent = Intent(this, MainActivity::class.java)
+            val pendingIntent = PendingIntent.getActivity(
+                this, 0, notificationIntent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+                .setContentIntent(pendingIntent)
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .build()
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            nm?.notify(NOTIFICATION_ID, notification)
+        } catch (_: Exception) {}
     }
 
     private fun createNotificationChannel() {
@@ -703,6 +734,14 @@ class JarvisForegroundService : Service() {
         })
 
         queryDirectAI(clean) { reply ->
+            updateNotification("Jarvis: $clean", reply)
+            sendBroadcast(Intent(ACTION_SESSION_STATE_CHANGED).apply {
+                setPackage(packageName)
+                putExtra("active", true)
+                putExtra("state", "speaking")
+                putExtra("query", clean)
+                putExtra("reply", reply)
+            })
             MainActivity.instance?.runOnUiThread {
                 MainActivity.instance?.postDirectTranscript(clean, reply)
             }
@@ -731,10 +770,10 @@ class JarvisForegroundService : Service() {
             // 1. OpenRouter Multi-Model Cloud API (Fast & Free models)
             if (!answered && openRouterKey.isNotBlank()) {
                 val orModels = listOf(
-                    "google/gemini-2.0-flash-exp:free",
-                    "meta-llama/llama-3.3-70b-instruct:free",
-                    "deepseek/deepseek-chat",
                     "openrouter/auto",
+                    "google/gemini-2.5-flash",
+                    "deepseek/deepseek-chat",
+                    "meta-llama/llama-3.3-70b-instruct:free",
                     "mistralai/mistral-7b-instruct:free"
                 )
                 for (m in orModels) {
@@ -887,6 +926,8 @@ class JarvisForegroundService : Service() {
             doOutput = true
             setRequestProperty("Content-Type", "application/json; charset=UTF-8")
             setRequestProperty("Authorization", "Bearer ${apiKey.trim()}")
+            setRequestProperty("HTTP-Referer", "https://jarvis.ai")
+            setRequestProperty("X-Title", "Jarvis")
         }
 
         val sysPrompt = "You are Jarvis, the personal AI companion for ALAMIN. " +

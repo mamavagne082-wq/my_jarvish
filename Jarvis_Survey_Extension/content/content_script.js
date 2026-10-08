@@ -539,43 +539,72 @@
     if (!data || !data.answers || data.answers.length === 0) return 0;
     let selectedCount = 0;
     const isAuto = isAutoPilotActive;
-    const gapDelay = isAuto ? 3000 : 120; // 3 seconds gap in auto mode as specified by user
+    const gapDelay = isAuto ? 3000 : 120; // 3 seconds gap in auto mode
 
     for (let i = 0; i < data.answers.length; i++) {
       const ans = data.answers[i];
       const labels = ans.selected_labels || [];
       let filled = false;
 
-      // 1. Try finding input or label matching the selected choice
-      for (const label of labels) {
-        if (!label) continue;
-        const el = findInputByLabelOrValue(label, ans);
-        if (el) {
-          await simulateHumanAction(el, ans);
-          applyHighlightStyle(el, ans, selectedCount + 1);
-          selectedCount++;
-          filled = true;
-          if (isAuto && i < data.answers.length - 1) {
-            updateHUDStatus("analyzing", `🤖 উত্তর সিলেক্ট হয়েছে (${selectedCount}/${data.answers.length})... কমপক্ষে ৩ সেকেন্ড বিরতি...`);
-            await sleep(gapDelay + Math.random() * 500);
-          } else {
-            await sleep(80);
-          }
-          if (ans.recommended_action !== "select_checkbox") {
-            break;
-          }
-        }
+      // 1. Text input / Textarea / Message Box typing
+      if (ans.recommended_action === "type_text" || Boolean(ans.text_input_value) || Boolean(ans.text)) {
+        const textVal = ans.text_input_value || ans.text || (labels.length > 0 ? labels[0] : "");
+        const visibleTextInputs = Array.from(document.querySelectorAll('textarea, input[type="text"], input[type="search"], input:not([type]), [contenteditable="true"]'))
+          .filter(isElementVisible)
+          .filter(el => !el.closest("#jarvis-hud-container"));
 
-        // 2. If text input
-        if (!filled && (ans.recommended_action === "type_text" || ans.text_input_value)) {
-          const textInputs = Array.from(document.querySelectorAll('textarea, input[type="text"], input:not([type])')).filter(isElementVisible);
-          if (textInputs.length > selectedCount) {
-            const targetInput = textInputs[selectedCount] || textInputs[0];
+        if (visibleTextInputs.length > 0) {
+          const targetInput = visibleTextInputs[Math.min(selectedCount, visibleTextInputs.length - 1)];
+          if (targetInput) {
+            ans.text_input_value = textVal;
             await simulateHumanAction(targetInput, ans);
+            applyHighlightStyle(targetInput, ans, selectedCount + 1);
             selectedCount++;
             filled = true;
             if (isAuto && i < data.answers.length - 1) {
               await sleep(gapDelay + Math.random() * 500);
+            } else {
+              await sleep(100);
+            }
+          }
+        }
+      }
+
+      // 2. Choice selection (radio, checkbox, cards, ratings, buttons)
+      if (!filled && labels.length > 0) {
+        for (const label of labels) {
+          if (!label) continue;
+          let el = findInputByLabelOrValue(label, ans);
+
+          if (!el) {
+            // Universal direct DOM match for custom buttons, divs, cards, chips
+            const cleanLbl = cleanText(label).toLowerCase();
+            if (cleanLbl && cleanLbl.length >= 2) {
+              const candidates = Array.from(document.querySelectorAll("button, label, [role='button'], [role='radio'], [role='checkbox'], div, span, p, td, li, a"))
+                .filter(e => isElementVisible(e) && !e.closest("#jarvis-hud-container") && e.children.length <= 4);
+              for (const cand of candidates) {
+                const cText = cleanText(cand.innerText || cand.textContent || "").toLowerCase();
+                if (cText === cleanLbl || (cText.length >= 3 && cleanLbl.length >= 3 && (cText.includes(cleanLbl) || cleanLbl.includes(cText)))) {
+                  el = cand.closest("button, label, [role='button'], [role='radio'], [role='checkbox'], div, tr, td") || cand;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (el) {
+            await simulateHumanAction(el, ans);
+            applyHighlightStyle(el, ans, selectedCount + 1);
+            selectedCount++;
+            filled = true;
+            if (isAuto && i < data.answers.length - 1) {
+              updateHUDStatus("analyzing", `🤖 উত্তর সিলেক্ট হয়েছে (${selectedCount}/${data.answers.length})... কমপক্ষে ৩ সেকেন্ড বিরতি...`);
+              await sleep(gapDelay + Math.random() * 500);
+            } else {
+              await sleep(80);
+            }
+            if (ans.recommended_action !== "select_checkbox") {
+              break;
             }
           }
         }
@@ -1919,8 +1948,8 @@
 
       const questions = extractSurveyQuestions();
       if (questions.length === 0) {
-        updateHUDStatus("idle", "এই পেজে কোনো সক্রিয় সার্ভে প্রশ্ন পাওয়া যায়নি।");
-        return { success: false, error: "No survey questions found on this page." };
+        updateHUDStatus("analyzing", "📸 পেজে সরাসরি টেক্সট/ফর্ম প্রশ্ন পাওয়া যায়নি! সম্পূর্ণ পেজের স্ক্রিনশট নিয়ে সঠিক উত্তর নির্ণয় করা হচ্ছে...");
+        return await performScreenshotAnalysis();
       }
 
       // Capture the entire webpage text context (top-to-bottom, ignoring scroll position)
@@ -3306,12 +3335,26 @@
           }
         } else {
           item.innerHTML = `
-            <strong class="jarvis-p-q">Q${idx + 1}: ${escapeHtml(qText)}</strong>
+            <div class="jarvis-p-q-header">
+              <strong class="jarvis-p-q">Q${idx + 1}: ${escapeHtml(qText)}</strong>
+              <span class="jarvis-p-badge-opt">🔘 নৈর্ব্যক্তিক / অপশন</span>
+            </div>
             <div class="jarvis-p-ans-box">
               <span class="jarvis-p-ans-label">👉 <strong>এটা হবে সঠিক উত্তর:</strong></span>
               <span class="jarvis-p-bold-ans">${escapeHtml(answerText)}</span>
             </div>
+            <div class="jarvis-p-action-bar">
+              <button class="jarvis-p-copy-btn" type="button" title="ক্লিপবোর্ডে কপি করুন">📋 কপি করুন</button>
+              <span class="jarvis-p-hint">ক্লিক করে কপি করুন এবং পেজে সিলেক্ট/পেস্ট করুন</span>
+            </div>
           `;
+
+          const copyBtn = item.querySelector(".jarvis-p-copy-btn");
+          if (copyBtn) {
+            copyBtn.addEventListener("click", () => {
+              copyTextSafely(answerText, copyBtn);
+            });
+          }
         }
 
         list.appendChild(item);
@@ -3436,8 +3479,18 @@
             </div>
             <div class="jarvis-callout-btn-group">
               <button class="jarvis-callout-pick-btn" type="button" title="এই উত্তরটি পেজে অটো-সিলেক্ট করতে চাপুন">সিলেক্ট করুন 🎯</button>
+              <button class="jarvis-callout-copy-btn" type="button" title="ক্লিপবোর্ডে কপি করতে চাপুন">📋 কপি</button>
             </div>
           `;
+
+          const inlineCopyBtn = callout.querySelector(".jarvis-callout-copy-btn");
+          if (inlineCopyBtn) {
+            inlineCopyBtn.addEventListener("click", (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              copyTextSafely(answerText, inlineCopyBtn);
+            });
+          }
 
           const pickBtn = callout.querySelector(".jarvis-callout-pick-btn");
           if (pickBtn) {
