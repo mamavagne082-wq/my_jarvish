@@ -19,6 +19,132 @@
   let autoPilotRunningCycle = false;
   const isTopFrame = (window === window.top);
 
+  // Trigger one-time purge of any bogus cached entries from prior corrupted scans
+  try {
+    chrome.runtime.sendMessage({ action: "PURGE_CORRUPTED_CACHE" }).catch(() => { });
+  } catch (_) { }
+
+  /**
+   * =========================================================================
+   * GLOBAL HIGH-PRECISION WORD & TOKEN MATCHER
+   * Available everywhere in content_script without any scoping issues
+   * =========================================================================
+   */
+  function isWordMatch(textToCheck, target) {
+    if (!textToCheck || !target) return false;
+    const t = cleanText(textToCheck).toLowerCase().replace(/^[•\-\*\d\.\)\s…]+/, "").trim();
+    const tgt = cleanText(target).toLowerCase().replace(/^[•\-\*\d\.\)\s…]+/, "").trim();
+    if (t === tgt) return true;
+    if (t.length === 0 || tgt.length === 0) return false;
+
+    // Strict Anti-traps
+    if (tgt === "male" && /\bfemale\b/i.test(t)) return false;
+    if (tgt === "female" && /\bmale\b/i.test(t) && !/\bfemale\b/i.test(t)) return false;
+    if (tgt === "no" && !/\bno\b/i.test(t)) return false;
+    if (tgt === "yes" && !/\byes\b/i.test(t)) return false;
+
+    // Word boundary regex check
+    const escaped = tgt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp("(^|[^a-zA-Z0-9])" + escaped + "([^a-zA-Z0-9]|$)", "i");
+    if (re.test(t)) return true;
+
+    // Inverse check: candidate keyword inside target (only if candidate is substantial and not a generic word)
+    if (t.length >= 3 && !/^(continue|next|back|previous|submit|select|choice|button)$/i.test(t)) {
+      const escapedT = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const reT = new RegExp("(^|[^a-zA-Z0-9])" + escapedT + "([^a-zA-Z0-9]|$)", "i");
+      if (reT.test(tgt)) return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * =========================================================================
+   * ⚔️ LIVE BATTLE LOG / ACTION LOG SYSTEM
+   * Logs every scan, AI query, analysis decision, and auto-click action live
+   * =========================================================================
+   */
+  const MAX_BATTLE_LOGS = 50;
+  let battleLogs = [];
+
+  function addBattleLog(type, message, details = "") {
+    let timeStr = "";
+    try {
+      timeStr = new Date().toLocaleTimeString("en-US", { hour12: false });
+    } catch (_) {
+      timeStr = new Date().toTimeString().split(" ")[0];
+    }
+
+    const logItem = {
+      id: "log_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+      time: timeStr,
+      type: type || "info",
+      message: message,
+      details: details
+    };
+
+    battleLogs.unshift(logItem);
+    if (battleLogs.length > MAX_BATTLE_LOGS) battleLogs.pop();
+
+    renderBattleLogEntry(logItem);
+
+    try {
+      chrome.storage.local.get(["jarvis_battle_logs"], (res) => {
+        const stored = res.jarvis_battle_logs || [];
+        stored.unshift(logItem);
+        if (stored.length > MAX_BATTLE_LOGS) stored.pop();
+        chrome.storage.local.set({ jarvis_battle_logs: stored });
+      });
+    } catch (_) { }
+
+    try {
+      chrome.runtime.sendMessage({ action: "BATTLE_LOG_ENTRY", log: logItem }).catch(() => { });
+    } catch (_) { }
+  }
+
+  function renderBattleLogEntry(item) {
+    const container = document.getElementById("jarvis-battle-log-body");
+    if (!container) return;
+
+    const el = document.createElement("div");
+    el.className = `jarvis-battle-log-entry log-type-${item.type}`;
+
+    let icon = "ℹ️";
+    let badgeClass = "badge-info";
+    let badgeText = "তথ্য";
+
+    switch (item.type) {
+      case "scan":
+        icon = "📸"; badgeClass = "badge-scan"; badgeText = "স্ক্যান"; break;
+      case "ai":
+        icon = "👑"; badgeClass = "badge-ai"; badgeText = "জেমিনি"; break;
+      case "match":
+        icon = "🎯"; badgeClass = "badge-match"; badgeText = "উত্তর"; break;
+      case "action":
+        icon = "⚡"; badgeClass = "badge-action"; badgeText = "সিলেক্ট"; break;
+      case "success":
+        icon = "✅"; badgeClass = "badge-success"; badgeText = "সফল"; break;
+      case "error":
+        icon = "⚠️"; badgeClass = "badge-error"; badgeText = "ত্রুটি"; break;
+      case "cache":
+        icon = "⚡"; badgeClass = "badge-cache"; badgeText = "মেমরি"; break;
+    }
+
+    el.innerHTML = `
+      <div class="jarvis-log-row">
+        <span class="jarvis-log-time">${escapeHtml(item.time)}</span>
+        <span class="jarvis-log-tag ${badgeClass}">${icon} ${badgeText}</span>
+        <span class="jarvis-log-msg">${escapeHtml(item.message)}</span>
+      </div>
+      ${item.details ? `<div class="jarvis-log-sub">${escapeHtml(item.details)}</div>` : ""}
+    `;
+
+    container.insertBefore(el, container.firstChild);
+    while (container.children.length > MAX_BATTLE_LOGS) {
+      container.removeChild(container.lastChild);
+    }
+  }
+
   // 1. REGISTER MESSAGE LISTENER IMMEDIATELY (Zero delay, resilient against any errors)
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === "PING") {
@@ -441,6 +567,7 @@
    */
   async function performScreenshotAnalysis() {
     updateHUDStatus("analyzing", "📸 পেজ সরাসরি বিশ্লেষণ করা যাচ্ছে না! সম্পূর্ণ পেজের স্ক্রিনশট নেওয়া হচ্ছে...");
+    addBattleLog("scan", "সম্পূর্ণ পেজের স্ক্রিনশট নেওয়া হচ্ছে...", window.location.hostname);
 
     const hudContainer = document.getElementById("jarvis-hud-container");
     if (hudContainer) hudContainer.style.visibility = "hidden";
@@ -452,9 +579,11 @@
 
     if (!screenshotDataUrl) {
       updateHUDStatus("error", "❌ স্ক্রিনশট নিতে ব্যর্থ হয়েছে!");
+      addBattleLog("error", "স্ক্রিনশট ক্যাপচার ব্যর্থ হয়েছে");
       return { success: false, error: "Screenshot capture failed" };
     }
 
+    addBattleLog("scan", "স্ক্রিনশট সফলভাবে ক্যাপচার হয়েছে, Gemini ইঞ্জিনে পাঠানো হচ্ছে...");
     updateHUDStatus("analyzing", "🤖 Gemini Vision দিয়ে স্ক্রিনশট এনালাইসিস করে সঠিক উত্তর বের করা হচ্ছে...");
 
     const fullBodyText = document.body ? cleanText(document.body.innerText).slice(0, 5000) : "";
@@ -483,6 +612,8 @@
       isScreenshot: true
     };
 
+    addBattleLog("ai", "Gemini প্রো / ভিশন ইঞ্জিন দিয়ে স্ক্রিনশট বিশ্লেষণ হচ্ছে...");
+
     const response = await new Promise((resolve) => {
       chrome.runtime.sendMessage(
         { action: "ANALYZE_SURVEY_PAGE", payload: payload },
@@ -493,6 +624,7 @@
     if (!response || !response.success || !response.data) {
       const err = response?.error || "Vision analysis failed";
       updateHUDStatus("error", err);
+      addBattleLog("error", `স্ক্রিনশট বিশ্লেষণ ব্যর্থ: ${err}`);
       return { success: false, error: err };
     }
 
@@ -510,6 +642,14 @@
     const modelTag = response.modelUsed || "Gemini 3.8 Flash";
     const providerTag = response.providerUsed ? ` (${response.providerUsed})` : "";
     updateHUDStatus("done", `✅ ${modelTag}${providerTag}: স্ক্রিনশট বিশ্লেষণ সফল!`);
+    addBattleLog("ai", `${modelTag}${providerTag}: স্ক্রিনশট বিশ্লেষণ সম্পন্ন! (${data.answers?.length || 0}টি উত্তর প্রাপ্ত)`);
+
+    if (data.answers) {
+      data.answers.forEach((ans, idx) => {
+        const ansText = (ans.selected_labels && ans.selected_labels.join(", ")) || ans.text_input_value || "সিলেক্টেড";
+        addBattleLog("match", `Q${idx + 1}: ${ansText}`, ans.question_text?.slice(0, 60));
+      });
+    }
 
     // Notify popup if open
     try {
@@ -1256,6 +1396,12 @@
 
     function isElementVisible(el) {
       if (!el) return false;
+      // CRITICAL: NEVER interact with or scrape Jarvis's own UI elements
+      try {
+        if (el.closest && el.closest("#jarvis-hud-container, .jarvis-inpage-ans-banner, .jarvis-inline-question-callout, [data-jarvis-ui], .jarvis-pick-badge, [class*='jarvis-']")) {
+          return false;
+        }
+      } catch (_) { }
       try {
         if (el.closest && el.closest("[style*='display: none'], [style*='display:none'], .page-section:not(.active), [hidden]")) {
           return false;
@@ -1335,9 +1481,10 @@
           ".mrQuestionText, .mrBannerText, .mrQuestionTextContainer, .QuestionText, .question-text, .q-title, h1, h2, h3, h4, [role='heading'], legend, [class*='question' i]:not([class*='option' i]):not([class*='choice' i]):not([class*='item' i]), [class*='prompt' i], [class*='title' i]"
         );
         for (const t of titleCandidates) {
-          if (!isElementVisible(t) || t.closest("#jarvis-hud-container")) continue;
+          if (!isElementVisible(t) || t.closest("#jarvis-hud-container, .jarvis-inpage-ans-banner, .jarvis-inline-question-callout, [data-jarvis-ui], .jarvis-pick-badge, [class*='jarvis-']")) continue;
           const txt = cleanText(t.innerText);
-          if (txt && txt.length > 5 && !/jarvis|copilot/i.test(txt) && !/terms|privacy|cookie/i.test(txt)) {
+          if (txt && txt.length > 5 && !/jarvis|copilot|👉|এটা হবে সঠিক উত্তর|সিলেক্ট করুন|কপি করুন/i.test(txt) && !/terms|privacy|cookie/i.test(txt)) {
+            if (/^(continue|next|back|previous|submit|cancel)$/i.test(txt.trim())) continue;
             if (!mainQuestion) mainQuestion = txt;
             else if (!contextPrompt && txt !== mainQuestion && txt.length < 80) contextPrompt = txt;
           }
@@ -1347,9 +1494,10 @@
         if (!mainQuestion) {
           const pTags = document.querySelectorAll("p, strong, b, div, span");
           for (const p of pTags) {
-            if (!isElementVisible(p) || p.children.length > 3 || p.closest("#jarvis-hud-container")) continue;
+            if (!isElementVisible(p) || p.children.length > 3 || p.closest("#jarvis-hud-container, .jarvis-inpage-ans-banner, .jarvis-inline-question-callout, [data-jarvis-ui], .jarvis-pick-badge, [class*='jarvis-']")) continue;
             const txt = cleanText(p.innerText);
-            if (txt && txt.length > 10 && txt.length < 350 && (txt.includes("?") || /select|which of|how much|when added|what color|associate with/i.test(txt)) && !/jarvis|copilot/i.test(txt)) {
+            if (txt && txt.length > 10 && txt.length < 350 && (txt.includes("?") || /select|which of|how much|when added|what color|associate with/i.test(txt)) && !/jarvis|copilot|👉|এটা হবে সঠিক উত্তর/i.test(txt)) {
+              if (/^(continue|next|back|previous|submit|cancel)$/i.test(txt.trim())) continue;
               mainQuestion = txt;
               break;
             }
@@ -1359,14 +1507,18 @@
         // Check for intermediate context banner card (e.g. "With dinner", "For breakfast")
         const contextCards = document.querySelectorAll('[class*="banner" i], [class*="context" i], [class*="prompt" i], [class*="card" i] strong, [class*="header" i] h2, [class*="header" i] h3');
         for (const cc of contextCards) {
-          if (!isElementVisible(cc) || cc.closest("#jarvis-hud-container")) continue;
+          if (!isElementVisible(cc) || cc.closest("#jarvis-hud-container, .jarvis-inpage-ans-banner, .jarvis-inline-question-callout, [data-jarvis-ui], .jarvis-pick-badge, [class*='jarvis-']")) continue;
           const cTxt = cleanText(cc.innerText);
-          if (cTxt && cTxt.length >= 3 && cTxt.length <= 60 && cTxt !== mainQuestion && !/next|back|jarvis/i.test(cTxt)) {
+          if (cTxt && cTxt.length >= 3 && cTxt.length <= 60 && cTxt !== mainQuestion && !/next|back|jarvis|continue|submit/i.test(cTxt)) {
             if (/with|for|at|during|about|category|brand/i.test(cTxt)) {
               contextPrompt = cTxt;
               break;
             }
           }
+        }
+
+        if (mainQuestion && /^(continue|next|back|previous|submit|cancel)$/i.test(mainQuestion.trim())) {
+          mainQuestion = "";
         }
 
         if (mainQuestion && contextPrompt && !mainQuestion.includes(contextPrompt)) {
@@ -1751,9 +1903,9 @@
         for (const c of candidateContainers) {
           if (!isElementVisible(c) || c.closest("#jarvis-hud-container")) continue;
           const directChildren = Array.from(c.children).filter(ch => {
-            if (!isElementVisible(ch)) return false;
+            if (!isElementVisible(ch) || ch.closest("#jarvis-hud-container, [data-jarvis-ui], [class*='jarvis-']")) return false;
             const t = cleanText(ch.innerText || "");
-            return t.length >= 1 && t.length <= 100 && !/jarvis|copilot|next|back|previous/i.test(t);
+            return t.length >= 1 && t.length <= 100 && !/jarvis|copilot|👉|এটা হবে|next|back|previous|continue|submit|cancel/i.test(t);
           });
 
           const choiceLikeChildren = directChildren.filter(ch => {
@@ -1859,48 +2011,59 @@
     function getElementVisualLabel(el) {
       if (!el) return "";
       // 1. Explicit label[for]
+      function sanitizeLabelText(raw) {
+        if (!raw) return "";
+        return cleanText(raw)
+          .replace(/👉\s*এটা হবে সঠিক উত্তর:[^]*?কপি/gi, "")
+          .replace(/JARVIS CHOICE #\d+/gi, "")
+          .replace(/সিলেক্ট করুন 🎯/gi, "")
+          .replace(/📋 কপি/gi, "")
+          .trim();
+      }
+
       if (el.id) {
         try {
           const explicitLabel = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
-          if (explicitLabel && cleanText(explicitLabel.innerText)) {
-            return cleanText(explicitLabel.innerText);
+          if (explicitLabel && sanitizeLabelText(explicitLabel.innerText)) {
+            return sanitizeLabelText(explicitLabel.innerText);
           }
         } catch (_) { }
       }
       // 2. Wrapped in label
       const parentLabel = el.closest("label");
-      if (parentLabel && cleanText(parentLabel.innerText)) {
-        return cleanText(parentLabel.innerText);
+      if (parentLabel && sanitizeLabelText(parentLabel.innerText)) {
+        return sanitizeLabelText(parentLabel.innerText);
       }
       // 3. Confirmit / MrlWeb grid label in row or cell
       const mrRow = el.closest("tr, .mrRow");
       if (mrRow) {
         const rowLabel = mrRow.querySelector("td.mrGridLabel, th, label, .mrLabel, span.mrQuestionText, span.mrMultiple, span.mrSingle");
-        if (rowLabel && cleanText(rowLabel.innerText)) {
-          return cleanText(rowLabel.innerText);
+        if (rowLabel && sanitizeLabelText(rowLabel.innerText)) {
+          return sanitizeLabelText(rowLabel.innerText);
         }
       }
       // 4. Parent choice container (e.g. .form-check, .custom-control, .option, .choice, .mrCard, div, li)
       const container = el.closest(".form-check, .custom-control, .option, .choice, .option-row, .radio, .checkbox, li, tr, .mrCard, td");
       if (container) {
         const lblInContainer = container.querySelector("label, .mrGridLabel, span.mrQuestionText, span.mrMultiple, span.mrSingle, .choice-text");
-        if (lblInContainer && cleanText(lblInContainer.innerText)) {
-          return cleanText(lblInContainer.innerText);
+        if (lblInContainer && sanitizeLabelText(lblInContainer.innerText)) {
+          return sanitizeLabelText(lblInContainer.innerText);
         }
-        if (cleanText(container.innerText) && cleanText(container.innerText).length < 200) {
-          return cleanText(container.innerText);
+        const cText = sanitizeLabelText(container.innerText);
+        if (cText && cText.length < 200) {
+          return cText;
         }
       }
       // 5. Next sibling text / span / label
       let sib = el.nextElementSibling;
-      if (sib && cleanText(sib.innerText)) {
-        return cleanText(sib.innerText);
+      if (sib && sanitizeLabelText(sib.innerText)) {
+        return sanitizeLabelText(sib.innerText);
       }
-      if (el.nextSibling && cleanText(el.nextSibling.textContent)) {
-        return cleanText(el.nextSibling.textContent);
+      if (el.nextSibling && sanitizeLabelText(el.nextSibling.textContent)) {
+        return sanitizeLabelText(el.nextSibling.textContent);
       }
       // 6. Value, aria-label, title, placeholder
-      return cleanText(el.getAttribute("aria-label") || el.title || el.placeholder || el.value || "");
+      return sanitizeLabelText(el.getAttribute("aria-label") || el.title || el.placeholder || el.value || "");
     }
 
     function assignTemporaryId(element) {
@@ -1914,7 +2077,15 @@
 
     function cleanText(txt) {
       if (!txt) return "";
-      return txt.replace(/\s+/g, " ").replace(/[\r\n\t]+/g, " ").trim();
+      let s = txt.replace(/\s+/g, " ").replace(/[\r\n\t]+/g, " ").trim();
+      if (s.includes("👉") || s.includes("এটা হবে সঠিক উত্তর") || s.includes("jarvis choice")) {
+        s = s.replace(/^👉\s*এটা হবে সঠিক উত্তর:\s*/i, "")
+             .replace(/^👉\s*jarvis choice:\s*/i, "")
+             .replace(/👉\s*এটা হবে সঠিক উত্তর:[^•\n]+/gi, "")
+             .replace(/\s*\(auto-selected\)/i, "")
+             .trim();
+      }
+      return s;
     }
 
     function findPrecedingHeading(element) {
@@ -1945,12 +2116,16 @@
      */
     async function performFullScan() {
       updateHUDStatus("scanning", "🔍 সম্পূর্ণ ব্রাউজার পেজটি বিশ্লেষণ করা হচ্ছে...");
+      addBattleLog("scan", "সার্ভে পেজ স্ক্যান শুরু হয়েছে...", window.location.hostname);
 
       const questions = extractSurveyQuestions();
       if (questions.length === 0) {
         updateHUDStatus("analyzing", "📸 পেজে সরাসরি টেক্সট/ফর্ম প্রশ্ন পাওয়া যায়নি! সম্পূর্ণ পেজের স্ক্রিনশট নিয়ে সঠিক উত্তর নির্ণয় করা হচ্ছে...");
+        addBattleLog("scan", "কোনো সাধারণ ফর্ম প্রশ্ন পাওয়া যায়নি, স্বয়ংক্রিয়ভাবে স্ক্রিনশট ভিশনে পাঠানো হচ্ছে...");
         return await performScreenshotAnalysis();
       }
+
+      addBattleLog("scan", `${questions.length}টি প্রশ্ন শনাক্ত করা হয়েছে`, questions[0]?.text?.slice(0, 70) || "");
 
       // Capture the entire webpage text context (top-to-bottom, ignoring scroll position)
       const fullBodyText = document.body ? cleanText(document.body.innerText).slice(0, 8000) : "";
@@ -1973,6 +2148,7 @@
       };
 
       updateHUDStatus("analyzing", `🤖 AI ইঞ্জিন দিয়ে ${questions.length}টি প্রশ্ন মানুষের মতো বিশ্লেষণ হচ্ছে...`);
+      addBattleLog("ai", `Gemini ইঞ্জিন দিয়ে ${questions.length}টি প্রশ্ন বিশ্লেষণ হচ্ছে...`);
 
       const response = await new Promise((resolve) => {
         chrome.runtime.sendMessage(
@@ -1984,6 +2160,7 @@
       if (!response || !response.success) {
         const err = response?.error || "Analysis failed";
         updateHUDStatus("error", err);
+        addBattleLog("error", `বিশ্লেষণ ব্যর্থ হয়েছে: ${err}`);
         return { success: false, error: err };
       }
 
@@ -1996,8 +2173,17 @@
       const providerTag = response.providerUsed ? ` [${response.providerUsed}]` : "";
       if (response.data?.is_from_cache) {
         updateHUDStatus("done", `⚡ ${response.providerUsed || "Memory"}: মানুষের মতো ${response.data.answers?.length || questions.length}টি উত্তর ইনস্ট্যান্ট প্রস্তুত! (API কল সাশ্রয়)`);
+        addBattleLog("cache", `মেমরি ক্যাশ থেকে উত্তর প্রস্তুত (${response.data.answers?.length || questions.length}টি)`);
       } else {
         updateHUDStatus("done", `✅ ${modelTag}${providerTag}: মানুষের মতো ${response.data.answers?.length || questions.length}টি উত্তর প্রস্তুত!`);
+        addBattleLog("ai", `${modelTag}${providerTag}: ${response.data.answers?.length || questions.length}টি সঠিক উত্তর নির্ণীত হয়েছে`);
+      }
+
+      if (response.data?.answers) {
+        response.data.answers.forEach((ans, i) => {
+          const ansText = (ans.selected_labels && ans.selected_labels.join(", ")) || ans.text_input_value || "সিলেক্টেড";
+          addBattleLog("match", `Q${i + 1}: ${ansText}`, ans.question_text?.slice(0, 60));
+        });
       }
 
       return { success: true, data: response.data, providerUsed: response.providerUsed, modelUsed: response.modelUsed };
@@ -2020,34 +2206,7 @@
         .trim();
       if (!cleanTarget) return null;
 
-      // Helper: Checks whole-word / token boundary match, with strict exclusion of opposite or substring traps
-      function isWordMatch(textToCheck, target) {
-        if (!textToCheck || !target) return false;
-        const t = textToCheck.toLowerCase().replace(/^[•\-\*\d\.\)\s…]+/, "").trim();
-        const tgt = target.toLowerCase().replace(/^[•\-\*\d\.\)\s…]+/, "").trim();
-        if (t === tgt) return true;
-
-        // Anti-trap 1: "Male" must NEVER match "Female"
-        if (tgt === "male" && /\bfemale\b/i.test(t)) return false;
-        // Anti-trap 2: "No" must NEVER match "None", "Not", "North", etc.
-        if (tgt === "no" && !/\bno\b/i.test(t)) return false;
-        // Anti-trap 3: "Yes" must NEVER match "Yesterday", "Eyes"
-        if (tgt === "yes" && !/\byes\b/i.test(t)) return false;
-
-        // Word boundary regex check
-        const escaped = tgt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const re = new RegExp("(^|[^a-zA-Z0-9])" + escaped + "([^a-zA-Z0-9]|$)", "i");
-        if (re.test(t)) return true;
-
-        // Inverse check: If candidate label is a key word inside the target
-        if (t.length >= 3) {
-          const escapedT = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          const reT = new RegExp("(^|[^a-zA-Z0-9])" + escapedT + "([^a-zA-Z0-9]|$)", "i");
-          if (reT.test(tgt)) return true;
-        }
-
-        return false;
-      }
+      // (Global isWordMatch is used for whole-word / token boundary matching)
 
       // Check if answerContext points to a known question with options
       if (answerContext && (answerContext.question_index !== undefined || answerContext.question_text)) {
@@ -2298,9 +2457,34 @@
           else if (ans.value) labels.push(String(ans.value));
         }
 
-        const qObj = (typeof qIdx === "number" && qs[qIdx])
-          ? qs[qIdx]
-          : qs.find(q => q.text === ans.question_text || (q.row_label && ans.question_text && ans.question_text.includes(q.row_label)));
+        // Clean corrupted prefixes and filter out page navigation buttons (Continue, Next, Back, Submit)
+        const navKeywords = ["continue", "next", "back", "previous", "submit", "skip", "forward", "পরবর্তী", "এগিয়ে যান", "চালিয়ে যান"];
+        labels = labels.map(l => {
+          if (typeof l !== "string") return l;
+          return l.replace(/^👉\s*এটা হবে সঠিক উত্তর:\s*/i, "")
+                  .replace(/^👉\s*jarvis choice:\s*/i, "")
+                  .replace(/\s*\(auto-selected\)/i, "")
+                  .trim();
+        }).filter(l => {
+          if (!l || l.length < 1) return false;
+          const lower = l.toLowerCase();
+          if (navKeywords.includes(lower)) return false;
+          if (lower.includes("এটা হবে সঠিক উত্তর")) return false;
+          return true;
+        });
+
+        // If labels became empty because it was only "Continue" or corrupted, select genuine option
+        if (labels.length === 0 && qObj && qObj.options && qObj.options.length > 0) {
+          const validOpts = qObj.options.filter(o => {
+            const oText = (o.label || "").toLowerCase();
+            return !navKeywords.includes(oText) && !oText.includes("continue") && !oText.includes("next");
+          });
+          if (validOpts.length > 0) {
+            const personaOpt = matchOptionToPersona(qObj) || validOpts[0];
+            labels = [personaOpt.label];
+            console.log(`[Jarvis Sanitizer] 🛡️ Filtered navigation word from answer, replaced with: "${labels[0]}"`);
+          }
+        }
 
         // MATRIX ROW VALIDATION: Guarantee chosen option is a COLUMN label, never row name!
         if (qObj && qObj.options && qObj.options.length > 0 && (qObj.type === "matrix_row" || qObj.type === "matrix_checkbox" || qObj.row_label)) {
@@ -2366,6 +2550,7 @@
 
       const questions = extractSurveyQuestions();
       data.answers = normalizeAndSanitizeAnswers(data.answers, questions);
+      addBattleLog("action", `উত্তর পূরণ শুরু হচ্ছে (${data.answers.length}টি প্রশ্ন)...`);
 
       const { autoFillDelay } = await chrome.storage.local.get(["autoFillDelay"]);
       const isAuto = isAutoPilotActive;
@@ -2396,6 +2581,7 @@
             if (matchedOpt && matchedOpt.element) {
               await simulateHumanAction(matchedOpt.element, ans);
               applyHighlightStyle(matchedOpt.element, ans, ansIdx + 1);
+              addBattleLog("action", `সিলেক্ট করা হয়েছে: ${matchedOpt.label}`, qObj.text?.slice(0, 50));
               filledCount++;
               filledThisAnswer = true;
               if (!isMultiple) break;
@@ -2409,6 +2595,7 @@
           if (bestOpt && bestOpt.element) {
             await simulateHumanAction(bestOpt.element, ans);
             applyHighlightStyle(bestOpt.element, ans, ansIdx + 1);
+            addBattleLog("action", `ম্যাট্রিক্স কলাম সিলেক্ট: ${bestOpt.label}`, qObj.row_label || qObj.text?.slice(0, 50));
             filledCount++;
             filledThisAnswer = true;
           }
@@ -2422,6 +2609,7 @@
             if (el) {
               await simulateHumanAction(el, ans);
               applyHighlightStyle(el, ans, ansIdx + 1);
+              addBattleLog("action", `ID দ্বারা সিলেক্ট: ${targetId}`);
               filledCount++;
               filledThisAnswer = true;
               if (!isMultiple) break;
@@ -2436,6 +2624,7 @@
             if (el) {
               await simulateHumanAction(el, ans);
               applyHighlightStyle(el, ans, ansIdx + 1);
+              addBattleLog("action", `লেবেল দ্বারা সিলেক্ট: ${label}`);
               filledCount++;
               filledThisAnswer = true;
               if (!isMultiple) break;
@@ -2465,6 +2654,7 @@
                 }
                 await simulateHumanAction(target, ans);
                 applyHighlightStyle(target, ans, ansIdx + 1);
+                addBattleLog("action", `ডম টেক্সট দ্বারা সিলেক্ট: ${label}`);
                 filledCount++;
                 filledThisAnswer = true;
                 if (!isMultiple) break;
@@ -2498,6 +2688,7 @@
 
           if (targetEl && isElementVisible(targetEl)) {
             await simulateHumanAction(targetEl, ans);
+            addBattleLog("action", "টেক্সটবক্সে মতামত টাইপ করা হয়েছে", ans.text_input_value?.slice(0, 40) || "");
             filledCount++;
             filledThisAnswer = true;
           }
@@ -2510,6 +2701,7 @@
           if (targetOpt && targetOpt.element) {
             await simulateHumanAction(targetOpt.element, ans);
             applyHighlightStyle(targetOpt.element, ans, ansIdx + 1);
+            addBattleLog("action", `পারসোনা ম্যাচ দ্বারা সিলেক্ট: ${targetOpt.label}`);
             filledCount++;
             filledThisAnswer = true;
           }
@@ -2522,6 +2714,7 @@
           if (startQuestionsSig && currentSig && currentSig !== startQuestionsSig) {
             console.log("[Jarvis] Instant single-question auto-advance detected right after option selection!");
             updateHUDStatus("analyzing", "⚡ উত্তর সিলেক্ট করা মাত্রই সার্ভে স্বয়ংক্রিয়ভাবে পরবর্তী প্রশ্নে চলে গেছে!");
+            addBattleLog("success", "উত্তর সিলেক্ট করার পর সার্ভে স্বয়ংক্রিয়ভাবে এগিয়ে গেছে!");
             return { success: true, filledCount, autoAdvanced: true };
           }
         }
@@ -2544,6 +2737,7 @@
         filledCount += verifiedAdded;
       }
 
+      addBattleLog("success", `মোট ${filledCount}টি অপশন পেজে সফলভাবে পূরণ ও সিলেক্ট সম্পন্ন!`);
       return { success: true, filledCount, autoAdvanced };
     }
 
@@ -2676,6 +2870,13 @@
       // Housing Type (Own house / single family house / Detached)
       if (/housing|home|living|residence/i.test(qText)) {
         const match = opts.find(o => /own|single family|detached|condo|house/i.test(o.label));
+        if (match) return match;
+      }
+
+      // Everyday Banking / Financial Institutions (Large National Bank e.g. Chase, Bank of America, Wells Fargo)
+      if (/bank|everyday banking|checking|savings|financial institution/i.test(qText)) {
+        const match = opts.find(o => /large national bank|bank of america|chase|national bank/i.test(o.label)) ||
+          opts.find(o => /regional|online|credit union/i.test(o.label));
         if (match) return match;
       }
 
@@ -3076,6 +3277,28 @@
           <button id="jarvis-btn-reapply" class="jarvis-btn jarvis-btn-reapply" title="Click to auto-fill these answers on this page">🎯 এই উত্তরগুলো পেজে পূরণ করুন (Auto-Select)</button>
         </div>
 
+        <!-- ⚔️ লাইভ ব্যাটল লগ (Live Battle Log) -->
+        <div id="jarvis-battle-log-card" class="jarvis-battle-log-card">
+          <div class="jarvis-battle-log-header">
+            <div class="jarvis-battle-log-title">
+              <span class="jarvis-log-dot"></span>
+              <span>⚔️ লাইভ ব্যাটল লগ (Battle Log)</span>
+            </div>
+            <div class="jarvis-battle-log-actions">
+              <button id="jarvis-btn-clear-log" class="jarvis-log-btn" type="button" title="ক্লিয়ার লগ">🧹 ক্লিয়ার</button>
+            </div>
+          </div>
+          <div id="jarvis-battle-log-body" class="jarvis-battle-log-body">
+            <div class="jarvis-battle-log-entry log-type-info">
+              <div class="jarvis-log-row">
+                <span class="jarvis-log-time">--:--:--</span>
+                <span class="jarvis-log-tag badge-info">ℹ️ রেডি</span>
+                <span class="jarvis-log-msg">জারভিস ৩.৮ ব্যাটল লগ সক্রিয়। স্ক্রিনশট ও এআই সিদ্ধান্ত লাইভ দেখানো হবে।</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div id="jarvis-results-container" class="jarvis-results-list"></div>
       </div>
     `;
@@ -3113,6 +3336,40 @@
           }
         });
       }
+
+      const clearLogBtn = document.getElementById("jarvis-btn-clear-log");
+      if (clearLogBtn) {
+        clearLogBtn.addEventListener("click", () => {
+          battleLogs = [];
+          const logBody = document.getElementById("jarvis-battle-log-body");
+          if (logBody) {
+            logBody.innerHTML = `
+              <div class="jarvis-battle-log-entry log-type-info">
+                <div class="jarvis-log-row">
+                  <span class="jarvis-log-time">--:--:--</span>
+                  <span class="jarvis-log-tag badge-info">ℹ️ ক্লিয়ার্ড</span>
+                  <span class="jarvis-log-msg">ব্যাটল লগ রিসেট করা হয়েছে।</span>
+                </div>
+              </div>
+            `;
+          }
+          try { chrome.storage.local.set({ jarvis_battle_logs: [] }); } catch (_) { }
+        });
+      }
+
+      // Restore recent logs into HUD if present
+      try {
+        chrome.storage.local.get(["jarvis_battle_logs"], (res) => {
+          const stored = res.jarvis_battle_logs || [];
+          if (stored.length > 0) {
+            const logBody = document.getElementById("jarvis-battle-log-body");
+            if (logBody) {
+              logBody.innerHTML = "";
+              stored.slice(0, 25).reverse().forEach(item => renderBattleLogEntry(item));
+            }
+          }
+        });
+      } catch (_) { }
 
       // Mode Switcher handlers
       tabManual.addEventListener("click", () => {
@@ -3407,7 +3664,9 @@
      * Even if elements cannot be clicked via script, user sees: "👉 এটা হবে সঠিক উত্তর: [Answer]"
      */
     function attachInPageAnswerBadges(data) {
-      document.querySelectorAll(".jarvis-inline-question-callout").forEach(el => el.remove());
+      document.querySelectorAll(".jarvis-inpage-ans-banner, .jarvis-inline-question-callout, [data-jarvis-banner]").forEach(el => {
+        if (!el.closest("#jarvis-hud-container")) el.remove();
+      });
       if (!data || !data.answers || data.answers.length === 0) return;
 
       const questions = extractSurveyQuestions();
@@ -3468,9 +3727,11 @@
           targetContainer = firstOptEl.closest(".question-block, .survey-question, .question, .QuestionOuter, fieldset, [role='radiogroup'], .form-group, .survey-card, .survey-row, tr, [role='row'], td, li") || firstOptEl.parentElement;
         }
 
-        if (targetContainer && !targetContainer.querySelector(`.jarvis-inline-question-callout[data-ans-idx="${idx}"]`)) {
+        if (targetContainer && !targetContainer.querySelector(`.jarvis-inpage-ans-banner[data-ans-idx="${idx}"]`)) {
           const callout = document.createElement("div");
-          callout.className = "jarvis-inline-question-callout";
+          callout.className = "jarvis-inpage-ans-banner";
+          callout.setAttribute("data-jarvis-ui", "true");
+          callout.setAttribute("data-jarvis-banner", "true");
           callout.setAttribute("data-ans-idx", String(idx));
           callout.innerHTML = `
             <div class="jarvis-callout-text">

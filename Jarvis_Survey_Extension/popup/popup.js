@@ -276,7 +276,104 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (message.action === "SURVEY_ANALYSIS_UPDATED" && message.data) {
       renderResults(message.data);
     }
+    if (message.action === "BATTLE_LOG_ENTRY" && message.log) {
+      appendBattleLogToPopup(message.log);
+    }
   });
+
+  const popupBattleLogList = document.getElementById("popup-battle-log-list");
+  const btnPurgeCacheNow = document.getElementById("btn-purge-cache-now");
+  const btnClearBattleLog = document.getElementById("btn-clear-battle-log");
+
+  function appendBattleLogToPopup(item) {
+    if (!popupBattleLogList || !item) return;
+    const placeholder = popupBattleLogList.querySelector("div:only-child");
+    if (placeholder && placeholder.innerText.includes("জারভিস ৩.৮ ব্যাটল লগ সক্রিয়")) {
+      popupBattleLogList.innerHTML = "";
+    }
+
+    const row = document.createElement("div");
+    row.style.display = "flex";
+    row.style.alignItems = "center";
+    row.style.gap = "5px";
+    row.style.padding = "3px 6px";
+    row.style.borderRadius = "4px";
+    row.style.background = "rgba(15, 23, 42, 0.7)";
+    row.style.fontSize = "10.5px";
+
+    let tagColor = "#38bdf8";
+    let icon = "ℹ️";
+    let tagName = "তথ্য";
+    switch (item.type) {
+      case "scan": tagColor = "#38bdf8"; icon = "📸"; tagName = "স্ক্যান"; break;
+      case "ai": tagColor = "#c084fc"; icon = "👑"; tagName = "জেমিনি"; break;
+      case "match": tagColor = "#fde047"; icon = "🎯"; tagName = "উত্তর"; break;
+      case "action": tagColor = "#00ff88"; icon = "⚡"; tagName = "সিলেক্ট"; break;
+      case "success": tagColor = "#10b981"; icon = "✅"; tagName = "সফল"; break;
+      case "error": tagColor = "#ef4444"; icon = "⚠️"; tagName = "ত্রুটি"; break;
+      case "cache": tagColor = "#00f0ff"; icon = "⚡"; tagName = "মেমরি"; break;
+    }
+
+    row.innerHTML = `
+      <span style="color:#64748b;font-family:monospace;font-size:9.5px;white-space:nowrap;">${item.time || ""}</span>
+      <span style="color:${tagColor};font-weight:700;font-size:9.5px;white-space:nowrap;">${icon} ${tagName}</span>
+      <span style="color:#e2e8f0;flex:1;word-break:break-word;">${item.message || ""}</span>
+    `;
+    popupBattleLogList.insertBefore(row, popupBattleLogList.firstChild);
+    while (popupBattleLogList.children.length > 50) {
+      popupBattleLogList.removeChild(popupBattleLogList.lastChild);
+    }
+  }
+
+  // Load existing battle logs
+  try {
+    chrome.storage.local.get(["jarvis_battle_logs"], (res) => {
+      const logs = res.jarvis_battle_logs || [];
+      if (logs.length > 0 && popupBattleLogList) {
+        popupBattleLogList.innerHTML = "";
+        logs.slice(0, 30).reverse().forEach(log => appendBattleLogToPopup(log));
+      }
+    });
+  } catch (_) { }
+
+  if (btnClearBattleLog) {
+    btnClearBattleLog.addEventListener("click", () => {
+      if (popupBattleLogList) {
+        popupBattleLogList.innerHTML = `
+          <div style="font-size:10px;color:#64748b;padding:4px;text-align:center;">
+            ব্যাটল লগ ক্লিয়ার করা হয়েছে। নতুন স্ক্যান বা অ্যাকশন এখানে প্রদর্শিত হবে।
+          </div>
+        `;
+      }
+      try { chrome.storage.local.set({ jarvis_battle_logs: [] }); } catch (_) { }
+    });
+  }
+
+  if (btnPurgeCacheNow) {
+    btnPurgeCacheNow.addEventListener("click", async () => {
+      try {
+        btnPurgeCacheNow.disabled = true;
+        btnPurgeCacheNow.innerText = "⏳...";
+        await chrome.runtime.sendMessage({ action: "PURGE_CORRUPTED_CACHE" });
+        await chrome.runtime.sendMessage({ action: "MEMORY_CLEAR_CACHE" });
+        updateStatus("success", "🧹 সকল করাপ্টেড ও পুরনো ক্যাশ পরিষ্কার করা হয়েছে!");
+        btnPurgeCacheNow.innerText = "✅ ক্লিয়ার্ড";
+        appendBattleLogToPopup({
+          time: new Date().toLocaleTimeString(),
+          type: "cache",
+          message: "সকল করাপ্টেড ক্যাশ এবং পুরনো উত্তর রিসেট করা হয়েছে"
+        });
+        setTimeout(() => {
+          btnPurgeCacheNow.disabled = false;
+          btnPurgeCacheNow.innerText = "🧹 ক্যাশ রিসেট";
+        }, 2000);
+        await loadMemoryStatsAndFiles();
+      } catch (e) {
+        btnPurgeCacheNow.disabled = false;
+        btnPurgeCacheNow.innerText = "🧹 ক্যাশ রিসেট";
+      }
+    });
+  }
 
   // Initial load of Memory Cache & Knowledge Base datasets
   loadMemoryStatsAndFiles();

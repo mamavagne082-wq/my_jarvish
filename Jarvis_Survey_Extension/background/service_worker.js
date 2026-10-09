@@ -157,8 +157,9 @@ chrome.runtime.onInstalled.addListener(async () => {
   if (typeof JarvisMemoryManager !== "undefined" && JarvisMemoryManager.ensureMasterDatasetLoaded) {
     try {
       await JarvisMemoryManager.ensureMasterDatasetLoaded();
+      await JarvisMemoryManager.purgeCorruptedCache();
     } catch (e) {
-      console.warn("[Jarvis ServiceWorker] Note on master dataset seeding:", e);
+      console.warn("[Jarvis ServiceWorker] Note on master dataset seeding & cache purge:", e);
     }
   }
 
@@ -436,10 +437,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  if (message.action === "MEMORY_CLEAR_CACHE") {
+  if (message.action === "MEMORY_CLEAR_CACHE" || message.action === "PURGE_CORRUPTED_CACHE") {
     if (typeof JarvisMemoryManager !== "undefined") {
-      JarvisMemoryManager.clearMemoryCache()
-        .then(() => JarvisMemoryManager.getMemoryStats())
+      const p = message.action === "PURGE_CORRUPTED_CACHE"
+        ? JarvisMemoryManager.purgeCorruptedCache()
+        : JarvisMemoryManager.clearMemoryCache();
+      p.then(() => JarvisMemoryManager.getMemoryStats())
         .then((stats) => sendResponse({ success: true, stats }))
         .catch((err) => sendResponse({ success: false, error: err.message }));
     } else {
@@ -1061,7 +1064,7 @@ async function handleSurveyAnalysis(payload, tabId) {
   }
 
   // 1. If priority is gemini_web_first, gemini_web_only, or fast_ai_first with Gemini Web enabled:
-  if (!result && !isScreenshot && useGeminiWeb && (priority === "gemini_web_first" || priority === "gemini_web_only" || priority === "fast_ai_first")) {
+  if (!result && useGeminiWeb && (priority === "gemini_web_first" || priority === "gemini_web_only" || priority === "fast_ai_first")) {
     try {
       console.log(`[Jarvis ServiceWorker] 👑 Requesting answers from Google Gemini Web Accounts (100% Background, 0 Tabs, 0 API Token)...`);
       const hasQuestions = apiPayload.questions && apiPayload.questions.length > 0;

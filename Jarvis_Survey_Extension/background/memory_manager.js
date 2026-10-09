@@ -280,10 +280,31 @@
    */
 
   /**
+   * Identifies and rejects corrupted or bogus question/answer entries (e.g. navigation buttons, Jarvis badges)
+   */
+  function isCorruptedQuestionOrAnswer(questionText, answerObj = null) {
+    if (!questionText || typeof questionText !== "string") return true;
+    const q = questionText.trim().toLowerCase();
+    if (q.length < 3) return true;
+    if (q.includes("👉") || q.includes("এটা হবে সঠিক উত্তর") || q.includes("jarvis choice") || q.includes("সিলেক্ট করুন") || q.includes("কপি করুন") || q.includes("alt+s")) return true;
+    if (/^(continue|next|back|previous|submit|cancel|finish|skip|next page)$/i.test(q)) return true;
+
+    if (answerObj) {
+      const labels = Array.isArray(answerObj.selected_labels) ? answerObj.selected_labels : (answerObj.selected_label ? [answerObj.selected_label] : []);
+      for (const l of labels) {
+        const str = String(l || "").trim().toLowerCase();
+        if (str.includes("👉") || str.includes("এটা হবে সঠিক উত্তর") || str.includes("সিলেক্ট করুন") || str.includes("কপি করুন")) return true;
+        if (/^(continue|next|back|previous|submit|cancel|skip|next page)$/i.test(str)) return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Finds matching question in previously generated QA Cache
    */
   async function findCacheMatch(questionText, options = [], threshold = 0.82) {
-    if (!questionText) return null;
+    if (!questionText || isCorruptedQuestionOrAnswer(questionText)) return null;
     const { canonicalKey, contextualKey, normalizedText, tokens } = generateQuestionKey(questionText, options);
 
     const db = await getDB();
@@ -291,13 +312,18 @@
       // Fallback to chrome.storage.local
       const storage = await chrome.storage.local.get(["jarvis_qa_cache_fallback"]);
       const cacheMap = storage.jarvis_qa_cache_fallback || {};
-      if (cacheMap[contextualKey]) return formatCacheResult(cacheMap[contextualKey], 1.0);
-      if (cacheMap[canonicalKey]) return formatCacheResult(cacheMap[canonicalKey], 1.0);
+      if (cacheMap[contextualKey] && !isCorruptedQuestionOrAnswer(cacheMap[contextualKey].questionText, cacheMap[contextualKey].answer)) {
+        return formatCacheResult(cacheMap[contextualKey], 1.0);
+      }
+      if (cacheMap[canonicalKey] && !isCorruptedQuestionOrAnswer(cacheMap[canonicalKey].questionText, cacheMap[canonicalKey].answer)) {
+        return formatCacheResult(cacheMap[canonicalKey], 1.0);
+      }
 
       // Fuzzy check in fallback map
       let bestItem = null;
       let highestScore = 0;
       for (const item of Object.values(cacheMap)) {
+        if (!item || isCorruptedQuestionOrAnswer(item.questionText, item.answer)) continue;
         const score = calculateSimilarity(normalizedText, tokens, item.normalizedText, item.tokens, options, item.options);
         if (score > highestScore && score >= threshold) {
           highestScore = score;
@@ -393,6 +419,10 @@
    */
   async function saveToCache(questionText, options, answerObj, source = "api") {
     if (!questionText || !answerObj) return;
+    if (isCorruptedQuestionOrAnswer(questionText, answerObj)) {
+      console.log("[JarvisMemory] ⚠️ Skipping saveToCache for rejected navigation/banner question:", questionText);
+      return;
+    }
 
     const { canonicalKey, contextualKey, normalizedText, tokens } = generateQuestionKey(questionText, options);
 
@@ -462,6 +492,55 @@
       };
       tx.onerror = () => resolve(false);
     });
+  }
+
+  /**
+   * Purges corrupted or bogus question/answer entries (such as 'Continue', 'Next', banner text)
+   */
+  async function purgeCorruptedCache() {
+    console.log("[JarvisMemory] 🧹 Scanning and purging any bogus/corrupted entries from cache...");
+    try {
+      const storage = await chrome.storage.local.get(["jarvis_qa_cache_fallback"]);
+      const cacheMap = storage.jarvis_qa_cache_fallback || {};
+      let changed = false;
+      for (const [k, item] of Object.entries(cacheMap)) {
+        if (!item || isCorruptedQuestionOrAnswer(item.questionText, item.answer)) {
+          delete cacheMap[k];
+          changed = true;
+        }
+      }
+      if (changed) {
+        await chrome.storage.local.set({ jarvis_qa_cache_fallback: cacheMap });
+      }
+    } catch (_) { }
+
+    const db = await getDB();
+    if (db) {
+      return new Promise((resolve) => {
+        try {
+          const tx = db.transaction(STORE_QA, "readwrite");
+          const store = tx.objectStore(STORE_QA);
+          const cursorReq = store.openCursor();
+          cursorReq.onsuccess = (e) => {
+            const cursor = e.target.result;
+            if (cursor) {
+              const item = cursor.value;
+              if (!item || isCorruptedQuestionOrAnswer(item.questionText, item.answer)) {
+                cursor.delete();
+              }
+              cursor.continue();
+            } else {
+              updateMemoryStatsSummary();
+              resolve(true);
+            }
+          };
+          cursorReq.onerror = () => resolve(false);
+        } catch (_) {
+          resolve(false);
+        }
+      });
+    }
+    return true;
   }
 
   /**
@@ -1282,7 +1361,9 @@
     resolveSurveyQuestions,
     getMemoryStats,
     recordHit,
-    ensureMasterDatasetLoaded
+    ensureMasterDatasetLoaded,
+    purgeCorruptedCache,
+    isCorruptedQuestionOrAnswer
   };
 
   global.JarvisMemoryManager = JarvisMemoryManager;

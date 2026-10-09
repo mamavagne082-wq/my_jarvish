@@ -604,28 +604,33 @@ const GeminiWebClient = (function () {
 
       const html = await resp.text();
 
-      // Extract SNlM0e (the 'at' CSRF token)
+      // Extract SNlM0e (the 'at' CSRF token) with exhaustive regex patterns
       let atToken = null;
-      const atMatch1 = html.match(/"SNlM0e":"([^"]+)"/);
-      if (atMatch1) atToken = atMatch1[1];
-      if (!atToken) {
-        const atMatch2 = html.match(/\["SNlM0e","([^"]+)"\]/);
-        if (atMatch2) atToken = atMatch2[1];
-      }
-      if (!atToken) {
-        const atMatch3 = html.match(/"SNlM0e",\s*"([^"]+)"/);
-        if (atMatch3) atToken = atMatch3[1];
+      const patterns = [
+        /"SNlM0e":"([^"]+)"/,
+        /\["SNlM0e","([^"]+)"\]/,
+        /"SNlM0e",\s*"([^"]+)"/,
+        /data-at="([^"]+)"/,
+        /WIZ_global_data[\s\S]*?"SNlM0e":"([^"]+)"/,
+        /"at":"([^"]+)"/
+      ];
+      for (const pat of patterns) {
+        const m = html.match(pat);
+        if (m && m[1] && m[1].length > 5) {
+          atToken = m[1];
+          break;
+        }
       }
 
       // Extract cfb2h (build label)
       let buildLabel = "boq_assistant-bard-web-server_20261001.00_p0";
-      const blMatch = html.match(/"cfb2h":"([^"]+)"/);
-      if (blMatch) buildLabel = blMatch[1];
+      const blMatch = html.match(/"cfb2h":"([^"]+)"/) || html.match(/cfb2h":\s*"([^"]+)"/) || html.match(/"build_label":"([^"]+)"/);
+      if (blMatch && blMatch[1]) buildLabel = blMatch[1];
 
       // Extract FdrFJe (session id)
       let sessionId = "";
-      const sidMatch = html.match(/"FdrFJe":"([^"]+)"/);
-      if (sidMatch) sessionId = sidMatch[1];
+      const sidMatch = html.match(/"FdrFJe":"([^"]+)"/) || html.match(/FdrFJe":\s*"([^"]+)"/);
+      if (sidMatch && sidMatch[1]) sessionId = sidMatch[1];
 
       if (atToken) {
         console.log(`[GeminiWebClient] ✅ Extracted Gemini tokens for Account ${accountIndex}!`);
@@ -637,7 +642,7 @@ const GeminiWebClient = (function () {
         };
         return tokenCache[accountIndex];
       } else {
-        console.warn(`[GeminiWebClient] SNlM0e token not found for Account ${accountIndex}. Checking cookies...`);
+        console.warn(`[GeminiWebClient] SNlM0e token not directly found in HTML for Account ${accountIndex}. Falling back to background bridge tab...`);
         return null;
       }
     } catch (err) {
@@ -779,6 +784,7 @@ const GeminiWebClient = (function () {
   async function executeHeadlessTabQuery(promptText, accountIndex = 1) {
     const authUserIdx = Math.max(0, parseInt(accountIndex, 10) - 1);
     const targetUrl = `https://gemini.google.com/app?authuser=${authUserIdx}`;
+    let targetTab = null;
     const tabs = await chrome.tabs.query({ url: "*://gemini.google.com/*" });
 
     if (tabs && tabs.length > 0) {
@@ -786,9 +792,15 @@ const GeminiWebClient = (function () {
         t.url.includes(`authuser=${authUserIdx}`) ||
         (authUserIdx === 0 && !t.url.includes("authuser="))
       )) || tabs[0];
-    } else {
-      // User strictly forbids opening browser tabs for Gemini. All analysis must happen strictly inside extension background!
-      throw new Error(`[GeminiWebClient] No existing Gemini tab open for Account ${accountIndex}. Using 100% background extension engine.`);
+    }
+
+    if (!targetTab) {
+      console.log(`[GeminiWebClient] Establishing silent background tab for Account ${accountIndex}...`);
+      try {
+        targetTab = await openOrConnectGeminiTab(accountIndex);
+      } catch (tabCreateErr) {
+        throw new Error(`[GeminiWebClient] No background Gemini tab available for Account ${accountIndex}: ${tabCreateErr.message}`);
+      }
     }
 
     if (!targetTab || !targetTab.id) {

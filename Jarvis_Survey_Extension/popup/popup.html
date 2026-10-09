@@ -206,6 +206,29 @@
         <span id="live-status-text">Gemini 3.8 Flash Ready. Click Auto-Pilot or 1-Click.</span>
       </div>
 
+      <!-- ⚔️ লাইভ ব্যাটল লগ (Live Battle Log) -->
+      <div class="memory-hub-card" id="popup-battle-log-card" style="background:linear-gradient(180deg,#0a1120 0%,#040810 100%);border:1px solid rgba(0,240,255,0.3);margin-top:8px;margin-bottom:8px;">
+        <div class="memory-hub-header" style="padding-bottom:5px;">
+          <div class="memory-hub-title">
+            <span class="pill-dot" style="background:#00ff88;box-shadow:0 0 8px #00ff88;"></span>
+            <strong style="color:#38bdf8;font-size:12px;">⚔️ লাইভ ব্যাটল লগ (Battle Log)</strong>
+          </div>
+          <div style="display:flex;gap:4px;">
+            <button type="button" id="btn-purge-cache-now" class="btn-xs-pill btn-pill-danger" style="font-size:10px;padding:2px 7px;" title="সব করাপ্টেড বা পুরনো ক্যাশ রিসেট করুন">
+              🧹 ক্যাশ রিসেট
+            </button>
+            <button type="button" id="btn-clear-battle-log" class="btn-xs-pill" style="font-size:10px;padding:2px 7px;" title="ক্লিয়ার লগ">
+              ✕ ক্লিয়ার
+            </button>
+          </div>
+        </div>
+        <div id="popup-battle-log-list" style="max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding:4px 2px;">
+          <div style="font-size:10px;color:#64748b;padding:4px;text-align:center;">
+            জারভিস ৩.৮ ব্যাটল লগ সক্রিয়। স্ক্যান, জেমিনি বিশ্লেষণ ও অটো-সিলেক্ট অ্যাকশন এখানে লাইভ দেখা যাবে।
+          </div>
+        </div>
+      </div>
+
       <!-- API Limit Alert Card -->
       <div id="api-limit-alert-card" class="api-alert-card hidden">
         <div class="api-alert-header">
