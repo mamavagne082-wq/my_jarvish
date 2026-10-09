@@ -44,8 +44,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun postDirectTranscript(userText: String, assistantText: String) {
-        val safeUser = JSONObject.quote(userText)
-        val safeAssistant = JSONObject.quote(assistantText)
+        val u = userText.trim()
+        val a = assistantText.trim()
+        if (u.isBlank() || u.equals("null", ignoreCase = true) || u.equals("undefined", ignoreCase = true)) return
+        if (a.isBlank() || a.equals("null", ignoreCase = true) || a.equals("undefined", ignoreCase = true)) return
+        val safeUser = JSONObject.quote(u)
+        val safeAssistant = JSONObject.quote(a)
         webView.post {
             webView.evaluateJavascript("if (window.onDirectTranscript) window.onDirectTranscript($safeUser, $safeAssistant);", null)
         }
@@ -503,6 +507,7 @@ class MainActivity : AppCompatActivity() {
                 resultObj.put("status", res.status)
                 resultObj.put("usage_percent", res.usagePercent)
                 resultObj.put("message", res.message)
+                resultObj.put("detail", res.message)
             }
             return resultObj.toString()
         }

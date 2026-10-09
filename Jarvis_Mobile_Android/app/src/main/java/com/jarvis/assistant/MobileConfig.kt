@@ -15,8 +15,8 @@ object MobileConfig {
     // Default Settings & Pre-configured Credentials
     const val DEFAULT_USER_NAME = "ALAMIN"
     const val DEFAULT_ASSISTANT_NAME = "Jarvis"
-    const val DEFAULT_LLM_PROVIDER = "openrouter"
-    const val DEFAULT_LLM_MODEL = "openrouter/auto"
+    const val DEFAULT_LLM_PROVIDER = "google"
+    const val DEFAULT_LLM_MODEL = "gemini-3.8-flash"
 
     const val DEFAULT_LIVEKIT_URL = "wss://jarvish-cdq66wc9.livekit.cloud"
     const val DEFAULT_LIVEKIT_KEY = "APIudafoJVHneWA"
@@ -27,7 +27,7 @@ object MobileConfig {
     const val DEFAULT_TORVE_KEY = "sk-v1-43ef5710114097156125b9b556c77f5df84982f05911c34667d2e1c5d2dadbfd"
     const val DEFAULT_GROK_KEY = "xai-LvoLgGHbxHJ6PV3SJpc4MbrRysgqKEuGSY8qJiVJCOIgoojJexEOPGMZwkmW4s3mK7IF8lDfdJLlGy2e"
 
-    const val DEFAULT_GOOGLE_KEY = ""
+    const val DEFAULT_GOOGLE_KEY = "AQ.Ab8RN6LzxgZpZWatGII8_B0NtIq2MLovaI5iCI4pk9Hmq6apWw"
     const val DEFAULT_OPENAI_KEY = "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"
     const val DEFAULT_MEM0_KEY = "m0-zXEwUTUVUBNC6xUyne1UtoFr5jSHrsspEfcBLS3S"
     const val DEFAULT_GOOGLE_SEARCH_KEY = "977565840084-3d463snmaaa7iq1rnr6lo26jdr3c38sk.apps.googleusercontent.com"
@@ -44,61 +44,84 @@ object MobileConfig {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
+    fun sanitizeKey(key: String?): String {
+        if (key == null) return ""
+        val trimmed = key.trim()
+        if (trimmed.isEmpty() || 
+            trimmed.equals("null", ignoreCase = true) || 
+            trimmed.equals("undefined", ignoreCase = true) || 
+            trimmed == "0" || 
+            trimmed.equals("none", ignoreCase = true)) {
+            return ""
+        }
+        return trimmed
+    }
+
     fun getUserName(context: Context): String {
         val v = getPrefs(context).getString("user_name", DEFAULT_USER_NAME) ?: DEFAULT_USER_NAME
-        return if (v.isNotBlank()) v else DEFAULT_USER_NAME
+        val clean = sanitizeKey(v)
+        return if (clean.isNotBlank()) clean else DEFAULT_USER_NAME
     }
 
     fun getAssistantName(context: Context): String {
         val v = getPrefs(context).getString("assistant_name", DEFAULT_ASSISTANT_NAME) ?: DEFAULT_ASSISTANT_NAME
-        return if (v.isNotBlank()) v else DEFAULT_ASSISTANT_NAME
+        val clean = sanitizeKey(v)
+        return if (clean.isNotBlank()) clean else DEFAULT_ASSISTANT_NAME
     }
 
     fun getLlmProvider(context: Context): String {
         val v = getPrefs(context).getString("llm_provider", DEFAULT_LLM_PROVIDER) ?: DEFAULT_LLM_PROVIDER
-        return if (v.isNotBlank()) v else DEFAULT_LLM_PROVIDER
+        val clean = sanitizeKey(v)
+        return if (clean.isNotBlank()) clean else DEFAULT_LLM_PROVIDER
     }
 
     fun getLlmModel(context: Context): String {
         val v = getPrefs(context).getString("llm_model", DEFAULT_LLM_MODEL) ?: DEFAULT_LLM_MODEL
-        if (v.isBlank() || v.contains("gemini-2.0-flash-exp")) return DEFAULT_LLM_MODEL
-        return v
+        val clean = sanitizeKey(v)
+        if (clean.isBlank() || clean.contains("gemini-2.0-flash-exp")) return DEFAULT_LLM_MODEL
+        return clean
     }
 
     fun getLiveKitUrl(context: Context): String {
-        val v = getPrefs(context).getString("livekit_url", DEFAULT_LIVEKIT_URL) ?: DEFAULT_LIVEKIT_URL
-        return if (v.isNotBlank()) v else DEFAULT_LIVEKIT_URL
+        val raw = getPrefs(context).getString("livekit_url", DEFAULT_LIVEKIT_URL) ?: DEFAULT_LIVEKIT_URL
+        val clean = sanitizeKey(raw)
+        return if (clean.isNotBlank()) clean else DEFAULT_LIVEKIT_URL
     }
 
     fun getLiveKitKey(context: Context): String {
-        val v = getPrefs(context).getString("livekit_key", DEFAULT_LIVEKIT_KEY) ?: DEFAULT_LIVEKIT_KEY
-        return if (v.isNotBlank()) v else DEFAULT_LIVEKIT_KEY
+        val raw = getPrefs(context).getString("livekit_key", DEFAULT_LIVEKIT_KEY) ?: DEFAULT_LIVEKIT_KEY
+        val clean = sanitizeKey(raw)
+        return if (clean.isNotBlank()) clean else DEFAULT_LIVEKIT_KEY
     }
 
     fun getLiveKitSecret(context: Context): String {
-        val v = getPrefs(context).getString("livekit_secret", DEFAULT_LIVEKIT_SECRET) ?: DEFAULT_LIVEKIT_SECRET
-        return if (v.isNotBlank()) v else DEFAULT_LIVEKIT_SECRET
+        val raw = getPrefs(context).getString("livekit_secret", DEFAULT_LIVEKIT_SECRET) ?: DEFAULT_LIVEKIT_SECRET
+        val clean = sanitizeKey(raw)
+        return if (clean.isNotBlank()) clean else DEFAULT_LIVEKIT_SECRET
     }
 
     fun getGoogleKey(context: Context): String {
-        val v = getPrefs(context).getString("google_key", DEFAULT_GOOGLE_KEY) ?: DEFAULT_GOOGLE_KEY
-        if (v.startsWith("AQ.")) return ""
-        return if (v.isNotBlank()) v else DEFAULT_GOOGLE_KEY
+        val raw = getPrefs(context).getString("google_key", DEFAULT_GOOGLE_KEY) ?: DEFAULT_GOOGLE_KEY
+        val clean = sanitizeKey(raw)
+        return if (clean.isNotBlank()) clean else DEFAULT_GOOGLE_KEY
     }
 
     fun setGoogleKey(context: Context, key: String) {
-        getPrefs(context).edit().putString("google_key", key).apply()
+        val clean = sanitizeKey(key)
+        getPrefs(context).edit().putString("google_key", clean).apply()
     }
 
     fun getOpenAiKey(context: Context): String {
-        val v = getPrefs(context).getString("openai_key", DEFAULT_OPENAI_KEY) ?: DEFAULT_OPENAI_KEY
-        return if (v.isNotBlank()) v else DEFAULT_OPENAI_KEY
+        val raw = getPrefs(context).getString("openai_key", DEFAULT_OPENAI_KEY) ?: DEFAULT_OPENAI_KEY
+        val clean = sanitizeKey(raw)
+        return if (clean.isNotBlank()) clean else DEFAULT_OPENAI_KEY
     }
 
     fun getOpenRouterKey(context: Context): String {
-        val v = getPrefs(context).getString("openrouter_key", DEFAULT_OPENROUTER_KEY) ?: DEFAULT_OPENROUTER_KEY
-        if (v.isBlank() || v.contains("a585d900") || v.contains("71c379e9")) return DEFAULT_OPENROUTER_KEY
-        return v
+        val raw = getPrefs(context).getString("openrouter_key", DEFAULT_OPENROUTER_KEY) ?: DEFAULT_OPENROUTER_KEY
+        val clean = sanitizeKey(raw)
+        if (clean.isBlank() || clean.contains("a585d900") || clean.contains("71c379e9")) return DEFAULT_OPENROUTER_KEY
+        return clean
     }
 
     fun getGeminiPlusAccount(context: Context): String {
@@ -114,48 +137,57 @@ object MobileConfig {
     }
 
     fun getTorveKey(context: Context): String {
-        val v = getPrefs(context).getString("torve_key", DEFAULT_TORVE_KEY) ?: DEFAULT_TORVE_KEY
-        return if (v.isNotBlank()) v else DEFAULT_TORVE_KEY
+        val raw = getPrefs(context).getString("torve_key", DEFAULT_TORVE_KEY) ?: DEFAULT_TORVE_KEY
+        val clean = sanitizeKey(raw)
+        return if (clean.isNotBlank()) clean else DEFAULT_TORVE_KEY
     }
 
     fun getGrokKey(context: Context): String {
-        val v = getPrefs(context).getString("grok_key", DEFAULT_GROK_KEY) ?: DEFAULT_GROK_KEY
-        return if (v.isNotBlank()) v else DEFAULT_GROK_KEY
+        val raw = getPrefs(context).getString("grok_key", DEFAULT_GROK_KEY) ?: DEFAULT_GROK_KEY
+        val clean = sanitizeKey(raw)
+        return if (clean.isNotBlank()) clean else DEFAULT_GROK_KEY
     }
 
     fun getMem0Key(context: Context): String {
-        val v = getPrefs(context).getString("mem0_key", DEFAULT_MEM0_KEY) ?: DEFAULT_MEM0_KEY
-        return if (v.isNotBlank()) v else DEFAULT_MEM0_KEY
+        val raw = getPrefs(context).getString("mem0_key", DEFAULT_MEM0_KEY) ?: DEFAULT_MEM0_KEY
+        val clean = sanitizeKey(raw)
+        return if (clean.isNotBlank()) clean else DEFAULT_MEM0_KEY
     }
 
     fun getGoogleSearchKey(context: Context): String {
-        val v = getPrefs(context).getString("google_search_key", DEFAULT_GOOGLE_SEARCH_KEY) ?: DEFAULT_GOOGLE_SEARCH_KEY
-        return if (v.isNotBlank()) v else DEFAULT_GOOGLE_SEARCH_KEY
+        val raw = getPrefs(context).getString("google_search_key", DEFAULT_GOOGLE_SEARCH_KEY) ?: DEFAULT_GOOGLE_SEARCH_KEY
+        val clean = sanitizeKey(raw)
+        return if (clean.isNotBlank()) clean else DEFAULT_GOOGLE_SEARCH_KEY
     }
 
     fun getSearchEngineId(context: Context): String {
-        val v = getPrefs(context).getString("search_engine_id", DEFAULT_SEARCH_ENGINE_ID) ?: DEFAULT_SEARCH_ENGINE_ID
-        return if (v.isNotBlank()) v else DEFAULT_SEARCH_ENGINE_ID
+        val raw = getPrefs(context).getString("search_engine_id", DEFAULT_SEARCH_ENGINE_ID) ?: DEFAULT_SEARCH_ENGINE_ID
+        val clean = sanitizeKey(raw)
+        return if (clean.isNotBlank()) clean else DEFAULT_SEARCH_ENGINE_ID
     }
 
     fun getOpenWeatherKey(context: Context): String {
-        val v = getPrefs(context).getString("openweather_key", DEFAULT_OPENWEATHER_KEY) ?: DEFAULT_OPENWEATHER_KEY
-        return if (v.isNotBlank()) v else DEFAULT_OPENWEATHER_KEY
+        val raw = getPrefs(context).getString("openweather_key", DEFAULT_OPENWEATHER_KEY) ?: DEFAULT_OPENWEATHER_KEY
+        val clean = sanitizeKey(raw)
+        return if (clean.isNotBlank()) clean else DEFAULT_OPENWEATHER_KEY
     }
 
     fun getXiaomiMimoKey(context: Context): String {
-        val v = getPrefs(context).getString("xiaomi_mimo_key", DEFAULT_XIAOMI_MIMO_KEY) ?: DEFAULT_XIAOMI_MIMO_KEY
-        return if (v.isNotBlank()) v else DEFAULT_XIAOMI_MIMO_KEY
+        val raw = getPrefs(context).getString("xiaomi_mimo_key", DEFAULT_XIAOMI_MIMO_KEY) ?: DEFAULT_XIAOMI_MIMO_KEY
+        val clean = sanitizeKey(raw)
+        return if (clean.isNotBlank()) clean else DEFAULT_XIAOMI_MIMO_KEY
     }
 
     fun getElevenLabsKey(context: Context): String {
-        val v = getPrefs(context).getString("elevenlabs_key", DEFAULT_ELEVENLABS_KEY) ?: DEFAULT_ELEVENLABS_KEY
-        return if (v.isNotBlank()) v else DEFAULT_ELEVENLABS_KEY
+        val raw = getPrefs(context).getString("elevenlabs_key", DEFAULT_ELEVENLABS_KEY) ?: DEFAULT_ELEVENLABS_KEY
+        val clean = sanitizeKey(raw)
+        return if (clean.isNotBlank()) clean else DEFAULT_ELEVENLABS_KEY
     }
 
     fun getElevenLabsVoiceId(context: Context): String {
-        val v = getPrefs(context).getString("elevenlabs_voice_id", DEFAULT_ELEVENLABS_VOICE_ID) ?: DEFAULT_ELEVENLABS_VOICE_ID
-        return if (v.isNotBlank()) v else DEFAULT_ELEVENLABS_VOICE_ID
+        val raw = getPrefs(context).getString("elevenlabs_voice_id", DEFAULT_ELEVENLABS_VOICE_ID) ?: DEFAULT_ELEVENLABS_VOICE_ID
+        val clean = sanitizeKey(raw)
+        return if (clean.isNotBlank()) clean else DEFAULT_ELEVENLABS_VOICE_ID
     }
 
     fun getPcHost(context: Context): String =
@@ -185,39 +217,60 @@ object MobileConfig {
     fun save(context: Context, json: JSONObject) {
         val editor = getPrefs(context).edit()
 
-        if (json.has("user_name")) editor.putString("user_name", json.optString("user_name"))
-        if (json.has("assistant_name")) editor.putString("assistant_name", json.optString("assistant_name"))
-        if (json.has("llm_provider")) editor.putString("llm_provider", json.optString("llm_provider"))
-        if (json.has("llm_model")) editor.putString("llm_model", json.optString("llm_model"))
+        fun putSanitized(key: String, raw: String?) {
+            val cleaned = sanitizeKey(raw)
+            if (cleaned.isNotEmpty()) {
+                editor.putString(key, cleaned)
+            } else {
+                editor.putString(key, "")
+            }
+        }
+
+        if (json.has("user_name")) {
+            val u = json.optString("user_name").trim()
+            if (u.isNotEmpty() && !u.equals("null", ignoreCase = true)) editor.putString("user_name", u)
+        }
+        if (json.has("assistant_name")) {
+            val a = json.optString("assistant_name").trim()
+            if (a.isNotEmpty() && !a.equals("null", ignoreCase = true)) editor.putString("assistant_name", a)
+        }
+        if (json.has("llm_provider")) {
+            val p = json.optString("llm_provider").trim()
+            if (p.isNotEmpty() && !p.equals("null", ignoreCase = true)) editor.putString("llm_provider", p)
+        }
+        if (json.has("llm_model")) {
+            val m = json.optString("llm_model").trim()
+            if (m.isNotEmpty() && !m.equals("null", ignoreCase = true)) editor.putString("llm_model", m)
+        }
         if (json.has("orb_theme")) editor.putString("orb_theme", json.optString("orb_theme"))
         if (json.has("pc_host")) editor.putString("pc_host", json.optString("pc_host"))
 
         // API Keys (either direct flat or nested inside api_keys)
         val apiKeys = json.optJSONObject("api_keys") ?: json
 
-        if (apiKeys.has("livekit_url")) editor.putString("livekit_url", apiKeys.optString("livekit_url"))
-        if (apiKeys.has("livekit_key")) editor.putString("livekit_key", apiKeys.optString("livekit_key"))
-        if (apiKeys.has("livekit_secret")) editor.putString("livekit_secret", apiKeys.optString("livekit_secret"))
-        if (apiKeys.has("google")) editor.putString("google_key", apiKeys.optString("google"))
-        if (apiKeys.has("google_key")) editor.putString("google_key", apiKeys.optString("google_key"))
-        if (apiKeys.has("openai")) editor.putString("openai_key", apiKeys.optString("openai"))
-        if (apiKeys.has("openai_key")) editor.putString("openai_key", apiKeys.optString("openai_key"))
-        if (apiKeys.has("openrouter")) editor.putString("openrouter_key", apiKeys.optString("openrouter"))
-        if (apiKeys.has("openrouter_key")) editor.putString("openrouter_key", apiKeys.optString("openrouter_key"))
-        if (apiKeys.has("grok")) editor.putString("grok_key", apiKeys.optString("grok"))
-        if (apiKeys.has("grok_key")) editor.putString("grok_key", apiKeys.optString("grok_key"))
-        if (apiKeys.has("mem0")) editor.putString("mem0_key", apiKeys.optString("mem0"))
-        if (apiKeys.has("mem0_key")) editor.putString("mem0_key", apiKeys.optString("mem0_key"))
-        if (apiKeys.has("google_search")) editor.putString("google_search_key", apiKeys.optString("google_search"))
-        if (apiKeys.has("google_search_key")) editor.putString("google_search_key", apiKeys.optString("google_search_key"))
-        if (apiKeys.has("search_engine_id")) editor.putString("search_engine_id", apiKeys.optString("search_engine_id"))
-        if (apiKeys.has("openweather")) editor.putString("openweather_key", apiKeys.optString("openweather"))
-        if (apiKeys.has("openweather_key")) editor.putString("openweather_key", apiKeys.optString("openweather_key"))
-        if (apiKeys.has("xiaomi_mimo")) editor.putString("xiaomi_mimo_key", apiKeys.optString("xiaomi_mimo"))
-        if (apiKeys.has("xiaomi_mimo_key")) editor.putString("xiaomi_mimo_key", apiKeys.optString("xiaomi_mimo_key"))
-        if (apiKeys.has("elevenlabs")) editor.putString("elevenlabs_key", apiKeys.optString("elevenlabs"))
-        if (apiKeys.has("elevenlabs_key")) editor.putString("elevenlabs_key", apiKeys.optString("elevenlabs_key"))
-        if (apiKeys.has("elevenlabs_voice_id")) editor.putString("elevenlabs_voice_id", apiKeys.optString("elevenlabs_voice_id"))
+        if (apiKeys.has("livekit_url")) putSanitized("livekit_url", apiKeys.optString("livekit_url"))
+        if (apiKeys.has("livekit_key")) putSanitized("livekit_key", apiKeys.optString("livekit_key"))
+        if (apiKeys.has("livekit_secret")) putSanitized("livekit_secret", apiKeys.optString("livekit_secret"))
+        if (apiKeys.has("google")) putSanitized("google_key", apiKeys.optString("google"))
+        if (apiKeys.has("google_key")) putSanitized("google_key", apiKeys.optString("google_key"))
+        if (apiKeys.has("openai")) putSanitized("openai_key", apiKeys.optString("openai"))
+        if (apiKeys.has("openai_key")) putSanitized("openai_key", apiKeys.optString("openai_key"))
+        if (apiKeys.has("openrouter")) putSanitized("openrouter_key", apiKeys.optString("openrouter"))
+        if (apiKeys.has("openrouter_key")) putSanitized("openrouter_key", apiKeys.optString("openrouter_key"))
+        if (apiKeys.has("grok")) putSanitized("grok_key", apiKeys.optString("grok"))
+        if (apiKeys.has("grok_key")) putSanitized("grok_key", apiKeys.optString("grok_key"))
+        if (apiKeys.has("mem0")) putSanitized("mem0_key", apiKeys.optString("mem0"))
+        if (apiKeys.has("mem0_key")) putSanitized("mem0_key", apiKeys.optString("mem0_key"))
+        if (apiKeys.has("google_search")) putSanitized("google_search_key", apiKeys.optString("google_search"))
+        if (apiKeys.has("google_search_key")) putSanitized("google_search_key", apiKeys.optString("google_search_key"))
+        if (apiKeys.has("search_engine_id")) putSanitized("search_engine_id", apiKeys.optString("search_engine_id"))
+        if (apiKeys.has("openweather")) putSanitized("openweather_key", apiKeys.optString("openweather"))
+        if (apiKeys.has("openweather_key")) putSanitized("openweather_key", apiKeys.optString("openweather_key"))
+        if (apiKeys.has("xiaomi_mimo")) putSanitized("xiaomi_mimo_key", apiKeys.optString("xiaomi_mimo"))
+        if (apiKeys.has("xiaomi_mimo_key")) putSanitized("xiaomi_mimo_key", apiKeys.optString("xiaomi_mimo_key"))
+        if (apiKeys.has("elevenlabs")) putSanitized("elevenlabs_key", apiKeys.optString("elevenlabs"))
+        if (apiKeys.has("elevenlabs_key")) putSanitized("elevenlabs_key", apiKeys.optString("elevenlabs_key"))
+        if (apiKeys.has("elevenlabs_voice_id")) putSanitized("elevenlabs_voice_id", apiKeys.optString("elevenlabs_voice_id"))
         if (apiKeys.has("gemini_web_plus_account")) editor.putString("gemini_web_plus_account", apiKeys.optString("gemini_web_plus_account"))
         if (apiKeys.has("gemini_web_pro_account")) editor.putString("gemini_web_pro_account", apiKeys.optString("gemini_web_pro_account"))
         if (apiKeys.has("gemini_web_ultra_account")) editor.putString("gemini_web_ultra_account", apiKeys.optString("gemini_web_ultra_account"))

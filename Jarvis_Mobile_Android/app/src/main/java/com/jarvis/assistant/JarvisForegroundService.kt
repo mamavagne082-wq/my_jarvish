@@ -738,18 +738,23 @@ class JarvisForegroundService : Service() {
         })
 
         queryDirectAI(clean) { reply ->
-            updateNotification("Jarvis: $clean", reply)
+            val safeReply = reply.trim()
+            if (safeReply.isBlank() || safeReply.equals("null", ignoreCase = true) || safeReply.equals("undefined", ignoreCase = true)) {
+                return@queryDirectAI
+            }
+
+            updateNotification("Jarvis: $clean", safeReply)
             sendBroadcast(Intent(ACTION_SESSION_STATE_CHANGED).apply {
                 setPackage(packageName)
                 putExtra("active", true)
                 putExtra("state", "speaking")
                 putExtra("query", clean)
-                putExtra("reply", reply)
+                putExtra("reply", safeReply)
             })
             MainActivity.instance?.runOnUiThread {
-                MainActivity.instance?.postDirectTranscript(clean, reply)
+                MainActivity.instance?.postDirectTranscript(clean, safeReply)
             }
-            speakTextLocally(reply)
+            speakTextLocally(safeReply)
         }
     }
 
@@ -761,99 +766,147 @@ class JarvisForegroundService : Service() {
         return false
     }
 
-    // ── Direct Multi-Model AI Engine (OpenRouter -> Torve -> Grok -> OpenAI -> Gemini -> Offline) ───────
+    // ── Direct Multi-Model AI Engine (Provider-Priority -> Gemini/OpenAI/Grok -> Offline) ───────
     fun queryDirectAI(userPrompt: String, onResponse: (String) -> Unit) {
+        val cleanPrompt = userPrompt.trim()
+        if (cleanPrompt.isBlank() || cleanPrompt.equals("null", ignoreCase = true) || cleanPrompt.equals("undefined", ignoreCase = true)) {
+            return
+        }
+
         serviceScope.launch(Dispatchers.IO) {
-            val openRouterKey = MobileConfig.getOpenRouterKey(this@JarvisForegroundService)
-            val torveKey = MobileConfig.getTorveKey(this@JarvisForegroundService)
-            val grokKey = MobileConfig.getGrokKey(this@JarvisForegroundService)
-            val openAiKey = MobileConfig.getOpenAiKey(this@JarvisForegroundService)
+            val provider = MobileConfig.getLlmProvider(this@JarvisForegroundService).lowercase().trim()
             val googleKey = MobileConfig.getGoogleKey(this@JarvisForegroundService)
+            val openAiKey = MobileConfig.getOpenAiKey(this@JarvisForegroundService)
+            val openRouterKey = MobileConfig.getOpenRouterKey(this@JarvisForegroundService)
+            val grokKey = MobileConfig.getGrokKey(this@JarvisForegroundService)
+            val torveKey = MobileConfig.getTorveKey(this@JarvisForegroundService)
             var answered = false
 
-            // 1. OpenRouter Multi-Model Cloud API (Fast & Free models)
-            if (!answered && openRouterKey.isNotBlank()) {
+            suspend fun deliverReply(reply: String): Boolean {
+                val clean = reply.trim()
+                if (clean.isNotBlank() && !clean.equals("null", ignoreCase = true) && !clean.equals("undefined", ignoreCase = true)) {
+                    answered = true
+                    withContext(Dispatchers.Main) { onResponse(clean) }
+                    return true
+                }
+                return false
+            }
+
+            // ── Priority 1: User's explicitly chosen LLM provider ──
+            val configuredGeminiModel = MobileConfig.getLlmModel(this@JarvisForegroundService).trim()
+            val preferredGeminiModels = mutableListOf<String>()
+            if (configuredGeminiModel.isNotBlank() && (configuredGeminiModel.startsWith("gemini-") || configuredGeminiModel.startsWith("gemma-"))) {
+                preferredGeminiModels.add(configuredGeminiModel)
+            }
+            preferredGeminiModels.addAll(listOf("gemini-3.8-flash", "gemini-flash-latest", "gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-2.5-flash"))
+            val geminiModels = preferredGeminiModels.distinct()
+
+            if (provider == "google" || provider == "gemini") {
+                if (googleKey.isNotBlank()) {
+                    for (model in geminiModels) {
+                        if (answered) break
+                        try {
+                            val result = callGeminiApi(googleKey, model, cleanPrompt)
+                            if (deliverReply(result)) break
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Gemini $model direct call: ${e.message}")
+                        }
+                    }
+                }
+            } else if (provider == "openai") {
+                if (openAiKey.isNotBlank()) {
+                    try {
+                        val result = callOpenAiApi(openAiKey, "gpt-4o-mini", cleanPrompt)
+                        deliverReply(result)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "OpenAI direct call: ${e.message}")
+                    }
+                }
+            } else if (provider == "openrouter") {
+                if (openRouterKey.isNotBlank()) {
+                    val orModels = listOf(
+                        "google/gemini-2.0-flash-001",
+                        "meta-llama/llama-3.3-70b-instruct:free",
+                        "mistralai/mistral-7b-instruct:free",
+                        "deepseek/deepseek-chat"
+                    )
+                    for (m in orModels) {
+                        if (answered) break
+                        try {
+                            val result = callOpenRouterApi(openRouterKey, m, cleanPrompt)
+                            if (deliverReply(result)) break
+                        } catch (e: Exception) {
+                            Log.w(TAG, "OpenRouter $m direct call: ${e.message}")
+                        }
+                    }
+                }
+            }
+
+            // ── Priority 2: Google Gemini (if not already answered and key is configured) ──
+            if (!answered && googleKey.isNotBlank() && provider != "google" && provider != "gemini") {
+                for (model in geminiModels) {
+                    if (answered) break
+                    try {
+                        val result = callGeminiApi(googleKey, model, cleanPrompt)
+                        if (deliverReply(result)) break
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Gemini fallback $model: ${e.message}")
+                    }
+                }
+            }
+
+            // ── Priority 3: OpenAI (if not already answered and key is configured) ──
+            if (!answered && openAiKey.isNotBlank() && provider != "openai") {
+                try {
+                    val result = callOpenAiApi(openAiKey, "gpt-4o-mini", cleanPrompt)
+                    deliverReply(result)
+                } catch (e: Exception) {
+                    Log.w(TAG, "OpenAI fallback: ${e.message}")
+                }
+            }
+
+            // ── Priority 4: Grok (xAI) ──
+            if (!answered && grokKey.isNotBlank()) {
+                try {
+                    val result = callGrokApi(grokKey, "grok-beta", cleanPrompt)
+                    deliverReply(result)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Grok fallback: ${e.message}")
+                }
+            }
+
+            // ── Priority 5: OpenRouter Cloud (if not already answered and key is configured) ──
+            if (!answered && openRouterKey.isNotBlank() && provider != "openrouter") {
                 val orModels = listOf(
-                    "openrouter/auto",
-                    "google/gemini-2.5-flash",
-                    "deepseek/deepseek-chat",
+                    "google/gemini-2.0-flash-001",
                     "meta-llama/llama-3.3-70b-instruct:free",
                     "mistralai/mistral-7b-instruct:free"
                 )
                 for (m in orModels) {
                     if (answered) break
                     try {
-                        val result = callOpenRouterApi(openRouterKey, m, userPrompt)
-                        if (result.isNotBlank()) {
-                            answered = true
-                            withContext(Dispatchers.Main) { onResponse(result) }
-                        }
+                        val result = callOpenRouterApi(openRouterKey, m, cleanPrompt)
+                        if (deliverReply(result)) break
                     } catch (e: Exception) {
-                        Log.d(TAG, "OpenRouter $m failed: ${e.message}")
+                        Log.w(TAG, "OpenRouter fallback $m: ${e.message}")
                     }
                 }
             }
 
-            // 2. FastRouter / Torve AI
+            // ── Priority 6: FastRouter / Torve AI ──
             if (!answered && torveKey.isNotBlank()) {
                 try {
-                    val result = callTorveAiApi(torveKey, "claude-opus-4-8", userPrompt)
-                    if (result.isNotBlank()) {
-                        answered = true
-                        withContext(Dispatchers.Main) { onResponse(result) }
-                    }
+                    val result = callTorveAiApi(torveKey, "claude-opus-4-8", cleanPrompt)
+                    deliverReply(result)
                 } catch (e: Exception) {
-                    Log.d(TAG, "Torve AI failed: ${e.message}")
+                    Log.w(TAG, "Torve AI fallback: ${e.message}")
                 }
             }
 
-            // 3. Grok (xAI)
-            if (!answered && grokKey.isNotBlank()) {
-                try {
-                    val result = callGrokApi(grokKey, "grok-beta", userPrompt)
-                    if (result.isNotBlank()) {
-                        answered = true
-                        withContext(Dispatchers.Main) { onResponse(result) }
-                    }
-                } catch (e: Exception) {
-                    Log.d(TAG, "Grok failed: ${e.message}")
-                }
-            }
-
-            // 4. OpenAI API (GPT-4o Mini)
-            if (!answered && openAiKey.isNotBlank() && !openAiKey.startsWith("0")) {
-                try {
-                    val result = callOpenAiApi(openAiKey, "gpt-4o-mini", userPrompt)
-                    if (result.isNotBlank()) {
-                        answered = true
-                        withContext(Dispatchers.Main) { onResponse(result) }
-                    }
-                } catch (e: Exception) {
-                    Log.d(TAG, "OpenAI failed: ${e.message}")
-                }
-            }
-
-            // 5. Google Gemini API (if key is valid and not AQ token)
-            if (!answered && googleKey.isNotBlank() && googleKey != "0" && !googleKey.startsWith("AQ.")) {
-                val geminiModels = listOf("gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash")
-                for (model in geminiModels) {
-                    if (answered) break
-                    try {
-                        val result = callGeminiApi(googleKey, model, userPrompt)
-                        if (result.isNotBlank()) {
-                            answered = true
-                            withContext(Dispatchers.Main) { onResponse(result) }
-                        }
-                    } catch (e: Exception) {
-                        Log.d(TAG, "Gemini $model failed: ${e.message}")
-                    }
-                }
-            }
-
-            // 6. Smart Offline Fallback (100% Offline Guaranteed - zero crash)
+            // ── Priority 7: Smart Offline Fallback (100% Offline Guaranteed - zero crash, zero null) ──
             if (!answered) {
-                val offlineReply = generateSmartOfflineReply(userPrompt)
-                withContext(Dispatchers.Main) { onResponse(offlineReply) }
+                val offlineReply = generateSmartOfflineReply(cleanPrompt)
+                deliverReply(offlineReply)
             }
         }
     }
@@ -868,12 +921,14 @@ class JarvisForegroundService : Service() {
     }
 
     private fun callGeminiApi(apiKey: String, model: String, prompt: String): String {
-        val endpoint = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=${apiKey.trim()}"
+        val cleanKey = apiKey.trim()
+        if (cleanKey.isBlank() || cleanKey.equals("null", ignoreCase = true) || cleanKey.equals("undefined", ignoreCase = true)) return ""
+        val endpoint = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$cleanKey"
         val url = java.net.URL(endpoint)
         val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
             requestMethod = "POST"
-            connectTimeout = 4000
-            readTimeout = 6000
+            connectTimeout = 8000
+            readTimeout = 15000
             doOutput = true
             setRequestProperty("Content-Type", "application/json; charset=UTF-8")
         }
@@ -900,7 +955,7 @@ class JarvisForegroundService : Service() {
 
             val genConfig = JSONObject().apply {
                 put("temperature", 0.7)
-                put("maxOutputTokens", 150)
+                put("maxOutputTokens", 200)
             }
             put("generationConfig", genConfig)
         }
@@ -914,28 +969,36 @@ class JarvisForegroundService : Service() {
             val respText = conn.inputStream.bufferedReader().use { it.readText() }
             conn.disconnect()
             val jsonResp = JSONObject(respText)
-            val text = jsonResp.optJSONArray("candidates")
-                ?.optJSONObject(0)
-                ?.optJSONObject("content")
-                ?.optJSONArray("parts")
-                ?.optJSONObject(0)
-                ?.optString("text", "") ?: ""
-            return text.trim()
+            val candidates = jsonResp.optJSONArray("candidates")
+            val candidate = candidates?.optJSONObject(0)
+            val content = candidate?.optJSONObject("content")
+            val parts = content?.optJSONArray("parts")
+            val part = parts?.optJSONObject(0)
+            val text = part?.optString("text", "") ?: ""
+            val cleanText = text.trim()
+            if (cleanText.isNotBlank() && !cleanText.equals("null", ignoreCase = true) && !cleanText.equals("undefined", ignoreCase = true)) {
+                return cleanText
+            }
+        } else {
+            val errText = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+            conn.disconnect()
+            Log.w(TAG, "Gemini API HTTP $code ($model): $errText")
         }
-        conn.disconnect()
-        throw Exception("HTTP $code")
+        return ""
     }
 
     private fun callOpenRouterApi(apiKey: String, model: String, prompt: String): String {
+        val cleanKey = apiKey.trim()
+        if (cleanKey.isBlank() || cleanKey.equals("null", ignoreCase = true)) return ""
         val endpoint = "https://openrouter.ai/api/v1/chat/completions"
         val url = java.net.URL(endpoint)
         val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
             requestMethod = "POST"
-            connectTimeout = 5000
+            connectTimeout = 6000
             readTimeout = 8000
             doOutput = true
             setRequestProperty("Content-Type", "application/json; charset=UTF-8")
-            setRequestProperty("Authorization", "Bearer ${apiKey.trim()}")
+            setRequestProperty("Authorization", "Bearer $cleanKey")
             setRequestProperty("HTTP-Referer", "https://jarvis.ai")
             setRequestProperty("X-Title", "Jarvis")
         }
@@ -971,22 +1034,27 @@ class JarvisForegroundService : Service() {
                 ?.optJSONObject(0)
                 ?.optJSONObject("message")
                 ?.optString("content", "") ?: ""
-            return text.trim()
+            val cleanText = text.trim()
+            if (cleanText.isNotBlank() && !cleanText.equals("null", ignoreCase = true)) {
+                return cleanText
+            }
         }
         conn.disconnect()
-        throw Exception("HTTP $code")
+        return ""
     }
 
     private fun callOpenAiApi(apiKey: String, model: String, prompt: String): String {
+        val cleanKey = apiKey.trim()
+        if (cleanKey.isBlank() || cleanKey.equals("null", ignoreCase = true)) return ""
         val endpoint = "https://api.openai.com/v1/chat/completions"
         val url = java.net.URL(endpoint)
         val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
             requestMethod = "POST"
-            connectTimeout = 5000
+            connectTimeout = 6000
             readTimeout = 8000
             doOutput = true
             setRequestProperty("Content-Type", "application/json; charset=UTF-8")
-            setRequestProperty("Authorization", "Bearer ${apiKey.trim()}")
+            setRequestProperty("Authorization", "Bearer $cleanKey")
         }
 
         val sysPrompt = getAugmentedSystemPrompt(prompt)
@@ -1020,22 +1088,27 @@ class JarvisForegroundService : Service() {
                 ?.optJSONObject(0)
                 ?.optJSONObject("message")
                 ?.optString("content", "") ?: ""
-            return text.trim()
+            val cleanText = text.trim()
+            if (cleanText.isNotBlank() && !cleanText.equals("null", ignoreCase = true)) {
+                return cleanText
+            }
         }
         conn.disconnect()
-        throw Exception("HTTP $code")
+        return ""
     }
 
     private fun callGrokApi(apiKey: String, model: String, prompt: String): String {
+        val cleanKey = apiKey.trim()
+        if (cleanKey.isBlank() || cleanKey.equals("null", ignoreCase = true)) return ""
         val endpoint = "https://api.x.ai/v1/chat/completions"
         val url = java.net.URL(endpoint)
         val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
             requestMethod = "POST"
-            connectTimeout = 5000
+            connectTimeout = 6000
             readTimeout = 8000
             doOutput = true
             setRequestProperty("Content-Type", "application/json; charset=UTF-8")
-            setRequestProperty("Authorization", "Bearer ${apiKey.trim()}")
+            setRequestProperty("Authorization", "Bearer $cleanKey")
         }
 
         val sysPrompt = getAugmentedSystemPrompt(prompt)
@@ -1065,25 +1138,31 @@ class JarvisForegroundService : Service() {
             val respText = conn.inputStream.bufferedReader().use { it.readText() }
             conn.disconnect()
             val jsonResp = JSONObject(respText)
-            return jsonResp.optJSONArray("choices")
+            val text = jsonResp.optJSONArray("choices")
                 ?.optJSONObject(0)
                 ?.optJSONObject("message")
-                ?.optString("content", "")?.trim() ?: ""
+                ?.optString("content", "") ?: ""
+            val cleanText = text.trim()
+            if (cleanText.isNotBlank() && !cleanText.equals("null", ignoreCase = true)) {
+                return cleanText
+            }
         }
         conn.disconnect()
-        throw Exception("HTTP $code")
+        return ""
     }
 
     private fun callTorveAiApi(apiKey: String, model: String, prompt: String): String {
+        val cleanKey = apiKey.trim()
+        if (cleanKey.isBlank() || cleanKey.equals("null", ignoreCase = true)) return ""
         val endpoint = "https://openrouter.ai/api/v1/chat/completions"
         val url = java.net.URL(endpoint)
         val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
             requestMethod = "POST"
-            connectTimeout = 5000
+            connectTimeout = 6000
             readTimeout = 8000
             doOutput = true
             setRequestProperty("Content-Type", "application/json; charset=UTF-8")
-            setRequestProperty("Authorization", "Bearer ${apiKey.trim()}")
+            setRequestProperty("Authorization", "Bearer $cleanKey")
         }
 
         val sysPrompt = getAugmentedSystemPrompt(prompt)
@@ -1113,13 +1192,17 @@ class JarvisForegroundService : Service() {
             val respText = conn.inputStream.bufferedReader().use { it.readText() }
             conn.disconnect()
             val jsonResp = JSONObject(respText)
-            return jsonResp.optJSONArray("choices")
+            val text = jsonResp.optJSONArray("choices")
                 ?.optJSONObject(0)
                 ?.optJSONObject("message")
-                ?.optString("content", "")?.trim() ?: ""
+                ?.optString("content", "") ?: ""
+            val cleanText = text.trim()
+            if (cleanText.isNotBlank() && !cleanText.equals("null", ignoreCase = true)) {
+                return cleanText
+            }
         }
         conn.disconnect()
-        throw Exception("HTTP $code")
+        return ""
     }
 
     private fun generateSmartOfflineReply(prompt: String): String {
@@ -1254,7 +1337,8 @@ class JarvisForegroundService : Service() {
                     override fun onResults(results: Bundle?) {
                         if (isPausedForTTS) return
                         val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION) ?: emptyList<String>()
-                        val heardText = matches.firstOrNull()?.trim() ?: ""
+                        val rawHeard = matches.firstOrNull()?.trim() ?: ""
+                        val heardText = if (rawHeard.equals("null", ignoreCase = true) || rawHeard.equals("undefined", ignoreCase = true)) "" else rawHeard
 
                         if (heardText.isNotBlank()) {
                             Log.i(TAG_VM, "Recognized: \"$heardText\" (SessionActive=$isSessionActive)")
@@ -1498,7 +1582,7 @@ class JarvisForegroundService : Service() {
 
                 val cleanUser = userName.trim().lowercase().replace(Regex("[^a-z0-9_]"), "")
                 val identity = "mobile_user_${cleanUser.ifEmpty { "alamin" }}"
-                val sessionRoom = "voice_assistant_room_${System.currentTimeMillis() / 1000}"
+                val sessionRoom = MobileConfig.DEFAULT_ROOM_NAME
 
                 val token = MobileConfig.generateLiveKitToken(
                     apiKey = livekitKey,

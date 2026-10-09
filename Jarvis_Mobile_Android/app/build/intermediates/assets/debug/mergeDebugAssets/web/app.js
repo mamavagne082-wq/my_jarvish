@@ -427,12 +427,16 @@ function updateAgentState(newState, label) {
 }
 
 function addTranscript(text, sender) {
+  if (!text || text === 'null' || text === 'undefined' || !String(text).trim()) return;
+  const cleanText = String(text).trim();
+  if (cleanText === 'null' || cleanText === 'undefined' || cleanText === '0') return;
+
   const container = document.getElementById('transcriptBody');
   if (!container) return;
 
   const bubble = document.createElement('div');
   bubble.className = `chat-bubble ${sender || 'assistant'}`;
-  bubble.innerText = text;
+  bubble.innerText = cleanText;
   container.appendChild(bubble);
   container.scrollTop = container.scrollHeight;
 }
@@ -922,18 +926,22 @@ function updateSettingKeyBadge(provider, status, detail) {
   const badge = document.getElementById(`statusBadge-${provider}`);
   if (!badge) return;
 
-  if (status === 'healthy') {
+  const s = String(status || '').toUpperCase().trim();
+  if (s === 'HEALTHY') {
     badge.innerText = '✅ Healthy (সক্রিয়)';
     badge.style.color = '#34d399';
-  } else if (status === 'exhausted') {
-    badge.innerText = '⚠️ কোটা শেষ (429 Quota Exhausted)';
+  } else if (s === 'LIMIT_EXCEEDED' || s === 'EXHAUSTED' || s === 'NEAR_LIMIT') {
+    badge.innerText = '⚠️ কোটা শেষ (Quota Exceeded)';
     badge.style.color = '#f87171';
-  } else if (status === 'invalid') {
+  } else if (s === 'INVALID_KEY' || s === 'INVALID') {
     badge.innerText = '❌ ইনভ্যালিড কী (Invalid Key)';
     badge.style.color = '#ef4444';
-  } else if (status === 'not_configured') {
+  } else if (s === 'NOT_CONFIGURED') {
     badge.innerText = '— সেট করা হয়নি';
     badge.style.color = '#94a3b8';
+  } else if (s === 'NETWORK_ERROR') {
+    badge.innerText = '⚠️ নেটওয়ার্ক এরর';
+    badge.style.color = '#fbbf24';
   } else {
     badge.innerText = detail || 'কনফিগার করা হয়েছে';
     badge.style.color = '#fbbf24';
@@ -980,7 +988,7 @@ function testKeyLive(provider) {
   const keyVal = getFieldVal(inputId);
   const badge = document.getElementById(`statusBadge-${provider}`);
 
-  if (!keyVal) {
+  if (!keyVal || keyVal === 'null' || keyVal === 'undefined') {
     if (badge) {
       badge.innerText = '⚠️ কী খালি!';
       badge.style.color = '#f87171';
@@ -999,8 +1007,9 @@ function testKeyLive(provider) {
   if (res) {
     try {
       const obj = JSON.parse(res);
-      updateSettingKeyBadge(provider, obj.status, obj.detail);
-      showToast(`${provider.toUpperCase()}: ${obj.detail}`);
+      const msg = obj.message || obj.detail || obj.status;
+      updateSettingKeyBadge(provider, obj.status, msg);
+      showToast(`${provider.toUpperCase()}: ${msg}`);
       // Refresh overall HUD bar
       setTimeout(() => refreshApiHealth(false), 500);
     } catch (_) {}
@@ -1021,13 +1030,28 @@ window.onApiHealthUpdated = function(healthJson) {
   }
 };
 
-window.onDirectTranscript = function(userPrompt, replyText) {
-  if (userPrompt) {
-    addTranscript(userPrompt, 'user');
+window.onDirectTranscript = function(userText, assistantText) {
+  const u = userText ? String(userText).trim() : '';
+  const a = assistantText ? String(assistantText).trim() : '';
+
+  if (u && u !== 'null' && u !== 'undefined') {
+    const container = document.getElementById('transcriptBody');
+    const lastBubble = container ? container.lastElementChild : null;
+    if (!lastBubble || lastBubble.innerText !== u) {
+      addTranscript(u, 'user');
+    }
   }
-  if (replyText) {
-    addTranscript(replyText, 'assistant');
-    updateAgentState('speaking', 'SPEAKING // GEMINI 3.8');
+
+  if (a && a !== 'null' && a !== 'undefined') {
+    addTranscript(a, 'assistant');
+    updateAgentState('speaking', 'ONLINE // কথা বলছে');
+    setTimeout(() => {
+      if (state.isSessionActive) {
+        updateAgentState('listening', 'ONLINE // শুনছে');
+      } else {
+        updateAgentState('idle', 'STANDBY // READY');
+      }
+    }, 3500);
   }
 };
 window.onWakeWordDetected = function(phrase) {
@@ -1156,10 +1180,7 @@ window.updateServiceStatus = function(serviceRunning, accessibilityEnabled, batt
   }
 };
 
-window.onDirectTranscript = function(userText, assistantText) {
-  if (userText) addTranscript(userText, 'user');
-  if (assistantText) addTranscript(assistantText, 'assistant');
-};
+
 
 window.onWakeWordDetected = function(phrase) {
   startVoiceSession();
@@ -1330,22 +1351,7 @@ window.sendTextMessageFromUI = sendTextMessageFromUI;
 window.sendWelcomeTextMessage = sendWelcomeTextMessage;
 window.promptOpenAppFromUI = promptOpenAppFromUI;
 
-window.onDirectTranscript = function(userText, assistantText) {
-  if (userText && String(userText).trim()) {
-    addTranscript(String(userText).trim(), 'user');
-  }
-  if (assistantText && String(assistantText).trim()) {
-    addTranscript(String(assistantText).trim(), 'assistant');
-    updateAgentState('speaking', 'ONLINE // কথা বলছে');
-    setTimeout(() => {
-      if (state.isSessionActive) {
-        updateAgentState('listening', 'ONLINE // শুনছে');
-      } else {
-        updateAgentState('idle', 'STANDBY // READY');
-      }
-    }, 3500);
-  }
-};
+
 
 // -------------------------------------------------------------------------
 // AI Skills Matrix & Playbook Hub (84 Skills)

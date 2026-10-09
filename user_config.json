@@ -6,7 +6,7 @@
         "model": "gemini-3.8-live"
     },
     "api_keys": {
-        "google": "AQ.Ab8RN6LtcM7pevIID9jpLXKQ_030T06c0A2UhJDnYOBQPb7O5w",
+        "google": "AQ.Ab8RN6LzxgZpZWatGII8_B0NtIq2MLovaI5iCI4pk9Hmq6apWw",
         "openai": "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",
         "anthropic": "LLM_1089835267245217_rxi6Zx-GZZdWjNu-LknJ0GmY3Ig",
         "livekit_url": "wss://jarvish-cdq66wc9.livekit.cloud",
