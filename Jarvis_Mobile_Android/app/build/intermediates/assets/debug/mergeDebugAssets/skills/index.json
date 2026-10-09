@@ -1,0 +1,509 @@
+{
+  "version": 1,
+  "skills": [
+    {
+      "name": "daily-briefing",
+      "description": "Subah \"good morning\" / \"din ka update do\" bole to phone ka pura ek-baar-me briefing dena",
+      "file": "skills/daily-briefing.md",
+      "updated": "2026-07-24"
+    },
+    {
+      "name": "whatsapp-pro",
+      "description": "WhatsApp ka koi bhi kaam (message, reply, group, file, call) galti-free tarike se karna",
+      "file": "skills/whatsapp-pro.md",
+      "updated": "2026-07-24"
+    },
+    {
+      "name": "call-secretary",
+      "description": "Incoming phone call aane pe announce/pickup/reject aur call ke baad ka pura etiquette",
+      "file": "skills/call-secretary.md",
+      "updated": "2026-07-24"
+    },
+    {
+      "name": "photo-share",
+      "description": "Photo/video khinch ke ya gallery se nikaal ke WhatsApp pe bhejne ka end-to-end flow",
+      "file": "skills/photo-share.md",
+      "updated": "2026-07-24"
+    },
+    {
+      "name": "music-dj",
+      "description": "Gaana/music/video bajane, control karne aur mood ke hisaab se DJ banne ka tarika",
+      "file": "skills/music-dj.md",
+      "updated": "2026-07-24"
+    },
+    {
+      "name": "phone-care",
+      "description": "Battery bachana, phone slow/garam hone pe care karna, settings sahi karna",
+      "file": "skills/phone-care.md",
+      "updated": "2026-07-24"
+    },
+    {
+      "name": "study-focus",
+      "description": "Padhai/kaam ka focus session — DND, timer, distractions band, end pe recap",
+      "file": "skills/study-focus.md",
+      "updated": "2026-07-24"
+    },
+    {
+      "name": "chatgpt-image-gen",
+      "description": "Jab user \"image bana do / AI se photo generate karo\" bole to ChatGPT app se sub-agent se image banwa ke download karna",
+      "file": "skills/chatgpt-image-gen.md",
+      "updated": "2026-07-24"
+    },
+    {
+      "name": "universal-app-control",
+      "description": "Kisi bhi app me (jiski alag skill na ho) click/search/scroll/back/next/minimize jaisa kaam uske UI ke hisaab se karna",
+      "file": "skills/universal-app-control.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "system-quick-toggle",
+      "description": "WiFi/bluetooth/torch/DND/hotspot/airplane jaisi settings seedha device tool se on/off karna, Settings app kabhi mat kholo",
+      "file": "skills/system-quick-toggle.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "alarm-clock",
+      "description": "Alarm laga do / subah X baje jagana bole to seedha alarm tool se set/cancel/list karna",
+      "file": "skills/alarm-clock.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "browser-assistant",
+      "description": "Browser me kuch search karna, kisi result/link pe click karna, scroll karna, naya tab kholna jaisa kaam",
+      "file": "skills/browser-assistant.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "camera-lens",
+      "description": "Camera kholna, front/back lens switch karna, photo/video lena - bina WhatsApp bheje bhi",
+      "file": "skills/camera-lens.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "notes-keeper",
+      "description": "User jo bole note kar lo/likh lo use Notes app me save karna, baad me maangne pe padh ke sunana ya dhoondhna",
+      "file": "skills/notes-keeper.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "reminders-tasks",
+      "description": "Yaad dila dena bole to reminder set karna aur sahi time/mauke pe zaroori kaam khud yaad dilana",
+      "file": "skills/reminders-tasks.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "contacts-manager",
+      "description": "Naya contact save karna, number/naam se contact dhoondhna, edit ya delete karna",
+      "file": "skills/contacts-manager.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "sms-messenger",
+      "description": "Normal SMS bhejna ya padhna jab WhatsApp na ho ya user clearly SMS/message bole",
+      "file": "skills/sms-messenger.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "email-basic",
+      "description": "Gmail/Outlook me quick check karna, reply karna, ya important mail flag karna",
+      "file": "skills/email-basic.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "calendar-events",
+      "description": "Meeting/event calendar me add karna, kal ka schedule kya hai jaisa query, reschedule karna",
+      "file": "skills/calendar-events.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "calculator-quick",
+      "description": "Quick maths/calculation seedha bata dena, calculator app kholne ki zarurat nahi",
+      "file": "skills/calculator-quick.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "translate-on-the-fly",
+      "description": "Koi text ya screen ka matlab/translation poochhe to turant translate karna",
+      "file": "skills/translate-on-the-fly.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "file-manager",
+      "description": "Downloads/gallery me file dhoondhna, share karna, delete karna confirm ke saath",
+      "file": "skills/file-manager.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "video-streaming",
+      "description": "YouTube/Netflix jaisi video app me search, play, pause, skip, next-episode jaisa control",
+      "file": "skills/video-streaming.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "maps-navigation",
+      "description": "Location search karna, directions/navigation start karna, kitna time lagega jaisa query",
+      "file": "skills/maps-navigation.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "weather-check",
+      "description": "Bina weather app khole seedha mausam, temperature, barish ka chance bata dena",
+      "file": "skills/weather-check.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "emergency-contact",
+      "description": "User SOS/emergency bole to turant trusted contact ko location aur message bhejna",
+      "file": "skills/emergency-contact.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "screen-time-report",
+      "description": "Aaj/is hafte kitna phone use kiya jaisa daily/weekly screen-time summary batana",
+      "file": "skills/screen-time-report.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "routine-builder",
+      "description": "User ke repeat hone wale kaamo ko ek custom routine me combine karke ek command se chalana",
+      "file": "skills/routine-builder.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "app-recommender",
+      "description": "Kuch naya try karau jaise casual request pe mood/context ke hisaab se app/game suggest karna",
+      "file": "skills/app-recommender.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "motion-lock",
+      "description": "Phone achanak uthaya/hilaya jaye to motion sensor se turant auto-lock kar dena",
+      "file": "skills/motion-lock.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "voice-lock-command",
+      "description": "User kisi bhi tone me lock kar do bole to bina sawaal turant phone lock karna",
+      "file": "skills/voice-lock-command.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "unattended-alert",
+      "description": "Phone unlock chhoda gaya ho aur kuch der interaction na ho to auto-lock kar dena",
+      "file": "skills/unattended-alert.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "app-lock-manager",
+      "description": "Specific apps pe lock lagana ya hatana (jaise gallery, WhatsApp)",
+      "file": "skills/app-lock-manager.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "auto-rotate-toggle",
+      "description": "Screen rotation lock/unlock karna",
+      "file": "skills/auto-rotate-toggle.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "battery-optimizer-apps",
+      "description": "Kaunsi app battery zyada kha rahi hai batana",
+      "file": "skills/battery-optimizer-apps.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "bill-split-calculator",
+      "description": "Group bill ko logo ke beech split karke har ek ka share batana",
+      "file": "skills/bill-split-calculator.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "block-unblock",
+      "description": "Kisi number/contact ko WhatsApp/calls me block ya unblock karna",
+      "file": "skills/block-unblock.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "brightness-control",
+      "description": "Screen brightness ka level direct set karna ya auto-brightness on/off karna",
+      "file": "skills/brightness-control.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "budget-alert",
+      "description": "Monthly kharch ka budget limit set karke cross hone pe batana (expense-tracker ke saath)",
+      "file": "skills/budget-alert.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "clipboard-manager",
+      "description": "Copy kiya hua text yaad rakhna aur baad me kisi bhi jagah paste karwana",
+      "file": "skills/clipboard-manager.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "currency-converter",
+      "description": "$50 kitne rupee\" jaisa currency conversion turant bata dena",
+      "file": "skills/currency-converter.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "dark-mode-toggle",
+      "description": "System ya app ka dark mode on/off karna",
+      "file": "skills/dark-mode-toggle.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "do-not-disturb-contacts",
+      "description": "Specific contact/group ke notifications mute ya silence karna (poori DND nahi)",
+      "file": "skills/do-not-disturb-contacts.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "document-scanner",
+      "description": "Camera se document scan karke PDF/image banana aur save/share karna",
+      "file": "skills/document-scanner.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "ebook-reader",
+      "description": "Kindle/book app me page turn, bookmark, ya text read-aloud karna",
+      "file": "skills/ebook-reader.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "expense-tracker",
+      "description": "Roz ka kharch bolke likhwana aur monthly/weekly total batana",
+      "file": "skills/expense-tracker.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "font-size-adjust",
+      "description": "Accessibility ke liye system text size badalna",
+      "file": "skills/font-size-adjust.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "game-launcher",
+      "description": "Specific game seedha open karna ya resume karna (gameplay control nahi, sirf launch)",
+      "file": "skills/game-launcher.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "gps-accuracy-mode",
+      "description": "GPS ka high-accuracy ya battery-saving mode switch karna",
+      "file": "skills/gps-accuracy-mode.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "group-broadcast",
+      "description": "Ek saath multiple contacts ko same message bhejna (broadcast, group nahi)",
+      "file": "skills/group-broadcast.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "karaoke-mode",
+      "description": "Lyrics dikhate hue gaana bajana (agar music app karaoke/lyrics support kare)",
+      "file": "skills/karaoke-mode.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "keyboard-language-switch",
+      "description": "Keyboard input language change karna (Hindi/English etc.)",
+      "file": "skills/keyboard-language-switch.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "low-battery-auto-message",
+      "description": "User ne khud setup kiya ho to battery bahut kam hone pe ek trusted contact ko auto batana",
+      "file": "skills/low-battery-auto-message.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "medicine-reminder",
+      "description": "Dawai ka time pe naam ke saath reminder dena (dosage advice nahi, sirf nudge)",
+      "file": "skills/medicine-reminder.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "mood-checkin",
+      "description": "Din me ek baar mood poochh ke halka supportive response dena",
+      "file": "skills/mood-checkin.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "nfc-toggle",
+      "description": "NFC on/off karna (tap-to-pay/tap-to-share ke liye)",
+      "file": "skills/nfc-toggle.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "order-tracking",
+      "description": "Amazon/Flipkart jaisi app me order ka status check karna",
+      "file": "skills/order-tracking.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "password-manager-helper",
+      "description": "Login field pe saved password ka autofill trigger karna (Maya khud password store/dekhti nahi)",
+      "file": "skills/password-manager-helper.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "playlist-builder",
+      "description": "Music playlist banana, songs add/remove karna",
+      "file": "skills/playlist-builder.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "podcast-player",
+      "description": "Podcast search/play/pause karna, episode skip karna",
+      "file": "skills/podcast-player.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "posture-break-reminder",
+      "description": "Lambi der baithne pe uthke stretch karne ka reminder dena",
+      "file": "skills/posture-break-reminder.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "price-check",
+      "description": "Kisi product ka price online turant search karke batana",
+      "file": "skills/price-check.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "print-document",
+      "description": "Connected printer pe file/photo print karna",
+      "file": "skills/print-document.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "qr-code-scanner",
+      "description": "QR code scan karke result batana ya link/payment open karna",
+      "file": "skills/qr-code-scanner.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "quick-note-shopping-list",
+      "description": "Bolte-bolte grocery/shopping list banana (notes-keeper ka dedicated shopping variant)",
+      "file": "skills/quick-note-shopping-list.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "radio-fm",
+      "description": "FM ya online radio station tune/play karna",
+      "file": "skills/radio-fm.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "read-receipts-manager",
+      "description": "WhatsApp jaisi app me \"seen/blue tick\" ka privacy setting on/off karna",
+      "file": "skills/read-receipts-manager.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "screen-recorder",
+      "description": "Screen record start/stop karna",
+      "file": "skills/screen-recorder.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "screenshot-tool",
+      "description": "Screenshot lena aur turant kisi ko bhejna",
+      "file": "skills/screenshot-tool.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "sleep-schedule",
+      "description": "Sone/uthne ka wind-down routine set karna aur alarm/DND ke saath link karna",
+      "file": "skills/sleep-schedule.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "social-media-post",
+      "description": "Instagram/Facebook jaisi app pe photo/video caption ke saath post ya story lagana",
+      "file": "skills/social-media-post.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "status-updater",
+      "description": "WhatsApp/Instagram status lagana (photo/video/text ke saath)",
+      "file": "skills/status-updater.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "storage-cleaner-suggest",
+      "description": "Junk files/cache bata ke clean karne ka suggest karna (khud delete nahi)",
+      "file": "skills/storage-cleaner-suggest.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "streaming-subtitle",
+      "description": "Video streaming app me subtitles on/off karna ya language change karna",
+      "file": "skills/streaming-subtitle.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "task-list-manager",
+      "description": "To-do list banake track karna (checkbox-style tasks), complete/pending dikhana",
+      "file": "skills/task-list-manager.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "trusted-circle-checkin",
+      "description": "User ne khud setup kiya ho to \"pahunch gaye\" jaisa auto check-in message trusted contact ko bhejna",
+      "file": "skills/trusted-circle-checkin.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "unit-converter",
+      "description": "km-miles, kg-lbs, Celsius-Fahrenheit jaisi unit conversions turant batana",
+      "file": "skills/unit-converter.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "video-call-manager",
+      "description": "Zoom/Meet/Duo jaisi app me call join/start karna, mute/unmute, camera on/off karna",
+      "file": "skills/video-call-manager.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "voice-typing-anywhere",
+      "description": "Kisi bhi app ke text field me boli hui baat type karke daalna (dictation)",
+      "file": "skills/voice-typing-anywhere.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "voicemail-check",
+      "description": "Voicemail sun ke ya read karke short summary user ko batana",
+      "file": "skills/voicemail-check.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "volume-profiles",
+      "description": "Silent/vibrate/ring profile turant switch karna",
+      "file": "skills/volume-profiles.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "water-reminder",
+      "description": "Pani peene ka periodic reminder set karna",
+      "file": "skills/water-reminder.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "browser-full-agent",
+      "description": "Ek prompt me website khol ke search/order/info sab khud karna, lekin payment/final-order se pehle turant ruk ke confirm lena",
+      "file": "skills/browser-full-agent.md",
+      "updated": "2026-07-25"
+    },
+    {
+      "name": "sub-agent-orchestrator",
+      "description": "Lambe browser/app kaam ko sub-agent ko saunp ke khud user se baat continue karna, jab tak result na aaye",
+      "file": "skills/sub-agent-orchestrator.md",
+      "updated": "2026-07-25"
+    }
+  ]
+}

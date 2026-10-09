@@ -365,4 +365,37 @@ object MobileConfig {
     fun setPcSecret(context: Context, secret: String) {
         getPrefs(context).edit().putString("pc_secret", secret).apply()
     }
+
+    // Lia AI Architecture: 10 Personalities & Language Matrix
+    fun getPersonality(context: Context): String {
+        return getPrefs(context).getString("personality", "NORMAL") ?: "NORMAL"
+    }
+
+    fun setPersonality(context: Context, personality: String) {
+        getPrefs(context).edit().putString("personality", personality).apply()
+    }
+
+    fun getLanguage(context: Context): String {
+        return getPrefs(context).getString("language_mode", "AUTO") ?: "AUTO"
+    }
+
+    fun setLanguage(context: Context, lang: String) {
+        getPrefs(context).edit().putString("language_mode", lang).apply()
+    }
+
+    fun getOrbStyle(context: Context): String {
+        return getPrefs(context).getString("orb_style", "nova") ?: "nova"
+    }
+
+    fun setOrbStyle(context: Context, style: String) {
+        getPrefs(context).edit().putString("orb_style", style).apply()
+    }
+
+    fun isEdgeGlowEnabled(context: Context): Boolean {
+        return getPrefs(context).getBoolean("edge_glow_enabled", true)
+    }
+
+    fun setEdgeGlowEnabled(context: Context, enabled: Boolean) {
+        getPrefs(context).edit().putBoolean("edge_glow_enabled", enabled).apply()
+    }
 }

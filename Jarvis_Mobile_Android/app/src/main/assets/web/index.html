@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- Screen-Edge Glow Border (Lia AI: ListeningEdgeGlow) -->
+  <div class="edge-glow-overlay" id="edgeGlowOverlay"></div>
 
   <!-- Top Cyberpunk Status Header -->
   <header class="header-bar">
@@ -205,6 +207,14 @@
 
       <!-- Quick Action Mobile Chips -->
       <div class="quick-actions-grid" style="margin-top: 14px;">
+        <div class="action-chip chip-forge" onclick="openWebsiteForgeModal()">
+          <i>⚡</i>
+          <span>Website Forge (3D)</span>
+        </div>
+        <div class="action-chip" onclick="promptOpenAppFromUI()">
+          <i>🚀</i>
+          <span>Open Any App</span>
+        </div>
         <div class="action-chip" onclick="executeAction('lock')">
           <i>🔒</i>
           <span>Lock Screen</span>
@@ -284,6 +294,83 @@
         <div class="form-group">
           <label for="surveyAutoTapperInput">Survey Auto-Tapper</label>
           <input type="text" id="surveyAutoTapperInput" class="form-control" value="Closed-Loop Accessibility Engine" readonly title="Survey Auto-Tapper" aria-label="Survey Auto-Tapper">
+        </div>
+      </div>
+
+      <!-- Lia AI Feature: 10 Personalities Matrix -->
+      <div class="settings-section-card">
+        <div class="section-title">
+          <i>🎭</i>
+          <span>10 SELECTABLE PERSONALITIES</span>
+        </div>
+        <p style="font-size: 11px; color: #94a3b8; margin-bottom: 8px;">যেকোনো পার্সোনালিটি নির্বাচন করুন। সাথে সাথে কথা ও চ্যাটের অভিব্যক্তি পরিবর্তিত হবে।</p>
+        <div class="personality-grid" id="personalityGrid">
+          <div class="personality-card active" data-p="NORMAL" onclick="selectPersonality('NORMAL')">
+            <span class="p-card-icon">⚡</span>
+            <span class="p-card-title">Normal</span>
+            <span class="p-card-desc">সুষম, মার্জিত ও গভীর বুদ্ধিদীপ্ত পার্সোনাল অ্যাসিস্ট্যান্ট।</span>
+          </div>
+          <div class="personality-card" data-p="FRIENDLY" onclick="selectPersonality('FRIENDLY')">
+            <span class="p-card-icon">🌟</span>
+            <span class="p-card-title">Friendly</span>
+            <span class="p-card-desc">উষ্ণ, উৎসাহী ও সবসময় পজিটিভ প্রিয় বন্ধু।</span>
+          </div>
+          <div class="personality-card" data-p="PROFESSIONAL" onclick="selectPersonality('PROFESSIONAL')">
+            <span class="p-card-icon">💼</span>
+            <span class="p-card-title">Professional</span>
+            <span class="p-card-desc">সংক্ষিপ্ত, সুনির্দিষ্ট, এক্সিকিউটিভ ও নো-ফ্লাফ মোড।</span>
+          </div>
+          <div class="personality-card" data-p="FUNNY" onclick="selectPersonality('FUNNY')">
+            <span class="p-card-icon">😄</span>
+            <span class="p-card-title">Funny</span>
+            <span class="p-card-desc">রসিকতাপূর্ণ, মজাদার কৌতুক ও চটুল কথার ফুলঝুরি।</span>
+          </div>
+          <div class="personality-card" data-p="COMPANION" onclick="selectPersonality('COMPANION')">
+            <span class="p-card-icon">🤗</span>
+            <span class="p-card-title">Companion</span>
+            <span class="p-card-desc">সহানুভূতিশীল ও গভীর মনোযোগ দিয়ে শোনা বিশ্বস্ত সঙ্গী।</span>
+          </div>
+          <div class="personality-card" data-p="GF_MODE" onclick="selectPersonality('GF_MODE')">
+            <span class="p-card-icon">💖</span>
+            <span class="p-card-title">GF Mode</span>
+            <span class="p-card-desc">মিষ্টি, আদুরে, খুনসুটিপূর্ণ ও পরম যত্নশীল সঙ্গিনী।</span>
+          </div>
+          <div class="personality-card" data-p="TEACHER" onclick="selectPersonality('TEACHER')">
+            <span class="p-card-icon">📚</span>
+            <span class="p-card-title">Teacher</span>
+            <span class="p-card-desc">ধৈর্যশীল শিক্ষক, প্রতিটি বিষয় সহজ উপমায় বোঝায়।</span>
+          </div>
+          <div class="personality-card" data-p="DEVELOPER" onclick="selectPersonality('DEVELOPER')">
+            <span class="p-card-icon">💻</span>
+            <span class="p-card-title">Developer</span>
+            <span class="p-card-desc">সফটওয়্যার আর্কিটেক্ট, কোড ও টার্মিনাল এক্সপার্ট।</span>
+          </div>
+          <div class="personality-card" data-p="HUNGRY" onclick="selectPersonality('HUNGRY')">
+            <span class="p-card-icon">🍕</span>
+            <span class="p-card-title">Hungry</span>
+            <span class="p-card-desc">ভোজনরসিক! কথায় কথায় খাবার ও স্ন্যাক্সের তুলনা।</span>
+          </div>
+          <div class="personality-card" data-p="NAUTANKI" onclick="selectPersonality('NAUTANKI')">
+            <span class="p-card-icon">🎬</span>
+            <span class="p-card-title">Nautanki</span>
+            <span class="p-card-desc">বলিউড স্টাইল নাটকীয় ডায়লগ ও রোমাঞ্চকর প্রতিক্রিয়া!</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lia AI Feature: Language & Detection Matrix -->
+      <div class="settings-section-card">
+        <div class="section-title">
+          <i>🌐</i>
+          <span>LANGUAGE & REAL-TIME DETECTION</span>
+        </div>
+        <p style="font-size: 11px; color: #94a3b8; margin-bottom: 8px;">অটো মোডে যে ভাষায় কথা বলবেন, জারভিস অবিকল সেই ভাষায় সাড়া দেবে।</p>
+        <div class="lang-pill-row" id="langPillRow">
+          <div class="lang-pill active" data-lang="AUTO" onclick="setAppLanguage('AUTO')">🌐 AUTO (স্বয়ংক্রিয় শনাক্তকরণ)</div>
+          <div class="lang-pill" data-lang="BANGLA" onclick="setAppLanguage('BANGLA')">🇧🇩 বাংলা (Bangla)</div>
+          <div class="lang-pill" data-lang="HINDI" onclick="setAppLanguage('HINDI')">🇮🇳 हिंदी (Hindi)</div>
+          <div class="lang-pill" data-lang="HINGLISH" onclick="setAppLanguage('HINGLISH')">🇮🇳 Hinglish</div>
+          <div class="lang-pill" data-lang="ENGLISH" onclick="setAppLanguage('ENGLISH')">🇺🇸 English</div>
         </div>
       </div>
     </section>
@@ -475,6 +562,58 @@
         </div>
       </div>
     </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 4: AI SKILLS HUB // 84 ACTIVE PLAYBOOKS-->
+    <!-- ========================================== -->
+    <section class="tab-content" id="tab-skills">
+      <div class="settings-section-card" style="border:1px solid rgba(34,211,238,0.3); background:rgba(15,23,42,0.85);">
+        <div class="section-title">
+          <i>⚡</i>
+          <span>AI SKILLS HUB // 84 PLAYBOOKS</span>
+          <span class="auto-save-tag" style="background:rgba(34,211,238,0.2);color:#22d3ee;" id="skillsCountBadge">84 Active</span>
+        </div>
+        <p style="font-size:11px; color:#94a3b8; margin-bottom:12px; line-height:1.5;">
+          JARVIS ও MYRA মোবাইল ও পিসির জন্য ৮৪টি অটোমেশন ও এআই স্কিল প্লেবুক যুক্ত হয়েছে। যেকোনো স্কিল ক্লিক করে নির্দেশনা দেখুন অথবা সরাসরি রান করুন।
+        </p>
+
+        <!-- Search input -->
+        <div class="form-group" style="margin-bottom:10px;">
+          <input type="text" id="skillsSearchInput" class="form-control" placeholder="🔍 স্কিল খুঁজুন (whatsapp, alarm, torch, camera)..." oninput="filterSkillsGrid()" title="Search Skills">
+        </div>
+
+        <!-- Filter Chips -->
+        <div style="display:flex; gap:6px; overflow-x:auto; padding-bottom:8px; margin-bottom:10px;" id="skillsFilterChips">
+          <button type="button" class="action-chip" style="padding:4px 10px; font-size:11px; border:1px solid #22d3ee; background:rgba(34,211,238,0.15);" onclick="filterSkillsByCategory('all')">সবগুলো (All)</button>
+          <button type="button" class="action-chip" style="padding:4px 10px; font-size:11px;" onclick="filterSkillsByCategory('comm')">যোগাযোগ</button>
+          <button type="button" class="action-chip" style="padding:4px 10px; font-size:11px;" onclick="filterSkillsByCategory('device')">ডিভাইস</button>
+          <button type="button" class="action-chip" style="padding:4px 10px; font-size:11px;" onclick="filterSkillsByCategory('media')">মিডিয়া</button>
+          <button type="button" class="action-chip" style="padding:4px 10px; font-size:11px;" onclick="filterSkillsByCategory('utility')">ইউটিলিটি</button>
+        </div>
+
+        <!-- Skills Grid Container -->
+        <div id="skillsGridContainer" style="display:flex; flex-direction:column; gap:8px; max-height:480px; overflow-y:auto; padding-right:4px;">
+          <!-- Loaded dynamically -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Modal for Skill Playbook Details -->
+    <div id="skillDetailModal" class="modal-backdrop" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); z-index:9999; backdrop-filter:blur(6px); align-items:center; justify-content:center; padding:16px; box-sizing:border-box;">
+      <div style="background:#0f172a; border:1px solid #22d3ee; border-radius:12px; width:100%; max-width:480px; max-height:85vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 0 25px rgba(34,211,238,0.4);">
+        <div style="padding:12px 16px; border-bottom:1px solid rgba(255,255,255,0.1); display:flex; justify-content:space-between; align-items:center;">
+          <h3 id="skillModalTitle" style="margin:0; font-size:14px; color:#22d3ee; font-family:monospace;">Skill Name</h3>
+          <button type="button" onclick="closeSkillModal()" style="background:transparent; border:none; color:#fff; font-size:18px; cursor:pointer;">✕</button>
+        </div>
+        <div id="skillModalBody" style="padding:14px; overflow-y:auto; font-size:12px; line-height:1.6; color:#cbd5e1; white-space:pre-wrap; font-family:inherit;">
+          Loading...
+        </div>
+        <div style="padding:10px 14px; border-top:1px solid rgba(255,255,255,0.1); display:flex; gap:8px; justify-content:flex-end;">
+          <button type="button" class="btn-primary" style="padding:8px 16px; font-size:12px; width:auto; margin:0;" id="skillModalRunBtn" onclick="runCurrentModalSkill()">⚡ রান করুন</button>
+          <button type="button" class="btn-toggle-eye" style="padding:8px 16px; font-size:12px; width:auto;" onclick="closeSkillModal()">বন্ধ করুন</button>
+        </div>
+      </div>
+    </div>
 
     <!-- ========================================== -->
     <!-- TAB 5: SETTINGS & API KEYS (FULL CONFIG)   -->
@@ -753,6 +892,13 @@
       <span>Modes</span>
     </div>
 
+    <div class="nav-item" id="nav-skills" onclick="switchTab('skills')">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+      </svg>
+      <span>Skills</span>
+    </div>
+
     <div class="nav-item" id="nav-settings" onclick="switchTab('settings')">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
@@ -762,9 +908,86 @@
     </div>
   </nav>
 
+  <!-- ==========================================================================
+       Lia AI Feature: Live 3D Website Forge Stage & HUD Modal
+       ========================================================================== -->
+  <div class="forge-modal" id="forgeModal">
+    <!-- 3D Three.js Live Build Stage -->
+    <div class="forge-stage" id="forgeStage">
+      <div id="forgeCanvasContainer" class="forge-canvas-container"></div>
+    </div>
+
+    <!-- Top HUD Overlay -->
+    <div class="forge-top-bar">
+      <div class="forge-badge">
+        <span class="forge-dot"></span>
+        <span id="forgeBadgeText">3D WEBSITE FORGE ACTIVE</span>
+      </div>
+      <button class="forge-close-btn" onclick="closeWebsiteForge()" title="Close Forge">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- Floating Stage & Metrics HUD Card -->
+    <div class="forge-hud-card" id="forgeHudCard">
+      <div class="forge-prompt-title" id="forgePromptDisplay">"Cafe Website with 3D Coffee Animation"</div>
+      
+      <div class="forge-stage-info">
+        <span class="forge-stage-name" id="forgeStageName">Reading your idea...</span>
+        <span class="forge-pct" id="forgePercentText">15%</span>
+      </div>
+
+      <!-- 6-Segment Progress Track -->
+      <div class="stage-track" id="stageTrack">
+        <div class="stage-seg active" data-step="1"><span>Idea</span></div>
+        <div class="stage-seg" data-step="2"><span>Layout</span></div>
+        <div class="stage-seg" data-step="3"><span>Styles</span></div>
+        <div class="stage-seg" data-step="4"><span>3D Canvas</span></div>
+        <div class="stage-seg" data-step="5"><span>Motion</span></div>
+        <div class="stage-seg" data-step="6"><span>Ready</span></div>
+      </div>
+
+      <!-- Real-Time Metrics -->
+      <div class="forge-metrics-row">
+        <div class="metric-item"><span class="m-val" id="mChars">0 KB</span><span class="m-lbl">Code</span></div>
+        <div class="metric-item"><span class="m-val" id="mSections">0</span><span class="m-lbl">Sections</span></div>
+        <div class="metric-item"><span class="m-val" id="mSpeed">0 t/s</span><span class="m-lbl">Speed</span></div>
+        <div class="metric-item"><span class="m-val" id="mElapsed">0s</span><span class="m-lbl">Time</span></div>
+      </div>
+
+      <!-- Live Terminal Log Feeder -->
+      <div class="forge-log-box" id="forgeLogBox">
+        <div class="log-line text-cyan-400">&gt; Initializing Three.js Gyroscopic Reactor Core...</div>
+      </div>
+
+      <div class="forge-btn-row">
+        <button class="forge-cancel-btn" onclick="cancelWebsiteForge()">Cancel Build</button>
+      </div>
+    </div>
+
+    <!-- Revealed Live Interactive Website Preview (Underneath / Revealed when DONE) -->
+    <div class="forge-result-view" id="forgeResultView" style="display:none;">
+      <div class="forge-result-toolbar">
+        <div class="toolbar-brand">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          <span id="resultSiteTitle">LIVE PREVIEW</span>
+        </div>
+        <div class="toolbar-actions">
+          <button class="t-btn" onclick="saveForgedSite()" title="Save to disk">💾 Save</button>
+          <button class="t-btn" onclick="openForgedSiteExternal()" title="Open in browser">🌐 Browser</button>
+          <button class="t-btn" onclick="promptEditForgedSite()" title="Edit with prompt">✏️ Edit</button>
+          <button class="t-btn" onclick="shareForgedSite()" title="Share">📤 Share</button>
+          <button class="t-btn t-btn-close" onclick="closeWebsiteForge()">✕ Close</button>
+        </div>
+      </div>
+      <iframe id="forgeIframe" class="forge-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+    </div>
+  </div>
+
   <!-- Notification Toast -->
   <div class="toast-notice" id="toastNotice">Settings Saved Successfully</div>
 
+  <script src="three.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

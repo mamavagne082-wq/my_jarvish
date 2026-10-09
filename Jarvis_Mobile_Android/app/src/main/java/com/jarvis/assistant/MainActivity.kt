@@ -28,6 +28,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import org.json.JSONObject
+import java.io.File
 import kotlinx.coroutines.*
 
 class MainActivity : AppCompatActivity() {
@@ -723,6 +724,21 @@ class MainActivity : AppCompatActivity() {
                                 activity.openAccessibilitySettings()
                             }
                         }
+                        "open_app", "open_application" -> {
+                            val appName = payload.optString("app_name", target)
+                            if (appName.isNotBlank()) {
+                                if (JarvisAccessibilityService.instance != null) {
+                                    JarvisAccessibilityService.instance?.openApplication(appName)
+                                } else {
+                                    val launchIntent = activity.packageManager.getLaunchIntentForPackage(appName)
+                                    if (launchIntent != null) {
+                                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        activity.startActivity(launchIntent)
+                                    }
+                                }
+                                Toast.makeText(activity, "🚀 '$appName' ওপেন করা হচ্ছে...", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                         else -> {
                             if (JarvisAccessibilityService.instance != null) {
                                 JarvisAccessibilityService.instance?.handleCommand(action, payload)
@@ -1005,6 +1021,121 @@ class MainActivity : AppCompatActivity() {
                     Log.e("MainActivity", "Error fetching PC screen: ${e.message}")
                 }
             }
+        }
+
+        @JavascriptInterface
+        fun getSkillsCatalogJson(): String {
+            return JarvisMobileSkillsManager.getSkillCatalogJson(activity)
+        }
+
+        @JavascriptInterface
+        fun getSkillDetails(skillName: String): String {
+            return JarvisMobileSkillsManager.getSkillContent(activity, skillName)
+        }
+
+        @JavascriptInterface
+        fun executeSkillFromUi(skillName: String) {
+            activity.runOnUiThread {
+                Toast.makeText(activity, "⚡ স্কিল '$skillName' সক্রিয় করা হয়েছে", Toast.LENGTH_SHORT).show()
+                JarvisForegroundService.instance?.handleUserSpokenCommand("Execute skill: $skillName")
+            }
+        }
+
+        // ── Lia AI Feature: Live 3D Website Forge & File Operations ──────────
+        @JavascriptInterface
+        fun saveWebsiteFile(filename: String, htmlContent: String): String {
+            return try {
+                val websitesDir = File(activity.filesDir, "Websites").apply { mkdirs() }
+                val cleanName = filename.replace("[^a-zA-Z0-9_.-]".toRegex(), "_")
+                val targetFile = File(websitesDir, cleanName)
+                targetFile.writeText(htmlContent, Charsets.UTF_8)
+                activity.runOnUiThread {
+                    Toast.makeText(activity, "💾 ওয়েবসাইট লোকাল ড্রাইভে সেভ হয়েছে: ${targetFile.name}", Toast.LENGTH_LONG).show()
+                }
+                targetFile.absolutePath
+            } catch (e: Exception) {
+                Log.e(TAG, "Error saving website: ${e.message}")
+                ""
+            }
+        }
+
+        @JavascriptInterface
+        fun openExternalBrowser(urlOrPath: String) {
+            activity.runOnUiThread {
+                try {
+                    val uri = if (urlOrPath.startsWith("http://") || urlOrPath.startsWith("https://")) {
+                        Uri.parse(urlOrPath)
+                    } else {
+                        val file = File(urlOrPath)
+                        androidx.core.content.FileProvider.getUriForFile(
+                            activity,
+                            "${activity.packageName}.fileprovider",
+                            file
+                        )
+                    }
+                    val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    }
+                    activity.startActivity(Intent.createChooser(intent, "ব্রাউজারে ওয়েবসাইট ওপেন করুন"))
+                } catch (e: Exception) {
+                    Toast.makeText(activity, "ব্রাউজার ওপেন করা যায়নি: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun shareWebsite(filename: String, htmlContent: String) {
+            activity.runOnUiThread {
+                try {
+                    val sendIntent = Intent().apply {
+                        action = Intent.ACTION_SEND
+                        putExtra(Intent.EXTRA_TITLE, filename)
+                        putExtra(Intent.EXTRA_TEXT, htmlContent)
+                        type = "text/html"
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    activity.startActivity(Intent.createChooser(sendIntent, "ওয়েবসাইট কোড শেয়ার করুন"))
+                } catch (e: Exception) {
+                    Toast.makeText(activity, "শেয়ার করা যায়নি: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        // ── Lia AI Feature: 10 Personalities & Language Matrix ───────────────
+        @JavascriptInterface
+        fun getActivePersonality(): String {
+            return MobileConfig.getPersonality(activity)
+        }
+
+        @JavascriptInterface
+        fun setActivePersonality(personality: String) {
+            MobileConfig.setPersonality(activity, personality)
+            activity.runOnUiThread {
+                Toast.makeText(activity, "🎭 পার্সোনালিটি সেট করা হয়েছে: $personality", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        @JavascriptInterface
+        fun getActiveLanguage(): String {
+            return MobileConfig.getLanguage(activity)
+        }
+
+        @JavascriptInterface
+        fun setActiveLanguage(lang: String) {
+            MobileConfig.setLanguage(activity, lang)
+            activity.runOnUiThread {
+                Toast.makeText(activity, "🌐 ভাষা সেট করা হয়েছে: $lang", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        @JavascriptInterface
+        fun getOrbStyle(): String {
+            return MobileConfig.getOrbStyle(activity)
+        }
+
+        @JavascriptInterface
+        fun setOrbStyle(style: String) {
+            MobileConfig.setOrbStyle(activity, style)
         }
     }
 }

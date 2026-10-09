@@ -646,15 +646,19 @@ class JarvisForegroundService : Service() {
             return
         }
 
-        // 7. OPEN APPLICATION
-        if (isMatch(lower, listOf("ওপেন", "খোল", "খোলো", "চালু", "অন করো", "open", "launch", "start"))) {
+        // 7. OPEN APPLICATION (AI Desktop & Mobile App Launcher)
+        if (isMatch(lower, listOf("ওপেন", "খোল", "খোলো", "চালু", "অন করো", "open", "launch", "start", "kholo", "kholdo", "khol do", "chalao", "chalaao", "chalu karo", "chala do", "run karo", "shuru karo"))) {
             var appName = clean
-            val openRemovals = listOf("অ্যাপস ওপেন করো", "অ্যাপ ওপেন করো", "ওপেন করো", "অ্যাপস খোলো", "অ্যাপ খোলো", "খোলো", "খোল", "চালু করো", "অন করো", "অ্যাপটি", "অ্যাপস", "open app", "open", "launch")
+            val openRemovals = listOf(
+                "অ্যাপস ওপেন করো", "অ্যাপ ওপেন করো", "ওপেন করো", "অ্যাপস খোলো", "অ্যাপ খোলো", "খোলো", "খোল", "চালু করো", "অন করো",
+                "অ্যাপটি", "অ্যাপস", "open app", "open", "launch", "kholo", "kholdo", "khol do", "chalao", "chalaao", "chalu karo", "chala do",
+                "run karo", "shuru karo", "please", "karo", "kro", "do", "na", "zara", "bhai", "yaar", "jaan"
+            )
             for (kw in openRemovals) {
                 appName = appName.replace(Regex("(?i)$kw"), "").trim()
             }
             if (appName.isNotBlank()) {
-                val reply = "'$appName' অ্যাপটি চালু করা হচ্ছে।"
+                val reply = "হ্যাঁ, '$appName' এখনই ওপেন করছি! ❤️"
                 MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
                 speakTextLocally(reply)
                 JarvisAccessibilityService.instance?.openApplication(appName)
@@ -854,6 +858,15 @@ class JarvisForegroundService : Service() {
         }
     }
 
+    private fun getAugmentedSystemPrompt(prompt: String): String {
+        val userName = MobileConfig.getUserName(this)
+        val basePrompt = "You are Jarvis, the high-tech AI companion for $userName. " +
+                "Reply naturally, smartly and concisely in Bengali (বাংলা). " +
+                "Keep verbal response to 1-2 short punchy sentences suitable for speech output. " +
+                "Do not include asterisks, emojis or markdown."
+        return JarvisMobileSkillsManager.buildSystemPromptWithSkills(this, prompt, basePrompt)
+    }
+
     private fun callGeminiApi(apiKey: String, model: String, prompt: String): String {
         val endpoint = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=${apiKey.trim()}"
         val url = java.net.URL(endpoint)
@@ -865,10 +878,7 @@ class JarvisForegroundService : Service() {
             setRequestProperty("Content-Type", "application/json; charset=UTF-8")
         }
 
-        val sysPrompt = "You are Jarvis, the high-tech AI companion for ALAMIN. " +
-                "Reply naturally, smartly and concisely in Bengali (বাংলা). " +
-                "Keep verbal response to 1-2 short punchy sentences suitable for speech output. " +
-                "Do not include asterisks, emojis or markdown."
+        val sysPrompt = getAugmentedSystemPrompt(prompt)
 
         val body = JSONObject().apply {
             val sysParts = JSONArray().apply {
@@ -930,10 +940,7 @@ class JarvisForegroundService : Service() {
             setRequestProperty("X-Title", "Jarvis")
         }
 
-        val sysPrompt = "You are Jarvis, the personal AI companion for ALAMIN. " +
-                "Reply naturally, smartly and concisely in Bengali (বাংলা). " +
-                "Keep verbal response to 1-2 short punchy sentences suitable for speech output. " +
-                "Do not include asterisks or markdown."
+        val sysPrompt = getAugmentedSystemPrompt(prompt)
 
         val body = JSONObject().apply {
             put("model", model)
@@ -982,9 +989,7 @@ class JarvisForegroundService : Service() {
             setRequestProperty("Authorization", "Bearer ${apiKey.trim()}")
         }
 
-        val sysPrompt = "You are Jarvis, the personal AI companion for ALAMIN. " +
-                "Reply naturally, smartly and concisely in Bengali (বাংলা). " +
-                "Keep verbal response to 1-2 short punchy sentences."
+        val sysPrompt = getAugmentedSystemPrompt(prompt)
 
         val body = JSONObject().apply {
             put("model", model)
@@ -1033,9 +1038,7 @@ class JarvisForegroundService : Service() {
             setRequestProperty("Authorization", "Bearer ${apiKey.trim()}")
         }
 
-        val sysPrompt = "You are Jarvis, the high-tech AI companion for ALAMIN. " +
-                "Reply naturally, smartly and concisely in Bengali (বাংলা). " +
-                "Keep verbal response to 1-2 short punchy sentences suitable for speech output."
+        val sysPrompt = getAugmentedSystemPrompt(prompt)
 
         val body = JSONObject().apply {
             put("model", model)
@@ -1083,9 +1086,7 @@ class JarvisForegroundService : Service() {
             setRequestProperty("Authorization", "Bearer ${apiKey.trim()}")
         }
 
-        val sysPrompt = "You are Jarvis, the high-tech AI companion for ALAMIN. " +
-                "Reply naturally, smartly and concisely in Bengali (বাংলা). " +
-                "Keep verbal response to 1-2 short punchy sentences suitable for speech output."
+        val sysPrompt = getAugmentedSystemPrompt(prompt)
 
         val body = JSONObject().apply {
             put("model", model)

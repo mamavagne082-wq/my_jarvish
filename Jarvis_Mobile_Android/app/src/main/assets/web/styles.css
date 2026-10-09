@@ -1196,3 +1196,472 @@ input:checked + .slider::before {
   color: #fca5a5;
   line-height: 1.3;
 }
+
+/* --- Skills Hub Matrix Styling --- */
+.skill-card-item {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.skill-card-item:hover, .skill-card-item:active {
+  border-color: rgba(34, 211, 238, 0.5);
+  background: rgba(30, 41, 59, 0.95);
+  transform: translateY(-1px);
+}
+
+.skill-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.skill-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #38bdf8;
+  font-family: monospace;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.skill-card-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 12px;
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.skill-card-desc {
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.skill-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.skill-card-action {
+  font-size: 10px;
+  color: #22d3ee;
+  background: rgba(34, 211, 238, 0.1);
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(34, 211, 238, 0.3);
+}
+
+/* ==========================================================================
+   Lia AI Design: Listening Edge Glow Border (ListeningEdgeGlow)
+   ========================================================================== */
+.edge-glow-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  border-radius: 0;
+  box-shadow: inset 0 0 25px 4px transparent;
+  transition: box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1), border 0.4s ease, opacity 0.4s ease;
+  opacity: 0;
+}
+.edge-glow-overlay.active {
+  opacity: 1;
+}
+.edge-glow-overlay.listening {
+  opacity: 1;
+  box-shadow: inset 0 0 35px 6px rgba(6, 182, 212, 0.75), inset 0 0 70px 15px rgba(34, 211, 238, 0.35);
+  border: 2px solid rgba(34, 211, 238, 0.6);
+}
+.edge-glow-overlay.speaking {
+  opacity: 1;
+  box-shadow: inset 0 0 40px 8px rgba(244, 63, 94, 0.8), inset 0 0 80px 20px rgba(251, 146, 60, 0.4);
+  border: 2px solid rgba(251, 113, 133, 0.7);
+}
+.edge-glow-overlay.thinking {
+  opacity: 1;
+  box-shadow: inset 0 0 35px 6px rgba(245, 158, 11, 0.75), inset 0 0 65px 12px rgba(217, 119, 6, 0.3);
+  border: 2px solid rgba(251, 191, 36, 0.6);
+}
+.edge-glow-overlay.error {
+  opacity: 1;
+  box-shadow: inset 0 0 40px 8px rgba(239, 68, 68, 0.85);
+  border: 2px solid rgba(239, 68, 68, 0.7);
+}
+
+/* ==========================================================================
+   Lia AI: 10 Personalities Grid & Multi-Lingual Matrix
+   ========================================================================== */
+.personality-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+.personality-card {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  position: relative;
+  overflow: hidden;
+}
+.personality-card:hover, .personality-card:active {
+  transform: translateY(-2px) scale(0.99);
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(34, 211, 238, 0.4);
+}
+.personality-card.active {
+  border-color: #22d3ee;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.25) 0%, rgba(168, 85, 247, 0.15) 100%);
+  box-shadow: 0 0 20px rgba(34, 211, 238, 0.3);
+}
+.personality-card.active::before {
+  content: '✓';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 18px;
+  height: 18px;
+  background: #22d3ee;
+  color: #020617;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.p-card-icon {
+  font-size: 22px;
+}
+.p-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+.p-card-desc {
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.35;
+}
+
+/* Language selector pills */
+.lang-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.lang-pill {
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.lang-pill.active {
+  background: rgba(6, 182, 212, 0.25);
+  border-color: #22d3ee;
+  color: #22d3ee;
+  box-shadow: 0 0 15px rgba(34, 211, 238, 0.3);
+}
+
+/* Chip Forge button in quick actions */
+.chip-forge {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.2) 0%, rgba(168, 85, 247, 0.2) 100%) !important;
+  border-color: rgba(34, 211, 238, 0.5) !important;
+}
+.chip-forge span {
+  color: #22d3ee !important;
+  font-weight: 700 !important;
+}
+
+/* ==========================================================================
+   Lia AI: Live 3D Website Forge Stage & HUD
+   ========================================================================== */
+.forge-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: #020617;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+.forge-modal.open {
+  display: flex;
+  animation: fadeIn 0.35s ease forwards;
+}
+.forge-stage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+.forge-canvas-container {
+  width: 100%;
+  height: 100%;
+}
+.forge-top-bar {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 20;
+}
+.forge-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 24px;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(34, 211, 238, 0.4);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: #22d3ee;
+  box-shadow: 0 0 20px rgba(34, 211, 238, 0.25);
+}
+.forge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22d3ee;
+  box-shadow: 0 0 10px #22d3ee;
+  animation: pulseDot 1.5s infinite;
+}
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.6; }
+}
+.forge-close-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.forge-close-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: #ef4444;
+  color: #fff;
+}
+.forge-hud-card {
+  position: absolute;
+  bottom: 24px;
+  left: 16px;
+  right: 16px;
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 24px;
+  padding: 18px 20px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6), 0 0 30px rgba(6, 182, 212, 0.15);
+}
+.forge-prompt-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #f8fafc;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.forge-stage-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.forge-stage-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #38bdf8;
+  font-style: italic;
+}
+.forge-pct {
+  font-size: 16px;
+  font-weight: 800;
+  color: #22d3ee;
+  font-family: monospace;
+}
+.stage-track {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+}
+.stage-seg {
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  transition: all 0.3s;
+}
+.stage-seg.active {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.4), rgba(168, 85, 247, 0.3));
+  border-color: #22d3ee;
+  color: #22d3ee;
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.35);
+}
+.stage-seg.done {
+  background: rgba(16, 185, 129, 0.3);
+  border-color: #10b981;
+  color: #34d399;
+}
+.forge-metrics-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(2, 6, 23, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.metric-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.m-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f1f5f9;
+  font-family: monospace;
+}
+.m-lbl {
+  font-size: 9px;
+  color: #64748b;
+  text-transform: uppercase;
+}
+.forge-log-box {
+  max-height: 48px;
+  overflow-y: hidden;
+  font-family: monospace;
+  font-size: 11px;
+  color: #94a3b8;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.forge-cancel-btn {
+  width: 100%;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #f87171;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.forge-cancel-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+/* Revealed Result Viewer */
+.forge-result-view {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: #020617;
+  display: flex;
+  flex-direction: column;
+}
+.forge-result-toolbar {
+  height: 52px;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+}
+.toolbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: 0.5px;
+}
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.t-btn {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.t-btn:hover {
+  background: rgba(34, 211, 238, 0.2);
+  border-color: #22d3ee;
+  color: #22d3ee;
+}
+.t-btn-close {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+.forge-iframe {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #ffffff;
+}
+
+
