@@ -2449,6 +2449,7 @@
 
       return answers.map((ans, idx) => {
         let qIdx = (typeof ans.question_index === "number") ? ans.question_index : (typeof ans.question_number === "number" ? ans.question_number - 1 : idx);
+        const qObj = (qs && qs[qIdx]) ? qs[qIdx] : null;
         let labels = Array.isArray(ans.selected_labels) ? [...ans.selected_labels] : [];
         if (labels.length === 0) {
           if (ans.selected_label) labels.push(String(ans.selected_label));
