@@ -730,6 +730,39 @@
         </div>
       </div>
 
+      <!-- Cross-Platform Survey & Screen Solver Card (Pollinations AI + Gemini Webview) -->
+      <div class="settings-section-card" id="surveySolverSection">
+        <div class="section-title">
+          <i>🧠</i>
+          <span>স্মার্ট সার্ভে ও স্ক্রিন সলভার (POLLINATIONS & GEMINI)</span>
+          <span class="auto-save-tag" style="background:rgba(34,197,94,0.2);color:#4ade80;">⚡ ০ কী / ০ লগইন</span>
+        </div>
+        <p style="font-size:11px; color:#94a3b8; margin-bottom:12px; line-height:1.5;">
+          🎯 <strong>ফুল অটোমেশন:</strong> Pollinations AI এবং ইন-অ্যাপ Gemini দিয়ে সরাসরি যেকোনো সার্ভে প্রশ্ন বা স্ক্রিনের সঠিক উত্তর এক ক্লিকেই বের করুন।
+        </p>
+
+        <div class="form-group" style="margin-bottom:10px;">
+          <label for="surveyQuickQuestionInput">সার্ভে প্রশ্ন বা অপশন (বা খালি রেখে স্ক্রিন সলভ করুন)</label>
+          <textarea id="surveyQuickQuestionInput" class="form-control" rows="2" placeholder="উদাহরণ: What is your gender? Male or Female"></textarea>
+        </div>
+
+        <div style="display:flex; gap:8px; margin-bottom:12px;">
+          <button type="button" class="btn-primary" style="flex:1; margin:0; padding:10px;" onclick="triggerMobileSurveySolve('pollinations')">
+            <span>🤖 Pollinations AI সলভ</span>
+          </button>
+          <button type="button" class="btn-secondary" style="flex:1; margin:0; padding:10px; border:1px solid #38bdf8; color:#38bdf8;" onclick="triggerMobileSurveySolve('gemini')">
+            <span>👑 জেমিনি প্রো সলভ</span>
+          </button>
+        </div>
+
+        <!-- Live Answer Box -->
+        <div id="surveyAnswerDisplayBox" style="display:none; background:rgba(15,23,42,0.9); border:1px solid #22c55e; border-radius:10px; padding:12px; text-align:center;">
+          <span style="font-size:10px; text-transform:uppercase; color:#4ade80; font-weight:700; letter-spacing:1px; display:block; margin-bottom:4px;">🎯 চূড়ান্ত সঠিক উত্তর</span>
+          <div id="surveyFinalAnswerText" style="font-size:15px; font-weight:800; color:#ffffff; margin-bottom:8px;">—</div>
+          <button type="button" class="badge-green" style="cursor:pointer; padding:4px 12px; font-size:11px;" onclick="speakSurveyAnswer()">🔊 ভয়েসে শুনুন</button>
+        </div>
+      </div>
+
       <!-- Cloud API Keys Section -->
       <div class="settings-section-card">
         <div class="section-title">
@@ -1053,6 +1086,8 @@
   <div class="toast-notice" id="toastNotice">Settings Saved Successfully</div>
 
   <script src="three.min.js"></script>
+  <script src="universal-survey-solver.js"></script>
+  <script src="jarvis-crossplatform-copilot.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

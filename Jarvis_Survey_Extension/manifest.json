@@ -31,6 +31,8 @@
       "all_frames": true,
       "match_about_blank": true,
       "js": [
+        "content/universal_survey_solver.js",
+        "content/jarvis_crossplatform_copilot.js",
         "content/content_script.js"
       ],
       "css": [

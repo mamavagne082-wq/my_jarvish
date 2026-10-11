@@ -33,6 +33,16 @@ if (typeof importScripts !== "undefined") {
   }
 }
 
+// Import Universal Survey Solver & Cross-Platform Copilot Engine
+if (typeof importScripts !== "undefined") {
+  try {
+    importScripts("universal_survey_solver.js", "jarvis_crossplatform_copilot.js");
+    console.log("[Jarvis] ✅ Universal Survey Solver & Cross-Platform Copilot loaded!");
+  } catch (e) {
+    console.warn("[Jarvis ServiceWorker] Error importing universal solvers:", e);
+  }
+}
+
 // === ALL REAL, VERIFIED GEMINI MODELS (Latest & Fastest First) ===
 const GEMINI_MODEL_CHAIN = [
   "gemini-3.8-flash",
@@ -1225,6 +1235,55 @@ async function handleSurveyAnalysis(payload, tabId) {
       }
     } catch (webErr2) {
       console.warn("[Jarvis ServiceWorker] Gemini Web Account failover note:", webErr2.message);
+    }
+  }
+
+  // 2.8. Fallback to Pollinations AI Zero-Key Autonomous Engine (100% Free, 0 Login, Instant)
+  if (!result || !result.data || !result.data.answers || result.data.answers.length === 0) {
+    try {
+      const qList = originalQuestions.length > 0 ? originalQuestions : (payload.questions || []);
+      if (qList.length > 0 && typeof queryPollinationsAI !== "undefined") {
+        console.log(`[Jarvis AI] Solving ${qList.length} questions via Pollinations AI (Zero-Key Zero-Login)...`);
+        const pollinationsAnswers = [];
+        for (let qIdx = 0; qIdx < qList.length; qIdx++) {
+          const curQ = qList[qIdx];
+          const optStr = (curQ.options || []).map((o, idx) => `${idx + 1}. ${o.label || o.value}`).join(", ");
+          const qPrompt = `${curQ.text || 'Question'}\nOptions: ${optStr}`;
+          const aiAns = await queryPollinationsAI(qPrompt, { persona });
+          if (aiAns) {
+            pollinationsAnswers.push({
+              question_index: curQ.index !== undefined ? curQ.index : qIdx,
+              question_id: curQ.id || "",
+              question_text: curQ.text || `Question ${qIdx + 1}`,
+              recommended_action: curQ.type === "multiple_choice" ? "select_checkbox" : (curQ.type === "text_input" ? "type_text" : "select_radio"),
+              target_element_ids: [],
+              selected_labels: [aiAns],
+              text_input_value: curQ.type === "text_input" ? aiAns : null,
+              reasoning: "Pollinations AI Zero-Key Core",
+              model_used: "Pollinations-Zero-Key"
+            });
+          }
+        }
+        if (pollinationsAnswers.length > 0) {
+          result = {
+            success: true,
+            providerUsed: "Pollinations AI (0 API Key / 0 Login) ⚡",
+            modelUsed: "Pollinations AI Fast",
+            data: {
+              page_summary: `Answered by Pollinations AI Free Engine (${pollinationsAnswers.length} answers)`,
+              trap_detected: false,
+              answers: pollinationsAnswers,
+              is_screenshot_analysis: isScreenshot,
+              analyzed_at: Date.now(),
+              page_title: payload.title || "",
+              page_url: payload.url || ""
+            }
+          };
+          console.log(`[Jarvis ServiceWorker] ✅ Successfully resolved ${pollinationsAnswers.length} answers via Pollinations AI!`);
+        }
+      }
+    } catch (pollErr) {
+      console.warn("[Jarvis ServiceWorker] Pollinations AI failover notice:", pollErr.message);
     }
   }
 

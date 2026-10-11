@@ -216,6 +216,25 @@ class JarvisBridgeHandler(BaseHTTPRequestHandler):
                                 chosen_labels = [opt.get("label") or opt.get("value")]
                                 break
 
+                    # Pollinations AI Zero-Key Live Resolution
+                    if not chosen_labels and opts:
+                        try:
+                            import urllib.request, urllib.parse
+                            opt_names = [o.get("label") or o.get("value") for o in opts if o.get("label") or o.get("value")]
+                            prompt = f"Question: {q.get('text')}\nOptions: {', '.join(opt_names)}\nPersona: Age 50, Male, Computer Software Director, US Resident.\nOutput strictly the best option name:"
+                            url = f"https://text.pollinations.ai/{urllib.parse.quote(prompt)}?system=Output+ONLY+the+exact+chosen+option+name+without+punctuation"
+                            req = urllib.request.Request(url, headers={"User-Agent": "Jarvis-Desktop-AI"})
+                            with urllib.request.urlopen(req, timeout=3.5) as resp:
+                                ai_text = resp.read().decode("utf-8").strip()
+                                if ai_text:
+                                    for opt in opts:
+                                        lbl = (opt.get("label") or opt.get("value") or "")
+                                        if ai_text.lower() in lbl.lower() or lbl.lower() in ai_text.lower():
+                                            chosen_labels = [lbl]
+                                            break
+                        except Exception as p_err:
+                            logger.debug(f"[Bridge] Pollinations AI resolver notice: {p_err}")
+
                     if not chosen_labels and opts:
                         # Avoid screener trap
                         for opt in opts:

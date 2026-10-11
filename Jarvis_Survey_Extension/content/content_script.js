@@ -2189,6 +2189,46 @@
       return { success: true, data: response.data, providerUsed: response.providerUsed, modelUsed: response.modelUsed };
     }
 
+    async function performScreenshotAnalysis() {
+      updateHUDStatus("analyzing", "📸 সম্পূর্ণ পেজের স্ক্রিনশট নেওয়া হচ্ছে...");
+      const screenshot = await captureFullScreenshot();
+      if (!screenshot) {
+        updateHUDStatus("error", "স্ক্রিনশট ক্যাপচার ব্যর্থ হয়েছে।");
+        return { success: false, error: "Failed to capture screenshot" };
+      }
+
+      updateHUDStatus("analyzing", "🧠 স্ক্রিনশট ও প্রশ্ন Pollinations / Gemini দিয়ে এনালাইসিস হচ্ছে...");
+      const pageData = {
+        title: document.title,
+        url: window.location.href,
+        isScreenshot: true,
+        screenshot: screenshot,
+        fullPageText: document.body ? cleanText(document.body.innerText).slice(0, 4000) : "",
+        questions: []
+      };
+
+      const response = await new Promise((resolve) => {
+        chrome.runtime.sendMessage(
+          { action: "ANALYZE_SURVEY_PAGE", payload: pageData },
+          (res) => resolve(res)
+        );
+      });
+
+      if (response && response.success && response.data) {
+        lastAnalysisResult = response.data;
+        renderAnalysisInHUD(response.data);
+        renderProminentAnswersBox(response.data);
+        updateHUDStatus("done", `✅ ভিশন ইঞ্জিন: সঠিক উত্তর প্রস্তুত!`);
+        if (isAutoPilotActive) {
+          await autoFillAnswers(response.data);
+        }
+        return { success: true, data: response.data };
+      }
+
+      updateHUDStatus("error", response?.error || "Vision analysis failed");
+      return { success: false, error: response?.error || "Vision analysis failed" };
+    }
+
     /**
      * =========================================================================
      * 4. ADVANCED OPTION & ELEMENT FINDER

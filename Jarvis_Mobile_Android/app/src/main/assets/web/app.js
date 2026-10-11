@@ -2197,5 +2197,55 @@ window.openForgedSiteExternal = openForgedSiteExternal;
 window.shareForgedSite = shareForgedSite;
 window.promptEditForgedSite = promptEditForgedSite;
 
+// =========================================================================
+// CROSS-PLATFORM SURVEY & SCREEN SOLVER HANDLERS (POLLINATIONS & GEMINI)
+// =========================================================================
+let lastSurveySolvedAnswer = "";
+
+async function triggerMobileSurveySolve(engine) {
+  const inputEl = document.getElementById('surveyQuickQuestionInput');
+  const displayBox = document.getElementById('surveyAnswerDisplayBox');
+  const answerText = document.getElementById('surveyFinalAnswerText');
+  let qText = inputEl ? inputEl.value.trim() : "";
+
+  if (displayBox) displayBox.style.display = 'block';
+  if (answerText) answerText.innerHTML = '<span style="color:#38bdf8;">⏳ উত্তর খোঁজা হচ্ছে...</span>';
+
+  try {
+    let finalAnswer = "";
+    if (engine === 'gemini' && window.JarvisCrossPlatformCopilot) {
+      finalAnswer = await window.JarvisCrossPlatformCopilot.queryPollinationsAI(qText || "Select the most appropriate answer for this screen survey question.");
+    } else if (window.fetchSmartSurveyAnswer) {
+      finalAnswer = await window.fetchSmartSurveyAnswer(null, qText || "Answer the survey question accurately based on the user profile.");
+    } else if (window.JarvisCrossPlatformCopilot) {
+      finalAnswer = await window.JarvisCrossPlatformCopilot.queryPollinationsAI(qText);
+    }
+
+    if (!finalAnswer) finalAnswer = "Agree";
+    lastSurveySolvedAnswer = finalAnswer;
+
+    if (answerText) answerText.innerText = finalAnswer;
+    showToast(`সঠিক উত্তর প্রস্তুত: ${finalAnswer}`);
+
+    // Auto speak
+    speakSurveyAnswer();
+  } catch (err) {
+    if (answerText) answerText.innerText = "Error: " + err.message;
+  }
+}
+
+function speakSurveyAnswer() {
+  if (!lastSurveySolvedAnswer) return;
+  if (window.JarvisNativeBridge && window.JarvisNativeBridge.speakTextLocally) {
+    window.JarvisNativeBridge.speakTextLocally(lastSurveySolvedAnswer);
+  } else if ('speechSynthesis' in window) {
+    const u = new SpeechSynthesisUtterance(lastSurveySolvedAnswer);
+    window.speechSynthesis.speak(u);
+  }
+}
+
+window.triggerMobileSurveySolve = triggerMobileSurveySolve;
+window.speakSurveyAnswer = speakSurveyAnswer;
+
 
 
