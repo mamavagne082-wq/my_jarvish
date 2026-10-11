@@ -12,6 +12,7 @@ import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.ContactsContract
 import android.provider.Settings
 import android.telecom.TelecomManager
@@ -45,6 +46,116 @@ class JarvisAccessibilityService : AccessibilityService() {
 
         val isServiceRunning: Boolean
             get() = instance != null
+
+        val packageFallbacks = mapOf(
+            "facebook" to listOf("com.facebook.katana", "com.facebook.lite", "com.facebook.android"),
+            "fb" to listOf("com.facebook.katana", "com.facebook.lite"),
+            "ফেসবুক" to listOf("com.facebook.katana", "com.facebook.lite"),
+            "facebook_official" to listOf("com.facebook.katana"),
+            "facebook official" to listOf("com.facebook.katana"),
+            "ফেসবুক অফিসিয়াল" to listOf("com.facebook.katana"),
+            "ফেসবুক অফিশিয়াল" to listOf("com.facebook.katana"),
+            "facebook_lite" to listOf("com.facebook.lite", "com.facebook.katana"),
+            "facebook lite" to listOf("com.facebook.lite", "com.facebook.katana"),
+            "ফেসবুক লাইট" to listOf("com.facebook.lite", "com.facebook.katana"),
+            "messenger" to listOf("com.facebook.orca", "com.facebook.mlite"),
+            "মেসেঞ্জার" to listOf("com.facebook.orca", "com.facebook.mlite"),
+            "messenger_lite" to listOf("com.facebook.mlite", "com.facebook.orca"),
+            "messenger lite" to listOf("com.facebook.mlite", "com.facebook.orca"),
+            "মেসেঞ্জার লাইট" to listOf("com.facebook.mlite", "com.facebook.orca"),
+            "whatsapp" to listOf("com.whatsapp", "com.whatsapp.w4b"),
+            "হোয়াটসঅ্যাপ" to listOf("com.whatsapp", "com.whatsapp.w4b"),
+            "whatsapp_business" to listOf("com.whatsapp.w4b", "com.whatsapp"),
+            "whatsapp business" to listOf("com.whatsapp.w4b", "com.whatsapp"),
+            "হোয়াটসঅ্যাপ বিজনেস" to listOf("com.whatsapp.w4b", "com.whatsapp"),
+            "instagram" to listOf("com.instagram.android", "com.instagram.lite"),
+            "ইনস্টাগ্রাম" to listOf("com.instagram.android", "com.instagram.lite"),
+            "ইন্সটাগ্রাম" to listOf("com.instagram.android", "com.instagram.lite"),
+            "instagram_lite" to listOf("com.instagram.lite", "com.instagram.android"),
+            "youtube" to listOf("com.google.android.youtube", "com.google.android.apps.youtube.music"),
+            "ইউটিউব" to listOf("com.google.android.youtube", "com.google.android.apps.youtube.music"),
+            "youtube_music" to listOf("com.google.android.apps.youtube.music", "com.google.android.youtube"),
+            "ইউটিউব মিউজিক" to listOf("com.google.android.apps.youtube.music"),
+            "chrome" to listOf("com.android.chrome", "com.chrome.beta"),
+            "ক্রোম" to listOf("com.android.chrome"),
+            "browser" to listOf("com.android.chrome", "org.mozilla.firefox", "com.opera.browser", "com.sec.android.app.sbrowser"),
+            "ব্রাউজার" to listOf("com.android.chrome", "org.mozilla.firefox", "com.opera.browser", "com.sec.android.app.sbrowser"),
+            "settings" to listOf("com.android.settings"),
+            "সেটিংস" to listOf("com.android.settings"),
+            "camera" to listOf("com.android.camera", "com.google.android.GoogleCamera"),
+            "ক্যামেরা" to listOf("com.android.camera", "com.google.android.GoogleCamera"),
+            "gallery" to listOf("com.google.android.apps.photos", "com.android.gallery3d", "com.sec.android.gallery3d"),
+            "গ্যালারি" to listOf("com.google.android.apps.photos", "com.android.gallery3d", "com.sec.android.gallery3d"),
+            "telegram" to listOf("org.telegram.messenger", "org.thunderdog.challegram"),
+            "টেলিগ্রাম" to listOf("org.telegram.messenger", "org.thunderdog.challegram"),
+            "tiktok" to listOf("com.zhiliaoapp.musically", "com.ss.android.ugc.trill"),
+            "টিকটক" to listOf("com.zhiliaoapp.musically", "com.ss.android.ugc.trill"),
+            "bkash" to listOf("com.bKash.customerapp"),
+            "বিকাশ" to listOf("com.bKash.customerapp"),
+            "nagad" to listOf("com.konasl.nagad"),
+            "নগদ" to listOf("com.konasl.nagad"),
+            "rocket" to listOf("com.dbbl.mbs.apps.ayushman"),
+            "রকেট" to listOf("com.dbbl.mbs.apps.ayushman"),
+            "twitter" to listOf("com.twitter.android"),
+            "টুইটার" to listOf("com.twitter.android"),
+            "x" to listOf("com.twitter.android")
+        )
+
+        val packageMap = mapOf(
+            "মেসেঞ্জার" to "com.facebook.orca",
+            "ফেসবুক" to "com.facebook.katana",
+            "এফবি" to "com.facebook.katana",
+            "হোয়াটসঅ্যাপ" to "com.whatsapp",
+            "ইউটিউব" to "com.google.android.youtube",
+            "ক্যামেরা" to "com.android.camera",
+            "গ্যালারি" to "com.google.android.apps.photos",
+            "গ্যালারী" to "com.google.android.apps.photos",
+            "সেটিংস" to "com.android.settings",
+            "প্লে স্টোর" to "com.android.vending",
+            "ডায়ালার" to "com.google.android.dialer",
+            "ফোন" to "com.google.android.dialer",
+            "কন্টাক্ট" to "com.google.android.contacts",
+            "ক্রোম" to "com.android.chrome",
+            "ব্রাউজার" to "com.android.chrome",
+            "ইনস্টাগ্রাম" to "com.instagram.android",
+            "ইন্সটাগ্রাম" to "com.instagram.android",
+            "টুইটার" to "com.twitter.android",
+            "টেলিগ্রাম" to "org.telegram.messenger",
+            "ইমো" to "com.imo.android.imoim",
+            "বিকাশ" to "com.bKash.customerapp",
+            "নগদ" to "com.konasl.nagad",
+            "রকেট" to "com.dbbl.mbs.apps.ayushman",
+            "messenger" to "com.facebook.orca",
+            "facebook" to "com.facebook.katana",
+            "fb" to "com.facebook.katana",
+            "whatsapp" to "com.whatsapp",
+            "youtube" to "com.google.android.youtube",
+            "instagram" to "com.instagram.android",
+            "twitter" to "com.twitter.android",
+            "x" to "com.twitter.android",
+            "telegram" to "org.telegram.messenger",
+            "imo" to "com.imo.android.imoim",
+            "tiktok" to "com.zhiliaoapp.musically",
+            "chrome" to "com.android.chrome",
+            "browser" to "com.android.chrome",
+            "camera" to "com.android.camera",
+            "settings" to "com.android.settings",
+            "gallery" to "com.google.android.apps.photos",
+            "photos" to "com.google.android.apps.photos",
+            "playstore" to "com.android.vending",
+            "play store" to "com.android.vending",
+            "dialer" to "com.google.android.dialer",
+            "phone" to "com.google.android.dialer",
+            "contacts" to "com.google.android.contacts",
+            "calculator" to "com.google.android.calculator",
+            "calendar" to "com.google.android.calendar",
+            "clock" to "com.google.android.deskclock",
+            "maps" to "com.google.android.apps.maps",
+            "gmail" to "com.google.android.gm",
+            "bkash" to "com.bKash.customerapp",
+            "nagad" to "com.konasl.nagad",
+            "rocket" to "com.dbbl.mbs.apps.ayushman"
+        )
     }
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
@@ -99,17 +210,36 @@ class JarvisAccessibilityService : AccessibilityService() {
         Log.d(TAG, "Handling mobile command: action=$action, payload=$payload")
         when (action.lowercase().trim()) {
             "lock", "turn_off_screen" -> lockDevice()
+            "unlock", "turn_on_screen" -> unlockDevice()
             "capture_screen", "screenshot", "take_screenshot" -> {
                 captureAndSendScreenshot()
             }
-            "open_app" -> {
-                val target = payload.optString("target", "")
+            "open_app", "open_application", "launch_app" -> {
+                val target = payload.optString("target", payload.optString("app_name", ""))
                 openApplication(target)
             }
+            "close_app", "close_application", "stop_app", "kill_app" -> {
+                val target = payload.optString("target", payload.optString("app_name", ""))
+                closeApplication(target)
+            }
+            "minimize", "minimize_app", "hide_ui", "background" -> {
+                minimizeApp()
+            }
+            "browser_search", "web_search", "google_search" -> {
+                val query = payload.optString("query", payload.optString("target", ""))
+                searchBrowser(query)
+            }
             "youtube_search" -> {
-                val query = payload.optString("target", "")
+                val query = payload.optString("target", payload.optString("query", ""))
                 searchAndPlayYouTube(query)
             }
+            "screen_control" -> {
+                val subAction = payload.optString("control", payload.optString("sub_action", "screenshot"))
+                performScreenControl(subAction, payload)
+            }
+            "scroll_up" -> performScroll("up")
+            "scroll_down" -> performScroll("down")
+            "recents", "recent_apps" -> performGlobalAction(GLOBAL_ACTION_RECENTS)
             "survey_auto", "survey_tap" -> {
                 performSurveyAutomation()
             }
@@ -1179,6 +1309,177 @@ class JarvisAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * Unlocks mobile screen by waking up display, dismissing keyguard,
+     * and dispatching an upward swipe gesture with Accessibility privileges.
+     */
+    fun unlockDevice(): Boolean {
+        Log.d(TAG, "Unlocking device via Accessibility Service...")
+        try {
+            val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+            @Suppress("DEPRECATION")
+            val wl = pm?.newWakeLock(
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK or
+                PowerManager.ACQUIRE_CAUSES_WAKEUP or
+                PowerManager.ON_AFTER_RELEASE,
+                "Jarvis::UnlockScreen"
+            )
+            wl?.acquire(3000L)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error acquiring wake lock for unlock: ${e.message}")
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                val metrics = resources.displayMetrics
+                val width = metrics.widthPixels
+                val height = metrics.heightPixels
+                val startX = width / 2f
+                val startY = height * 0.85f
+                val endY = height * 0.15f
+
+                val swipePath = Path().apply {
+                    moveTo(startX, startY)
+                    lineTo(startX, endY)
+                }
+                val gesture = GestureDescription.Builder()
+                    .addStroke(GestureDescription.StrokeDescription(swipePath, 0, 280))
+                    .build()
+                dispatchGesture(gesture, null, null)
+                Log.d(TAG, "Dispatched upward swipe gesture to unlock screen")
+            } catch (e: Exception) {
+                Log.w(TAG, "Error dispatching unlock gesture: ${e.message}")
+            }
+        }
+
+        MainActivity.instance?.let { act ->
+            act.runOnUiThread {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val km = act.getSystemService(Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
+                    km?.requestDismissKeyguard(act, null)
+                }
+            }
+        }
+
+        return true
+    }
+
+    /**
+     * Closes or stops an application. If an app name is specified, closes that app.
+     * Otherwise minimizes / returns to Home screen.
+     */
+    fun closeApplication(appName: String = ""): Boolean {
+        val cleanName = appName.lowercase().trim()
+        Log.d(TAG, "Request to close application: '$appName'")
+
+        // Always return Home immediately so user sees the app close
+        performGlobalAction(GLOBAL_ACTION_HOME)
+
+        if (cleanName.isBlank() || cleanName in listOf("app", "apps", "current", "এই অ্যাপ", "অ্যাপ", "অ্যাপস")) {
+            return true
+        }
+
+        val targetPkg = resolvePackageForApp(cleanName)
+        if (targetPkg != null) {
+            try {
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.parse("package:$targetPkg")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                startActivity(intent)
+
+                serviceScope.launch {
+                    delay(350L)
+                    val root = rootInActiveWindow
+                    if (root != null) {
+                        val forceStopKeywords = listOf("Force stop", "Force close", "জোরপূর্বক বন্ধ", "জোরপূর্বক বন্ধ করুন", "OK", "Ok", "ঠিক আছে", "হ্যাঁ")
+                        for (kw in forceStopKeywords) {
+                            val nodes = root.findAccessibilityNodeInfosByText(kw)
+                            for (node in nodes) {
+                                if (node.isEnabled && (node.isClickable || node.parent?.isClickable == true)) {
+                                    val target = if (node.isClickable) node else node.parent
+                                    target?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                    Log.d(TAG, "Clicked '$kw' to terminate $targetPkg")
+                                    break
+                                }
+                            }
+                        }
+                    }
+                    delay(350L)
+                    performGlobalAction(GLOBAL_ACTION_HOME)
+                }
+                return true
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not open details settings to close $targetPkg: ${e.message}")
+            }
+        }
+
+        return true
+    }
+
+    /**
+     * Minimizes current active app and returns to Home screen instantly.
+     */
+    fun minimizeApp(): Boolean {
+        Log.d(TAG, "Minimizing apps to Home screen...")
+        return performGlobalAction(GLOBAL_ACTION_HOME)
+    }
+
+    /**
+     * Performs a web/browser search in Google Chrome or default browser.
+     */
+    fun searchBrowser(query: String) {
+        try {
+            val clean = query.trim()
+            val url = if (clean.isNotBlank()) {
+                "https://www.google.com/search?q=" + java.net.URLEncoder.encode(clean, "UTF-8")
+            } else {
+                "https://www.google.com"
+            }
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(intent)
+            Log.d(TAG, "Browser search launched for: $clean")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error opening browser search: ${e.message}")
+        }
+    }
+
+    /**
+     * Controls mobile screen gestures and global navigation.
+     */
+    fun performScreenControl(action: String, payload: JSONObject = JSONObject()): Boolean {
+        Log.d(TAG, "Performing screen control: $action")
+        return when (action.lowercase().trim()) {
+            "scroll_up", "up", "উপরে" -> {
+                performScroll("up")
+                true
+            }
+            "scroll_down", "down", "নিচে" -> {
+                performScroll("down")
+                true
+            }
+            "home", "হোম" -> performGlobalAction(GLOBAL_ACTION_HOME)
+            "back", "ব্যাক", "পিছনে" -> performGlobalAction(GLOBAL_ACTION_BACK)
+            "recents", "recent_apps", "রিসেন্টস" -> performGlobalAction(GLOBAL_ACTION_RECENTS)
+            "notifications", "নোটিফিকেশন" -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
+            "quick_settings", "কুইক সেটিংস" -> performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS)
+            "screenshot", "capture_screen", "স্ক্রিনশট" -> {
+                captureAndSendScreenshot()
+                true
+            }
+            "click", "tap" -> {
+                val text = payload.optString("target", "")
+                if (text.isNotBlank()) {
+                    clickElementByText(text)
+                    true
+                } else false
+            }
+            else -> false
+        }
+    }
+
+    /**
      * Captures current mobile screen using AccessibilityService API (Android 11+)
      * and streams it to Jarvis via LiveKit DataChannel.
      */
@@ -1256,121 +1557,101 @@ class JarvisAccessibilityService : AccessibilityService() {
      * and dynamic fallback across all installed launcher applications.
      * NEVER redirects to a browser Google search if app is not found!
      */
-    fun openApplication(appName: String) {
-        val packageMap = mapOf(
-            // Specific Official & Lite variants requested by user
-            "facebook_official" to "com.facebook.katana",
-            "facebook official" to "com.facebook.katana",
-            "ফেসবুক অফিসিয়াল" to "com.facebook.katana",
-            "ফেসবুক অফিশিয়াল" to "com.facebook.katana",
-            "facebook_lite" to "com.facebook.lite",
-            "facebook lite" to "com.facebook.lite",
-            "ফেসবুক লাইট" to "com.facebook.lite",
-            "messenger_lite" to "com.facebook.mlite",
-            "messenger lite" to "com.facebook.mlite",
-            "মেসেঞ্জার লাইট" to "com.facebook.mlite",
-            "instagram_lite" to "com.instagram.lite",
-            "instagram lite" to "com.instagram.lite",
-            "ইনস্টাগ্রাম লাইট" to "com.instagram.lite",
-            "youtube_music" to "com.google.android.apps.youtube.music",
-            "youtube music" to "com.google.android.apps.youtube.music",
-            "ইউটিউব মিউজিক" to "com.google.android.apps.youtube.music",
-            "whatsapp_business" to "com.whatsapp.w4b",
-            "whatsapp business" to "com.whatsapp.w4b",
-            "হোয়াটসঅ্যাপ বিজনেস" to "com.whatsapp.w4b",
 
-            // Bengali names
-            "মেসেঞ্জার" to "com.facebook.orca",
-            "ফেসবুক" to "com.facebook.katana",
-            "এফবি" to "com.facebook.katana",
-            "হোয়াটসঅ্যাপ" to "com.whatsapp",
-            "ইউটিউব" to "com.google.android.youtube",
-            "ক্যামেরা" to "com.android.camera",
-            "গ্যালারি" to "com.google.android.apps.photos",
-            "গ্যালারী" to "com.google.android.apps.photos",
-            "সেটিংস" to "com.android.settings",
-            "প্লে স্টোর" to "com.android.vending",
-            "ডায়ালার" to "com.google.android.dialer",
-            "ফোন" to "com.google.android.dialer",
-            "কন্টাক্ট" to "com.google.android.contacts",
-            "ক্রোম" to "com.android.chrome",
-            "ব্রাউজার" to "com.android.chrome",
-            "ইনস্টাগ্রাম" to "com.instagram.android",
-            "ইন্সটাগ্রাম" to "com.instagram.android",
-            "টুইটার" to "com.twitter.android",
-            "টেলিগ্রাম" to "org.telegram.messenger",
-            "ইমো" to "com.imo.android.imoim",
-            "বিকাশ" to "com.bKash.customerapp",
-            "নগদ" to "com.konasl.nagad",
-            "রকেট" to "com.dbbl.mbs.apps.ayushman",
-            // English names
-            "messenger" to "com.facebook.orca",
-            "facebook" to "com.facebook.katana",
-            "fb" to "com.facebook.katana",
-            "whatsapp" to "com.whatsapp",
-            "youtube" to "com.google.android.youtube",
-            "instagram" to "com.instagram.android",
-            "twitter" to "com.twitter.android",
-            "x" to "com.twitter.android",
-            "telegram" to "org.telegram.messenger",
-            "imo" to "com.imo.android.imoim",
-            "tiktok" to "com.zhiliaoapp.musically",
-            "chrome" to "com.android.chrome",
-            "browser" to "com.android.chrome",
-            "camera" to "com.android.camera",
-            "settings" to "com.android.settings",
-            "gallery" to "com.google.android.apps.photos",
-            "photos" to "com.google.android.apps.photos",
-            "playstore" to "com.android.vending",
-            "play store" to "com.android.vending",
-            "dialer" to "com.google.android.dialer",
-            "phone" to "com.google.android.dialer",
-            "contacts" to "com.google.android.contacts",
-            "calculator" to "com.google.android.calculator",
-            "calendar" to "com.google.android.calendar",
-            "clock" to "com.google.android.deskclock",
-            "maps" to "com.google.android.apps.maps",
-            "gmail" to "com.google.android.gm",
-            "bkash" to "com.bKash.customerapp",
-            "nagad" to "com.konasl.nagad",
-            "rocket" to "com.dbbl.mbs.apps.ayushman"
-        )
 
+    fun resolvePackageForApp(appName: String): String? {
         val cleanName = appName.lowercase().trim()
-        var targetPackage = packageMap[cleanName]
 
-        // If not in static map, dynamically query installed apps by label
-        if (targetPackage == null) {
-            try {
-                val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
-                    addCategory(Intent.CATEGORY_LAUNCHER)
+        val fallbacks = packageFallbacks[cleanName]
+        if (fallbacks != null) {
+            for (pkg in fallbacks) {
+                if (packageManager.getLaunchIntentForPackage(pkg) != null) {
+                    return pkg
                 }
-                val pkgAppsList = packageManager.queryIntentActivities(mainIntent, 0)
-                for (resolveInfo in pkgAppsList) {
-                    val label = resolveInfo.loadLabel(packageManager).toString().lowercase()
-                    if (label.contains(cleanName) || (cleanName.length >= 3 && cleanName.contains(label))) {
-                        targetPackage = resolveInfo.activityInfo.packageName
-                        Log.d(TAG, "Found dynamic package match for '$appName': $targetPackage (label='$label')")
-                        break
-                    }
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Dynamic app search failed: ${e.message}")
             }
         }
 
-        if (targetPackage == null) {
-            targetPackage = cleanName
+        val staticPkg = packageMap[cleanName]
+        if (staticPkg != null && packageManager.getLaunchIntentForPackage(staticPkg) != null) {
+            return staticPkg
         }
 
+        try {
+            val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
+            }
+            val pkgAppsList = packageManager.queryIntentActivities(mainIntent, 0)
+            for (resolveInfo in pkgAppsList) {
+                val label = resolveInfo.loadLabel(packageManager).toString().lowercase()
+                val pkg = resolveInfo.activityInfo.packageName.lowercase()
+                if (label.contains(cleanName) || (cleanName.length >= 3 && cleanName.contains(label)) || pkg.contains(cleanName)) {
+                    return resolveInfo.activityInfo.packageName
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Dynamic app resolution error: ${e.message}")
+        }
+
+        return staticPkg ?: fallbacks?.firstOrNull() ?: cleanName
+    }
+
+    /**
+     * Opens apps by name or package identifier with multi-package fallback
+     * (official / lite variants) and dynamic installed app scanning.
+     */
+    fun openApplication(appName: String): Boolean {
+        val cleanName = appName.lowercase().trim()
+        Log.d(TAG, "Opening application: '$appName'")
+
+        // 1. Check multi-package fallbacks first (e.g. facebook katana vs lite)
+        val fallbacks = packageFallbacks[cleanName]
+        if (fallbacks != null) {
+            for (pkg in fallbacks) {
+                val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                    startActivity(launchIntent)
+                    Log.d(TAG, "Launched application via fallback: $pkg")
+                    return true
+                }
+            }
+        }
+
+        // 2. Try resolved package
+        val targetPackage = resolvePackageForApp(cleanName) ?: cleanName
         val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
         if (launchIntent != null) {
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
             startActivity(launchIntent)
             Log.d(TAG, "Launched application: $targetPackage")
-        } else {
-            Log.w(TAG, "App '$appName' ($targetPackage) is not installed on this device. (NO BROWSER REDIRECT)")
+            return true
         }
+
+        // 3. Dynamic lookup across all launcher activities
+        try {
+            val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
+            }
+            val pkgAppsList = packageManager.queryIntentActivities(mainIntent, 0)
+            for (resolveInfo in pkgAppsList) {
+                val label = resolveInfo.loadLabel(packageManager).toString().lowercase()
+                if (label.contains(cleanName) || (cleanName.length >= 3 && cleanName.contains(label))) {
+                    val dynPkg = resolveInfo.activityInfo.packageName
+                    val dynIntent = packageManager.getLaunchIntentForPackage(dynPkg)
+                    if (dynIntent != null) {
+                        dynIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                        startActivity(dynIntent)
+                        Log.d(TAG, "Dynamically launched application: $dynPkg")
+                        return true
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Dynamic app launch failed: ${e.message}")
+        }
+
+        Log.w(TAG, "App '$appName' ($targetPackage) is not installed on this device.")
+        return false
     }
 
     /**

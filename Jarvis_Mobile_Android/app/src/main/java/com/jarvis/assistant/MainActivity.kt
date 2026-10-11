@@ -27,6 +27,16 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import android.app.Dialog
+import android.graphics.Color
+import android.view.Gravity
+import android.view.ViewGroup
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.TextView
+import android.webkit.CookieManager
+import android.webkit.WebResourceRequest
 import org.json.JSONObject
 import java.io.File
 import kotlinx.coroutines.*
@@ -465,8 +475,187 @@ class MainActivity : AppCompatActivity() {
         resetAutoMinimizeTimer()
     }
 
+    // ── In-App Gemini Pro & Google Account Embedded Login (No External Browsers) ──
+    @SuppressLint("SetJavaScriptEnabled")
+    fun openInAppGeminiLogin(tier: String = "Gemini Pro") {
+        runOnUiThread {
+            try {
+                val dialog = Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar_Fullscreen)
+
+                val root = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                    setBackgroundColor(Color.parseColor("#0a0d14"))
+                }
+
+                // Top Header Bar
+                val topBar = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    setBackgroundColor(Color.parseColor("#121722"))
+                    setPadding(32, 28, 32, 28)
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+
+                val titleLayout = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f)
+                }
+
+                val titleText = TextView(this).apply {
+                    text = "🔑 Google / $tier ইন-অ্যাপ লগইন"
+                    setTextColor(Color.parseColor("#22d3ee"))
+                    textSize = 15f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                }
+
+                val subText = TextView(this).apply {
+                    text = "ব্রাউজার ছাড়া সরাসরি Jarvis-এর ভেতরে লগইন (24/7 একাউন্ট সক্রিয়)"
+                    setTextColor(Color.parseColor("#94a3b8"))
+                    textSize = 11f
+                }
+                titleLayout.addView(titleText)
+                titleLayout.addView(subText)
+
+                val btnDone = Button(this).apply {
+                    text = "✓ সম্পন্ন"
+                    setTextColor(Color.parseColor("#0a0d14"))
+                    setBackgroundColor(Color.parseColor("#22d3ee"))
+                    textSize = 12f
+                    setPadding(24, 0, 24, 0)
+                    setOnClickListener {
+                        val cookies = CookieManager.getInstance().getCookie("https://gemini.google.com") ?: ""
+                        if (cookies.contains("SID") || cookies.contains("__Secure") || cookies.contains("HSID")) {
+                            MobileConfig.setGeminiWebLoggedIn(this@MainActivity, true, tier = tier)
+                            Toast.makeText(this@MainActivity, "✅ $tier একাউন্ট সফলভাবে সক্রিয় ও সংযুক্ত করা হয়েছে!", Toast.LENGTH_LONG).show()
+                            webView.evaluateJavascript("if (window.onGeminiLoginSuccess) window.onGeminiLoginSuccess('$tier');", null)
+                        }
+                        dialog.dismiss()
+                    }
+                }
+
+                val btnClose = Button(this).apply {
+                    text = "✕"
+                    setTextColor(Color.parseColor("#ef4444"))
+                    setBackgroundColor(Color.TRANSPARENT)
+                    textSize = 18f
+                    setOnClickListener { dialog.dismiss() }
+                }
+
+                topBar.addView(titleLayout)
+                topBar.addView(btnDone)
+                topBar.addView(btnClose)
+
+                // Progress Bar
+                val progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 8)
+                    isIndeterminate = true
+                    visibility = View.VISIBLE
+                }
+
+                // In-App Login WebView (Strictly inside modal container; NO external browser launch)
+                val loginWebView = WebView(this).apply {
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1.0f)
+
+                    settings.apply {
+                        javaScriptEnabled = true
+                        domStorageEnabled = true
+                        databaseEnabled = true
+                        setSupportMultipleWindows(false)
+                        mediaPlaybackRequiresUserGesture = false
+                        allowFileAccess = true
+                        allowContentAccess = true
+                        // Standard Chrome Mobile User Agent prevents Google's 403 disallowed_useragent block!
+                        userAgentString = "Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36"
+                    }
+
+                    CookieManager.getInstance().setAcceptCookie(true)
+                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+
+                    webChromeClient = object : WebChromeClient() {
+                        override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                            if (newProgress >= 100) {
+                                progressBar.visibility = View.GONE
+                            } else {
+                                progressBar.visibility = View.VISIBLE
+                            }
+                        }
+                    }
+
+                    webViewClient = object : WebViewClient() {
+                        override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                            // KEEP ALL NAVIGATION 100% IN-APP! Never launch external intent!
+                            return false
+                        }
+
+                        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                            progressBar.visibility = View.VISIBLE
+                        }
+
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            progressBar.visibility = View.GONE
+                            if (url != null && (url.contains("gemini.google.com") || url.contains("myaccount.google.com"))) {
+                                val cookies = CookieManager.getInstance().getCookie(url) ?: ""
+                                if (cookies.contains("SID") || cookies.contains("__Secure") || cookies.contains("HSID")) {
+                                    MobileConfig.setGeminiWebLoggedIn(this@MainActivity, true, tier = tier)
+                                    CookieManager.getInstance().flush()
+                                    Toast.makeText(this@MainActivity, "✅ $tier একাউন্ট সফলভাবে ইন-অ্যাপ লগইন হয়েছে!", Toast.LENGTH_SHORT).show()
+                                    webView.evaluateJavascript("if (window.onGeminiLoginSuccess) window.onGeminiLoginSuccess('$tier');", null)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                root.addView(topBar)
+                root.addView(progressBar)
+                root.addView(loginWebView)
+
+                dialog.setContentView(root)
+                dialog.show()
+
+                // Load Gemini sign-in inside the in-app modal
+                loginWebView.loadUrl("https://accounts.google.com/ServiceLogin?service=mail&continue=https%3A%2F%2Fgemini.google.com%2Fapp")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error opening in-app Gemini login: ${e.message}", e)
+                Toast.makeText(this, "ইন-অ্যাপ লগইন ওপেন করতে সমস্যা: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     // ── Bidirectional JavaScript Bridge (Exposed as window.JarvisNative) ──
     class JarvisNativeBridge(private val activity: MainActivity) {
+
+        @JavascriptInterface
+        fun openInAppGeminiLogin(tier: String) {
+            activity.openInAppGeminiLogin(tier)
+        }
+
+        @JavascriptInterface
+        fun getGeminiLoginStatus(): String {
+            val loggedIn = MobileConfig.isGeminiWebLoggedIn(activity)
+            val email = MobileConfig.getGeminiWebActiveEmail(activity)
+            val tier = MobileConfig.getGeminiWebActiveTier(activity)
+            val obj = JSONObject().apply {
+                put("isLoggedIn", loggedIn)
+                put("email", email)
+                put("tier", tier)
+            }
+            return obj.toString()
+        }
+
+        @JavascriptInterface
+        fun logoutGeminiWeb() {
+            activity.runOnUiThread {
+                MobileConfig.clearGeminiWebLogin(activity)
+                try {
+                    CookieManager.getInstance().removeAllCookies(null)
+                    CookieManager.getInstance().flush()
+                } catch (_: Exception) {}
+                Toast.makeText(activity, "জেমিনি একাউন্ট লগআউট করা হয়েছে।", Toast.LENGTH_SHORT).show()
+                activity.webView.evaluateJavascript("if (window.onGeminiLogoutSuccess) window.onGeminiLogoutSuccess();", null)
+            }
+        }
 
         @JavascriptInterface
         fun getConfig(): String {
@@ -654,9 +843,82 @@ class MainActivity : AppCompatActivity() {
                                 JarvisAccessibilityService.instance?.handleCommand("lock", payload)
                                 Toast.makeText(activity, "🔒 মোবাইল স্ক্রিন লক করা হচ্ছে...", Toast.LENGTH_SHORT).show()
                             } else {
-                                Toast.makeText(activity, "⚠️ স্ক্রিন লক করার জন্য Accessibility Settings থেকে Jarvis Assistant অন করুন।", Toast.LENGTH_LONG).show()
+                                val locked = JarvisForegroundService.instance?.lockDeviceLocally() ?: false
+                                if (locked) {
+                                    Toast.makeText(activity, "🔒 মোবাইল স্ক্রিন লক করা হয়েছে", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(activity, "⚠️ স্ক্রিন লক করার জন্য Accessibility Settings থেকে Jarvis Assistant অন করুন।", Toast.LENGTH_LONG).show()
+                                    activity.openAccessibilitySettings()
+                                }
+                            }
+                        }
+                        "unlock" -> {
+                            if (JarvisAccessibilityService.instance != null) {
+                                JarvisAccessibilityService.instance?.unlockDevice()
+                                Toast.makeText(activity, "🔓 মোবাইল স্ক্রিন আনলক করা হচ্ছে...", Toast.LENGTH_SHORT).show()
+                            } else {
+                                JarvisForegroundService.instance?.unlockDeviceLocally()
+                                Toast.makeText(activity, "🔓 স্ক্রিন জাগানো হয়েছে...", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        "minimize" -> {
+                            if (JarvisAccessibilityService.instance != null) {
+                                JarvisAccessibilityService.instance?.minimizeApp()
+                            } else {
+                                activity.moveTaskToBack(true)
+                            }
+                            Toast.makeText(activity, "📱 মিনিমাইজ করা হয়েছে", Toast.LENGTH_SHORT).show()
+                        }
+                        "close_app", "close_application", "facebook_close", "whatsapp_close" -> {
+                            val appToClose = when (action.lowercase().trim()) {
+                                "facebook_close" -> "facebook"
+                                "whatsapp_close" -> "whatsapp"
+                                else -> payload.optString("app_name", target)
+                            }
+                            if (JarvisAccessibilityService.instance != null) {
+                                JarvisAccessibilityService.instance?.closeApplication(appToClose)
+                            } else {
+                                JarvisForegroundService.instance?.closeApplicationLocally(appToClose)
+                            }
+                            Toast.makeText(activity, "❌ '$appToClose' বন্ধ করা হচ্ছে...", Toast.LENGTH_SHORT).show()
+                        }
+                        "browser_search", "search_browser", "search", "google_search" -> {
+                            val query = payload.optString("query", target)
+                            if (JarvisAccessibilityService.instance != null) {
+                                JarvisAccessibilityService.instance?.searchBrowser(query)
+                            } else {
+                                JarvisForegroundService.instance?.searchBrowserLocally(query)
+                            }
+                            Toast.makeText(activity, "🌐 গুগলে সার্চ করা হচ্ছে: $query", Toast.LENGTH_SHORT).show()
+                        }
+                        "screen_control", "scroll_up", "scroll_down", "recents" -> {
+                            val controlType = if (action.startsWith("scroll") || action == "recents") action else payload.optString("control_type", target)
+                            if (JarvisAccessibilityService.instance != null) {
+                                JarvisAccessibilityService.instance?.performScreenControl(controlType, payload)
+                            } else {
+                                Toast.makeText(activity, "⚠️ স্ক্রিন কন্ট্রোলের জন্য Accessibility অন করুন", Toast.LENGTH_SHORT).show()
                                 activity.openAccessibilitySettings()
                             }
+                        }
+                        "facebook", "facebook_open" -> {
+                            var launched = false
+                            if (JarvisAccessibilityService.instance != null) {
+                                launched = JarvisAccessibilityService.instance?.openApplication("facebook") ?: false
+                            }
+                            if (!launched) {
+                                launched = JarvisForegroundService.instance?.launchApplicationLocally("facebook") ?: false
+                            }
+                            Toast.makeText(activity, "📘 Facebook ওপেন করা হচ্ছে...", Toast.LENGTH_SHORT).show()
+                        }
+                        "whatsapp", "whatsapp_open" -> {
+                            var launched = false
+                            if (JarvisAccessibilityService.instance != null) {
+                                launched = JarvisAccessibilityService.instance?.openApplication("whatsapp") ?: false
+                            }
+                            if (!launched) {
+                                launched = JarvisForegroundService.instance?.launchApplicationLocally("whatsapp") ?: false
+                            }
+                            Toast.makeText(activity, "💬 WhatsApp ওপেন করা হয়েছে", Toast.LENGTH_SHORT).show()
                         }
                         "call_phone" -> {
                             if (target == "1" || target.isEmpty() || target.equals("dialer", true)) {
@@ -676,49 +938,39 @@ class MainActivity : AppCompatActivity() {
                                 }
                             }
                         }
-                        "whatsapp", "whatsapp_message" -> {
+                        "whatsapp_message" -> {
                             val msg = payload.optString("message", "")
                             if (target.isNotBlank() && msg.isNotBlank() && JarvisAccessibilityService.instance != null) {
                                 JarvisAccessibilityService.instance?.handleCommand("whatsapp_message", payload)
                             } else {
-                                val launchIntent = activity.packageManager.getLaunchIntentForPackage("com.whatsapp")
-                                if (launchIntent != null) {
-                                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    activity.startActivity(launchIntent)
-                                    Toast.makeText(activity, "💬 WhatsApp ওপেন করা হয়েছে", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    Toast.makeText(activity, "WhatsApp ফোনে ইনস্টল নেই!", Toast.LENGTH_SHORT).show()
+                                var launched = false
+                                if (JarvisAccessibilityService.instance != null) {
+                                    launched = JarvisAccessibilityService.instance?.openApplication("whatsapp") ?: false
                                 }
+                                if (!launched) {
+                                    launched = JarvisForegroundService.instance?.launchApplicationLocally("whatsapp") ?: false
+                                }
+                                Toast.makeText(activity, "💬 WhatsApp ওপেন করা হয়েছে", Toast.LENGTH_SHORT).show()
                             }
                         }
-                        "youtube", "youtube_search" -> {
-                            if (target.isNotBlank() && target != "Iron Man theme") {
-                                if (JarvisAccessibilityService.instance != null) {
-                                    JarvisAccessibilityService.instance?.handleCommand("youtube_search", payload)
-                                } else {
-                                    val intent = Intent(Intent.ACTION_SEARCH).apply {
-                                        setPackage("com.google.android.youtube")
-                                        putExtra("query", target)
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                    }
-                                    try {
-                                        activity.startActivity(intent)
-                                    } catch (_: Exception) {
-                                        val launchIntent = activity.packageManager.getLaunchIntentForPackage("com.google.android.youtube")
-                                        if (launchIntent != null) activity.startActivity(launchIntent)
-                                    }
-                                }
-                                Toast.makeText(activity, "▶️ YouTube-এ সার্চ ও প্লে করা হচ্ছে...", Toast.LENGTH_SHORT).show()
-                            } else {
-                                val launchIntent = activity.packageManager.getLaunchIntentForPackage("com.google.android.youtube")
-                                if (launchIntent != null) {
-                                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    activity.startActivity(launchIntent)
-                                    Toast.makeText(activity, "▶️ YouTube ওপেন করা হয়েছে", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    Toast.makeText(activity, "YouTube ফোনে ইনস্টল নেই!", Toast.LENGTH_SHORT).show()
-                                }
+                        "youtube", "youtube_open" -> {
+                            var launched = false
+                            if (JarvisAccessibilityService.instance != null) {
+                                launched = JarvisAccessibilityService.instance?.openApplication("youtube") ?: false
                             }
+                            if (!launched) {
+                                launched = JarvisForegroundService.instance?.launchApplicationLocally("youtube") ?: false
+                            }
+                            Toast.makeText(activity, "▶️ YouTube ওপেন করা হয়েছে", Toast.LENGTH_SHORT).show()
+                        }
+                        "youtube_search" -> {
+                            val query = payload.optString("query", target)
+                            if (JarvisAccessibilityService.instance != null) {
+                                JarvisAccessibilityService.instance?.handleCommand("youtube_search", payload)
+                            } else {
+                                JarvisForegroundService.instance?.searchYouTubeLocally(query)
+                            }
+                            Toast.makeText(activity, "▶️ YouTube-এ সার্চ ও প্লে করা হচ্ছে...", Toast.LENGTH_SHORT).show()
                         }
                         "survey_auto" -> {
                             if (JarvisAccessibilityService.instance != null) {
@@ -732,26 +984,38 @@ class MainActivity : AppCompatActivity() {
                         "open_app", "open_application" -> {
                             val appName = payload.optString("app_name", target)
                             if (appName.isNotBlank()) {
+                                var launched = false
                                 if (JarvisAccessibilityService.instance != null) {
-                                    JarvisAccessibilityService.instance?.openApplication(appName)
-                                } else {
-                                    val launchIntent = activity.packageManager.getLaunchIntentForPackage(appName)
-                                    if (launchIntent != null) {
-                                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        activity.startActivity(launchIntent)
-                                    }
+                                    launched = JarvisAccessibilityService.instance?.openApplication(appName) ?: false
                                 }
-                                Toast.makeText(activity, "🚀 '$appName' ওপেন করা হচ্ছে...", Toast.LENGTH_SHORT).show()
+                                if (!launched) {
+                                    launched = JarvisForegroundService.instance?.launchApplicationLocally(appName) ?: false
+                                }
+                                if (!launched) {
+                                    try {
+                                        val pkg = JarvisAccessibilityService.packageMap[appName.lowercase()] ?: appName
+                                        val launchIntent = activity.packageManager.getLaunchIntentForPackage(pkg)
+                                        if (launchIntent != null) {
+                                            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            activity.startActivity(launchIntent)
+                                            launched = true
+                                        }
+                                    } catch (_: Exception) {}
+                                }
+                                Toast.makeText(activity, if (launched) "🚀 '$appName' ওপেন করা হচ্ছে..." else "⚠️ '$appName' অ্যাপ পাওয়া যায়নি", Toast.LENGTH_SHORT).show()
                             }
                         }
                         else -> {
                             if (JarvisAccessibilityService.instance != null) {
                                 JarvisAccessibilityService.instance?.handleCommand(action, payload)
                             } else {
-                                val launchIntent = activity.packageManager.getLaunchIntentForPackage(target)
-                                if (launchIntent != null) {
-                                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    activity.startActivity(launchIntent)
+                                var launched = JarvisForegroundService.instance?.launchApplicationLocally(target) ?: false
+                                if (!launched) {
+                                    val launchIntent = activity.packageManager.getLaunchIntentForPackage(target)
+                                    if (launchIntent != null) {
+                                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        activity.startActivity(launchIntent)
+                                    }
                                 }
                             }
                         }
@@ -1041,8 +1305,10 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun executeSkillFromUi(skillName: String) {
             activity.runOnUiThread {
-                Toast.makeText(activity, "⚡ স্কিল '$skillName' সক্রিয় করা হয়েছে", Toast.LENGTH_SHORT).show()
-                JarvisForegroundService.instance?.handleUserSpokenCommand("Execute skill: $skillName")
+                val (success, reply) = JarvisMobileSkillsManager.executeSkill(activity, skillName)
+                Toast.makeText(activity, "⚡ $reply", Toast.LENGTH_SHORT).show()
+                activity.postDirectTranscript("Execute skill: $skillName", reply)
+                JarvisForegroundService.instance?.speakTextLocally(reply)
             }
         }
 

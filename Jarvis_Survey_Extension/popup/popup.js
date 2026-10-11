@@ -82,6 +82,23 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const settingsSaveMsg = document.getElementById("settings-save-msg");
 
+  // Gemini Web Accounts elements
+  const inputEmailAcc1 = document.getElementById("input-gemini-email-acc1");
+  const inputPwdAcc1 = document.getElementById("input-gemini-pwd-acc1");
+  const inputEmailAcc2 = document.getElementById("input-gemini-email-acc2");
+  const inputPwdAcc2 = document.getElementById("input-gemini-pwd-acc2");
+  const inputEmailAcc3 = document.getElementById("input-gemini-email-acc3");
+  const inputPwdAcc3 = document.getElementById("input-gemini-pwd-acc3");
+  const checkUseGeminiWeb = document.getElementById("check-use-gemini-web");
+
+  const btnGoogleLoginAcc1 = document.getElementById("btn-google-login-acc1");
+  const btnGoogleLoginAcc2 = document.getElementById("btn-google-login-acc2");
+  const btnGoogleLoginAcc3 = document.getElementById("btn-google-login-acc3");
+  const btnConnectAcc1 = document.getElementById("btn-connect-acc1");
+  const btnConnectAcc2 = document.getElementById("btn-connect-acc2");
+  const btnConnectAcc3 = document.getElementById("btn-connect-acc3");
+  const btnQuickOpenGoogleLogin = document.getElementById("btn-quick-open-google-login");
+
   // Memory Cache & Knowledge Base Hub elements
   const copilotCacheCount = document.getElementById("copilot-cache-count");
   const copilotKbCount = document.getElementById("copilot-kb-count");
@@ -244,6 +261,65 @@ document.addEventListener("DOMContentLoaded", async () => {
   wireTogglePwd("btn-toggle-pwd-acc3", "input-gemini-pwd-acc3");
 
   // Check live status of Gemini Web Account
+  async function checkGeminiWebLiveStatus() {
+    try {
+      const cookies = await chrome.cookies.getAll({ domain: "google.com" });
+      const hasGemini = cookies.some(c => c.name === "__Secure-1PSID" || c.name === "SID" || c.name === "HSID");
+      const status1 = document.getElementById("gemini-status-acc1");
+      const status2 = document.getElementById("gemini-status-acc2");
+      const status3 = document.getElementById("gemini-status-acc3");
+      if (hasGemini) {
+        if (status1) { status1.innerText = "✅ Logged In"; status1.className = "badge-green"; }
+        if (status2) { status2.innerText = "✅ Logged In"; status2.className = "badge-green"; }
+        if (status3) { status3.innerText = "✅ Active (Ultra)"; status3.className = "badge-green"; }
+      } else {
+        if (status1) { status1.innerText = "⚠️ Not Logged In"; status1.className = "badge-backup"; }
+        if (status2) { status2.innerText = "⚠️ Not Logged In"; status2.className = "badge-backup"; }
+        if (status3) { status3.innerText = "⚠️ Not Logged In"; status3.className = "badge-backup"; }
+      }
+    } catch (_) {}
+  }
+
+  function openDirectGoogleLogin(targetUrl = "https://accounts.google.com/ServiceLogin?service=mail&continue=https%3A%2F%2Fgemini.google.com%2Fapp") {
+    // Open inside a clean dedicated popup window (in-app frame without external browser bars)
+    chrome.windows.create({
+      url: targetUrl,
+      type: "popup",
+      width: 520,
+      height: 680,
+      focused: true
+    }, (win) => {
+      console.log("[Jarvis Popup] Google login window created:", win?.id);
+    });
+  }
+
+  if (btnQuickOpenGoogleLogin) btnQuickOpenGoogleLogin.addEventListener("click", () => openDirectGoogleLogin());
+  if (btnGoogleLoginAcc1) btnGoogleLoginAcc1.addEventListener("click", () => openDirectGoogleLogin());
+  if (btnGoogleLoginAcc2) btnGoogleLoginAcc2.addEventListener("click", () => openDirectGoogleLogin());
+  if (btnGoogleLoginAcc3) btnGoogleLoginAcc3.addEventListener("click", () => openDirectGoogleLogin());
+
+  async function testAccSession(accNum) {
+    const statusBadge = document.getElementById(`gemini-status-acc${accNum}`);
+    if (statusBadge) statusBadge.innerText = "⏳ Checking...";
+    try {
+      const cookies = await chrome.cookies.getAll({ domain: "google.com" });
+      const hasGemini = cookies.some(c => c.name === "__Secure-1PSID" || c.name === "SID" || c.name === "HSID");
+      if (hasGemini) {
+        if (statusBadge) { statusBadge.innerText = "✅ সেশন সক্রিয়!"; statusBadge.className = "badge-green"; }
+        updateStatus("success", `✅ Gemini Account ${accNum} সেশন সক্রিয় ও সংযুক্ত!`);
+      } else {
+        if (statusBadge) { statusBadge.innerText = "⚠️ লগইন প্রয়োজন"; statusBadge.className = "badge-backup"; }
+        updateStatus("error", `⚠️ Gemini Account ${accNum} লগইন পাওয়া যায়নি। Google দিয়ে লগইন চাপুন।`);
+      }
+    } catch (err) {
+      if (statusBadge) { statusBadge.innerText = "ত্রুটি"; statusBadge.className = "badge-backup"; }
+    }
+  }
+
+  if (btnConnectAcc1) btnConnectAcc1.addEventListener("click", () => testAccSession(1));
+  if (btnConnectAcc2) btnConnectAcc2.addEventListener("click", () => testAccSession(2));
+  if (btnConnectAcc3) btnConnectAcc3.addEventListener("click", () => testAccSession(3));
+
   checkGeminiWebLiveStatus();
 
   // Auto-Pilot state

@@ -215,21 +215,57 @@
           <i>🚀</i>
           <span>Open Any App</span>
         </div>
+        <div class="action-chip" onclick="promptCloseAppFromUI()">
+          <i>❌</i>
+          <span>Close Any App</span>
+        </div>
+        <div class="action-chip" onclick="executeAction('minimize')">
+          <i>📱</i>
+          <span>Minimize App</span>
+        </div>
         <div class="action-chip" onclick="executeAction('lock')">
           <i>🔒</i>
           <span>Lock Screen</span>
         </div>
+        <div class="action-chip" onclick="executeAction('unlock')">
+          <i>🔓</i>
+          <span>Unlock Screen</span>
+        </div>
+        <div class="action-chip" onclick="executeAction('facebook_open')">
+          <i>📘</i>
+          <span>Facebook Open</span>
+        </div>
+        <div class="action-chip" onclick="executeAction('facebook_close')">
+          <i>🚫</i>
+          <span>Facebook Close</span>
+        </div>
+        <div class="action-chip" onclick="executeAction('whatsapp_open')">
+          <i>💬</i>
+          <span>WhatsApp Open</span>
+        </div>
+        <div class="action-chip" onclick="executeAction('whatsapp_close')">
+          <i>📵</i>
+          <span>WhatsApp Close</span>
+        </div>
+        <div class="action-chip" onclick="promptBrowserSearchFromUI()">
+          <i>🌐</i>
+          <span>Google Search</span>
+        </div>
+        <div class="action-chip" onclick="promptYouTubeSearchFromUI()">
+          <i>▶️</i>
+          <span>YouTube Search</span>
+        </div>
+        <div class="action-chip" onclick="executeAction('screen_control', { control_type: 'scroll_down' })">
+          <i>⬇️</i>
+          <span>Scroll Down</span>
+        </div>
+        <div class="action-chip" onclick="executeAction('screen_control', { control_type: 'scroll_up' })">
+          <i>⬆️</i>
+          <span>Scroll Up</span>
+        </div>
         <div class="action-chip" onclick="executeAction('call_phone', { target: '1', sim_slot: 1 })">
           <i>📞</i>
           <span>Call SIM 1</span>
-        </div>
-        <div class="action-chip" onclick="executeAction('whatsapp_message')">
-          <i>💬</i>
-          <span>WhatsApp</span>
-        </div>
-        <div class="action-chip" onclick="executeAction('youtube_search', { target: 'Iron Man theme' })">
-          <i>▶️</i>
-          <span>YouTube</span>
         </div>
         <div class="action-chip" onclick="executeAction('survey_auto')">
           <i>📋</i>
@@ -638,15 +674,42 @@
       </div>
 
       <!-- 3-Tier Google Gemini Web Accounts Section (Plus / Pro / Ultra Pro) -->
-      <div class="settings-section-card">
+      <div class="settings-section-card" style="border: 1px solid rgba(56, 189, 248, 0.4); background: rgba(15, 23, 42, 0.95);">
         <div class="section-title">
           <i>👑</i>
-          <span>GOOGLE GEMINI 3-TIER ACCOUNTS</span>
-          <span class="auto-save-tag" style="background:rgba(56,189,248,0.2);color:#38bdf8;">💎 0 API COST</span>
+          <span>GOOGLE GEMINI PRO / ULTRA ACCOUNTS</span>
+          <span class="auto-save-tag" style="background:rgba(56,189,248,0.2);color:#38bdf8;">💎 0 API COST // 24/7 AUTO</span>
         </div>
         <p style="font-size:11px; color:#94a3b8; margin-bottom:12px; line-height:1.5;">
-          আপনার কেনা ৩টি Gemini অ্যাকাউন্ট এখানে যুক্ত রাখুন। কোনো এপিআই কি ছাড়াও সরাসরি অ্যাকাউন্ট থেকে আনলিমিটেড রেসপন্স পাবেন।
+          🛡️ <strong>সরাসরি ইন-অ্যাপ লগইন:</strong> আপনার কেনা Gemini Pro বা Gemini Ultra Pro অ্যাকাউন্ট দিয়ে সরাসরি অ্যাপের ভেতরেই লগইন করুন। কোনো ব্রাউজার ওপেন হবে না! সম্পূর্ণ Jarvis-এর ভেতরে লগইন থেকে সারা রাত নিরবচ্ছিন্ন কাজ করবে।
         </p>
+
+        <!-- In-App Gemini Login Live Status Card -->
+        <div style="background: rgba(2, 6, 23, 0.85); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 12px; margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span id="geminiWebStatusDot" style="width:10px; height:10px; border-radius:50%; background:#ef4444; display:inline-block; box-shadow: 0 0 8px #ef4444;"></span>
+              <strong id="geminiWebStatusText" style="font-size:12px; color:#f1f5f9;">লগইন স্ট্যাটাস: সংযুক্ত নয়</strong>
+            </div>
+            <span id="geminiWebActiveTierBadge" style="font-size:10px; padding:2px 8px; border-radius:10px; background:rgba(56, 189, 248, 0.15); color:#38bdf8; border:1px solid #38bdf8;">Gemini Pro</span>
+          </div>
+
+          <!-- Buttons for Direct In-App Login -->
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn-primary" style="flex: 2; margin: 0; padding: 10px 14px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px;" onclick="triggerInAppGeminiLogin('Gemini Pro')">
+              <span>🔑 গুগল / জেমিনি প্রো লগইন (In-App)</span>
+            </button>
+            <button type="button" class="btn-secondary" style="flex: 1.5; margin: 0; padding: 10px 14px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid #fde047; color: #fde047;" onclick="triggerInAppGeminiLogin('Gemini Ultra Pro')">
+              <span>⚡ আল্ট্রা প্রো লগইন</span>
+            </button>
+            <button type="button" id="btnGeminiLogout" class="btn-toggle-eye" style="flex: 1; margin: 0; padding: 10px 14px; font-size: 11px; width: auto; color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4);" onclick="triggerGeminiLogout()">
+              <span>🚪 লগআউট</span>
+            </button>
+          </div>
+          <small style="display:block; margin-top:8px; font-size:10px; color:#64748b;">
+            💡 লগইন বাটনে চাপ দিলে অ্যাপের ভেতরেই গুগল লগইন স্ক্রিন ওপেন হবে। কোনো ব্রাউজারে রিডাইরেক্ট হবে না।
+          </small>
+        </div>
 
         <!-- Account 1: Gemini Plus -->
         <div class="form-group">

@@ -546,8 +546,28 @@ class JarvisForegroundService : Service() {
 
         Log.i(TAG, "Executing Autonomous Command: \"$clean\"")
 
-        // 1. BYE / SHUTDOWN
-        if (isMatch(lower, listOf("বাই বাই", "বিদায়", "বিদায়", "বন্ধ করো", "অ্যাপ বন্ধ করো", "থাক", "ঘুমিয়ে পড়ো", "stop", "exit", "bye", "goodbye", "good bye"))) {
+        // 0. DIRECT SKILL EXECUTION (Runs any of the 85 skills automatically)
+        if (lower.startsWith("execute skill:") || lower.startsWith("স্কিল:") || lower.startsWith("run skill:") || lower.contains("স্কিল রান") || lower.contains("স্কিল চালাও")) {
+            val skillQuery = clean.replace(Regex("(?i)^(execute skill:|স্কিল:|run skill:|স্কিল রান করো|স্কিল চালাও)"), "").trim()
+            val (success, reply) = JarvisMobileSkillsManager.executeSkill(this, skillQuery, clean)
+            MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+            speakTextLocally(reply)
+            return
+        }
+
+        // Check if user spoken command directly targets any mobile skill (e.g. torch, alarm, camera, calculator, etc.)
+        val matchedSkill = JarvisMobileSkillsManager.findMatchingSkill(this, clean)
+        if (matchedSkill != null && !lower.contains("ফেসবুক") && !lower.contains("ইউটিউব") && !lower.contains("facebook") && !lower.contains("youtube") && !lower.contains("লক") && !lower.contains("lock") && !lower.contains("আনলক") && !lower.contains("unlock") && !lower.contains("মিনিমাইজ") && !lower.contains("minimize") && !lower.contains("সার্চ") && !lower.contains("search") && !lower.contains("বন্ধ") && !lower.contains("close")) {
+            val (success, reply) = JarvisMobileSkillsManager.executeSkill(this, matchedSkill.name, clean)
+            if (success) {
+                MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+                speakTextLocally(reply)
+                return
+            }
+        }
+
+        // 1. BYE / SHUTDOWN (Only when explicitly saying goodbye to Jarvis)
+        if (isMatch(lower, listOf("বাই বাই জানু", "বাই বাই জারভিস", "বিদায় জারভিস", "বিদায় জারভিস", "ঘুমিয়ে পড়ো জারভিস", "exit jarvis", "bye jarvis", "goodbye jarvis", "জারভিস বন্ধ হও", "জারভিস বন্ধ করো"))) {
             MainActivity.instance?.runOnUiThread {
                 MainActivity.instance?.postDirectTranscript(clean, "বাই বাই জানু, ধন্যবাদ তোমাকে!")
             }
@@ -561,20 +581,116 @@ class JarvisForegroundService : Service() {
             return
         }
 
-        // 2. LOCK DEVICE
-        if (isMatch(lower, listOf("লক", "লক করো", "লক করে দাও", "স্ক্রিন বন্ধ", "ফোন লক", "মোবাইল লক", "lock", "lock screen", "turn off screen"))) {
-            val reply = "মোবাইল স্ক্রিন লক করা হচ্ছে।"
+        // 2. CLOSE APPLICATION (Facebook, WhatsApp, Messenger, Browser, or active app)
+        if (isMatch(lower, listOf("বন্ধ করো", "ক্লোজ করো", "বন্ধ", "ক্লোজ", "close", "stop", "kill", "dismiss"))) {
+            var targetApp = ""
+            var appLabel = "অ্যাপ্লিকেশন"
+
+            if (lower.contains("ফেসবুক") || lower.contains("facebook") || lower.contains("fb")) {
+                targetApp = "facebook"
+                appLabel = "ফেসবুক"
+            } else if (lower.contains("হোয়াটসঅ্যাপ") || lower.contains("whatsapp")) {
+                targetApp = "whatsapp"
+                appLabel = "হোয়াটসঅ্যাপ"
+            } else if (lower.contains("মেসেঞ্জার") || lower.contains("messenger")) {
+                targetApp = "messenger"
+                appLabel = "মেসেঞ্জার"
+            } else if (lower.contains("ইউটিউব") || lower.contains("youtube")) {
+                targetApp = "youtube"
+                appLabel = "ইউটিউব"
+            } else if (lower.contains("ক্রোম") || lower.contains("chrome") || lower.contains("ব্রাউজার") || lower.contains("browser")) {
+                targetApp = "chrome"
+                appLabel = "ব্রাউজার"
+            } else if (lower.contains("ইনস্টাগ্রাম") || lower.contains("instagram")) {
+                targetApp = "instagram"
+                appLabel = "ইনস্টাগ্রাম"
+            } else if (lower.contains("টেলিগ্রাম") || lower.contains("telegram")) {
+                targetApp = "telegram"
+                appLabel = "টেলিগ্রাম"
+            } else if (lower.contains("টিকটক") || lower.contains("tiktok")) {
+                targetApp = "tiktok"
+                appLabel = "টিকটক"
+            } else {
+                var raw = clean
+                val closeWords = listOf("অ্যাপ বন্ধ করো", "অ্যাপস বন্ধ করো", "অ্যাপ বন্ধ", "অ্যাপস বন্ধ", "বন্ধ করো", "ক্লোজ করো", "বন্ধ", "ক্লোজ", "close", "stop")
+                for (cw in closeWords) {
+                    raw = raw.replace(Regex("(?i)$cw"), "").trim()
+                }
+                if (raw.isNotBlank() && raw.length >= 2) {
+                    targetApp = raw
+                    appLabel = raw
+                }
+            }
+
+            val reply = "হ্যাঁ, $appLabel বন্ধ করা হয়েছে।"
             MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
             speakTextLocally(reply)
-            JarvisAccessibilityService.instance?.handleCommand("lock", JSONObject())
+            JarvisAccessibilityService.instance?.closeApplication(targetApp) ?: closeApplicationLocally(targetApp)
             return
         }
 
-        // 3. YOUTUBE SEARCH & PLAY
-        if (isMatch(lower, listOf("ইউটিউব", "ইউটিউবে", "গান", "ভিডিও", "youtube", "play", "চালাও", "প্লে করো", "প্লে", "শোনাও", "সার্চ"))) {
+        // 3. MINIMIZE APPLICATION (Return to Home screen)
+        if (isMatch(lower, listOf("মিনিমাইজ", "মিনিমাইজ করো", "অ্যাপ মিনিমাইজ", "অ্যাপস মিনিমাইজ", "হাইড করো", "ব্যাকগ্রাউন্ডে যাও", "minimize", "hide"))) {
+            val reply = "অ্যাপ্লিকেশন মিনিমাইজ করে ব্যাকগ্রাউন্ডে নেওয়া হয়েছে।"
+            MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+            speakTextLocally(reply)
+            JarvisAccessibilityService.instance?.minimizeApp() ?: minimizeAppLocally()
+            return
+        }
+
+        // 4. UNLOCK DEVICE (Wake display + dismiss keyguard + swipe gesture)
+        if (isMatch(lower, listOf("আনলক", "আনলক করো", "আনলক করে দাও", "স্ক্রিন খোলো", "ফোন খোলো", "মোবাইল আনলক", "unlock", "unlock phone", "turn on screen"))) {
+            val reply = "মোবাইল স্ক্রিন আনলক করা হয়েছে।"
+            MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+            speakTextLocally(reply)
+            JarvisAccessibilityService.instance?.unlockDevice() ?: unlockDeviceLocally()
+            return
+        }
+
+        // 5. LOCK DEVICE
+        if (isMatch(lower, listOf("লক", "লক করো", "লক করে দাও", "স্ক্রিন বন্ধ", "ফোন লক", "মোবাইল লক", "lock", "lock screen", "lock phone", "turn off screen"))) {
+            val reply = "মোবাইল স্ক্রিন লক করা হচ্ছে।"
+            MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+            speakTextLocally(reply)
+            JarvisAccessibilityService.instance?.lockDevice() ?: lockDeviceLocally()
+            return
+        }
+
+        // 6. BROWSER / GOOGLE SEARCH
+        if (isMatch(lower, listOf("ব্রাউজার", "ব্রাউজারে", "গুগল", "গুগলে", "ক্রোম", "ক্রোমে", "সার্চ করো", "browser", "web search", "google search"))) {
             var query = clean
             val removeKeywords = listOf(
-                "ইউটিউবে একটা গান চালাও", "ইউটিউবে গান চালাও", "ইউটিউবে", "ইউটিউব",
+                "ব্রাউজারে কোন কিছু সার্চ করো", "ব্রাউজারে সার্চ করো", "ব্রাউজারে কিছু একটা সার্চ করো", "ব্রাউজারে খোঁজো",
+                "ব্রাউজারে", "ব্রাউজার", "গুগলে সার্চ করো", "গুগলে খোঁজো", "গুগলে", "গুগল", "ক্রোমে সার্চ করো", "ক্রোমে", "ক্রোম",
+                "কোন কিছু সার্চ করো", "সার্চ করো", "খোঁজো", "খোজো", "search on google", "search", "google", "browser"
+            )
+            for (kw in removeKeywords) {
+                query = query.replace(Regex("(?i)$kw"), "").trim()
+            }
+            if (query.equals("কোন কিছু", ignoreCase = true) || query.equals("কিছু একটা", ignoreCase = true)) {
+                query = ""
+            }
+            val reply = if (query.isNotBlank()) "ব্রাউজারে '$query' সার্চ করা হচ্ছে।" else "ব্রাউজার ওপেন করা হচ্ছে।"
+            MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+            speakTextLocally(reply)
+            JarvisAccessibilityService.instance?.searchBrowser(query) ?: searchBrowserLocally(query)
+            return
+        }
+
+        // 7. YOUTUBE SEARCH & PLAY & OPEN
+        if (lower.contains("ইউটিউব") || lower.contains("youtube") || lower.contains("গান") || lower.contains("ভিডিও") || lower.contains("play")) {
+            val isOpenOnly = isMatch(lower, listOf("ওপেন", "খোল", "খোলো", "চালু", "open", "launch")) && !isMatch(lower, listOf("গান", "ভিডিও", "সার্চ", "play", "song"))
+            if (isOpenOnly) {
+                val reply = "হ্যাঁ, ইউটিউব এখনই ওপেন করছি! ❤️"
+                MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+                speakTextLocally(reply)
+                JarvisAccessibilityService.instance?.openApplication("youtube") ?: launchApplicationLocally("youtube")
+                return
+            }
+
+            var query = clean
+            val removeKeywords = listOf(
+                "ইউটিউবে একটা গান চালাও", "ইউটিউবে গান চালাও", "ইউটিউবে কোন কিছু সার্চ করো", "ইউটিউবে সার্চ করো", "ইউটিউবে", "ইউটিউব",
                 "একটা গান চালাও", "গান চালাও", "গান প্লে করো", "গানটি চালাও", "গানটি প্লে করো",
                 "ভিডিও চালাও", "ভিডিও প্লে করো", "প্লে করো", "চালাও", "শোনাও", "সার্চ করো",
                 "খোঁজো", "খোজো", "play", "on youtube", "youtube", "song", "video", "search"
@@ -582,17 +698,52 @@ class JarvisForegroundService : Service() {
             for (kw in removeKeywords) {
                 query = query.replace(Regex("(?i)$kw"), "").trim()
             }
-            if (query.isBlank() || query.length < 2) {
+            if (query.isBlank() || query.length < 2 || query.equals("কোন কিছু", ignoreCase = true)) {
                 query = "Iron Man Theme"
             }
             val reply = "ইউটিউবে '$query' সার্চ ও প্লে করা হচ্ছে।"
             MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
             speakTextLocally(reply)
-            JarvisAccessibilityService.instance?.searchAndPlayYouTube(query)
+            JarvisAccessibilityService.instance?.searchAndPlayYouTube(query) ?: searchYouTubeLocally(query)
             return
         }
 
-        // 4. PHONE CALL & DIALER (SIM 1 Default)
+        // 8. DIRECT FACEBOOK OPEN
+        if ((lower.contains("ফেসবুক") || lower.contains("facebook") || lower.contains("fb")) && !isMatch(lower, listOf("মেসেজ", "পোস্ট", "message", "post", "কল", "call"))) {
+            val reply = "হ্যাঁ, ফেসবুক এখনই ওপেন করছি! ❤️"
+            MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+            speakTextLocally(reply)
+            JarvisAccessibilityService.instance?.openApplication("facebook") ?: launchApplicationLocally("facebook")
+            return
+        }
+
+        // 9. DIRECT WHATSAPP OPEN & CALL & MESSAGE
+        if (lower.contains("হোয়াটসঅ্যাপ") || lower.contains("whatsapp")) {
+            val isCall = isMatch(lower, listOf("কল", "ভিডিও কল", "অডিও কল", "call"))
+            if (isCall) {
+                val reply = "হোয়াটসঅ্যাপ কল করা হচ্ছে।"
+                MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+                speakTextLocally(reply)
+                JarvisAccessibilityService.instance?.makeWhatsAppCall("", "voice")
+                return
+            }
+            val isMsg = isMatch(lower, listOf("মেসেজ", "পাঠাও", "মেসেজ দাও", "message", "send"))
+            if (isMsg) {
+                val reply = "হোয়াটসঅ্যাপ ওপেন করে মেসেজ পাঠানো হচ্ছে।"
+                MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+                speakTextLocally(reply)
+                JarvisAccessibilityService.instance?.sendWhatsAppMessage("", clean)
+                return
+            }
+            // Default WhatsApp: Open app
+            val reply = "হ্যাঁ, হোয়াটসঅ্যাপ এখনই ওপেন করছি! ❤️"
+            MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+            speakTextLocally(reply)
+            JarvisAccessibilityService.instance?.openApplication("whatsapp") ?: launchApplicationLocally("whatsapp")
+            return
+        }
+
+        // 10. PHONE CALL & DIALER (SIM 1 Default)
         if (isMatch(lower, listOf("কল", "কল দাও", "কল করো", "ফোন দাও", "ফোন করো", "ডায়াল", "ডায়াল", "call", "dial"))) {
             val isDialpad = isMatch(lower, listOf("ডায়াল প্যাড", "ডায়াল প্যাড", "ডায়ালার", "ডায়ালার", "dialpad", "dialer"))
             var target = clean
@@ -620,33 +771,24 @@ class JarvisForegroundService : Service() {
             return
         }
 
-        // 5. WHATSAPP MESSAGE & CALL
-        if (lower.contains("হোয়াটসঅ্যাপ") || lower.contains("whatsapp")) {
-            val isCall = isMatch(lower, listOf("কল", "ভিডিও কল", "অডিও কল", "call"))
-            if (isCall) {
-                val reply = "হোয়াটসঅ্যাপ কল করা হচ্ছে।"
+        // 11. MESSENGER
+        if (lower.contains("মেসেঞ্জার") || lower.contains("messenger")) {
+            val isMsg = isMatch(lower, listOf("মেসেজ", "পাঠাও", "message", "send"))
+            if (isMsg) {
+                val reply = "মেসেঞ্জারে মেসেজ পাঠানো হচ্ছে।"
                 MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
                 speakTextLocally(reply)
-                JarvisAccessibilityService.instance?.makeWhatsAppCall("", "voice")
+                JarvisAccessibilityService.instance?.sendMessengerMessage("", clean)
                 return
             }
-            val reply = "হোয়াটসঅ্যাপ ওপেন করে মেসেজ পাঠানো হচ্ছে।"
+            val reply = "হ্যাঁ, মেসেঞ্জার এখনই ওপেন করছি! ❤️"
             MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
             speakTextLocally(reply)
-            JarvisAccessibilityService.instance?.sendWhatsAppMessage("", clean)
+            JarvisAccessibilityService.instance?.openApplication("messenger") ?: launchApplicationLocally("messenger")
             return
         }
 
-        // 6. MESSENGER / FACEBOOK MESSAGE
-        if (lower.contains("মেসেঞ্জার") || lower.contains("messenger")) {
-            val reply = "মেসেঞ্জারে মেসেজ পাঠানো হচ্ছে।"
-            MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
-            speakTextLocally(reply)
-            JarvisAccessibilityService.instance?.sendMessengerMessage("", clean)
-            return
-        }
-
-        // 7. OPEN APPLICATION (AI Desktop & Mobile App Launcher)
+        // 12. OPEN APPLICATION (Any Android App)
         if (isMatch(lower, listOf("ওপেন", "খোল", "খোলো", "চালু", "অন করো", "open", "launch", "start", "kholo", "kholdo", "khol do", "chalao", "chalaao", "chalu karo", "chala do", "run karo", "shuru karo"))) {
             var appName = clean
             val openRemovals = listOf(
@@ -661,12 +803,21 @@ class JarvisForegroundService : Service() {
                 val reply = "হ্যাঁ, '$appName' এখনই ওপেন করছি! ❤️"
                 MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
                 speakTextLocally(reply)
-                JarvisAccessibilityService.instance?.openApplication(appName)
+                val opened = JarvisAccessibilityService.instance?.openApplication(appName) ?: launchApplicationLocally(appName)
                 return
             }
         }
 
-        // 8. SURVEY AUTOMATION
+        // 13. SCREEN CONTROL & SCREENSHOT
+        if (isMatch(lower, listOf("স্ক্রিন কন্ট্রোল", "স্ক্রিনশট", "স্ক্রিনশট নাও", "screenshot", "ক্যাপচার", "screen control"))) {
+            val reply = "স্ক্রিন ক্যাপচার সম্পন্ন হয়েছে।"
+            MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
+            speakTextLocally(reply)
+            JarvisAccessibilityService.instance?.captureAndSendScreenshot()
+            return
+        }
+
+        // 14. SURVEY AUTOMATION
         if (isMatch(lower, listOf("সার্ভে", "সার্ভে করো", "অটো সার্ভে", "নেক্সট বাটন", "ফর্ম পূরণ", "survey", "auto survey"))) {
             val reply = "সার্ভে অটোমেশন কার্যকর করা হয়েছে।"
             MainActivity.instance?.runOnUiThread { MainActivity.instance?.postDirectTranscript(clean, reply) }
@@ -675,7 +826,7 @@ class JarvisForegroundService : Service() {
             return
         }
 
-        // 9. READ NOTIFICATIONS
+        // 15. READ NOTIFICATIONS
         if (isMatch(lower, listOf("নোটিফিকেশন", "মেসেজ কি এসেছে", "নোটিফিকেশন পড়ো", "নোটিফিকেশন পড়ো", "read notification", "notifications"))) {
             val sender = JarvisNotificationListenerService.lastNotificationSender
             val text = JarvisNotificationListenerService.lastNotificationText
@@ -690,7 +841,7 @@ class JarvisForegroundService : Service() {
             return
         }
 
-        // 10. VOLUME & BRIGHTNESS & SCROLL
+        // 16. VOLUME & BRIGHTNESS & SCROLL
         if (lower.contains("ভলিউম") || lower.contains("সাউন্ড") || lower.contains("শব্দ")) {
             val up = isMatch(lower, listOf("বাড়া", "বাড়া", "ফুল", "up", "high", "increase"))
             JarvisAccessibilityService.instance?.adjustVolume(increase = up)
@@ -758,6 +909,126 @@ class JarvisForegroundService : Service() {
         }
     }
 
+    // ── Standalone Local Device Execution Fallbacks (Active even without Accessibility) ──
+    fun launchApplicationLocally(appName: String): Boolean {
+        val clean = appName.lowercase().trim()
+        val fallbacks = JarvisAccessibilityService.packageFallbacks[clean]
+        if (fallbacks != null) {
+            for (pkg in fallbacks) {
+                val intent = packageManager.getLaunchIntentForPackage(pkg)
+                if (intent != null) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                    startActivity(intent)
+                    return true
+                }
+            }
+        }
+        val staticPkg = JarvisAccessibilityService.packageMap[clean]
+        if (staticPkg != null) {
+            val intent = packageManager.getLaunchIntentForPackage(staticPkg)
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                startActivity(intent)
+                return true
+            }
+        }
+        try {
+            val mainIntent = Intent(Intent.ACTION_MAIN, null).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
+            val apps = packageManager.queryIntentActivities(mainIntent, 0)
+            for (info in apps) {
+                val label = info.loadLabel(packageManager).toString().lowercase()
+                val pkg = info.activityInfo.packageName.lowercase()
+                if (label.contains(clean) || (clean.length >= 3 && clean.contains(label)) || pkg.contains(clean)) {
+                    val intent = packageManager.getLaunchIntentForPackage(info.activityInfo.packageName)
+                    if (intent != null) {
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                        startActivity(intent)
+                        return true
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        return false
+    }
+
+    fun closeApplicationLocally(appName: String): Boolean {
+        try {
+            val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(homeIntent)
+            return true
+        } catch (_: Exception) {
+            return false
+        }
+    }
+
+    fun minimizeAppLocally(): Boolean {
+        try {
+            val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(homeIntent)
+            return true
+        } catch (_: Exception) {
+            return false
+        }
+    }
+
+    fun searchBrowserLocally(query: String) {
+        try {
+            val clean = query.trim()
+            val url = if (clean.isNotBlank()) {
+                "https://www.google.com/search?q=" + java.net.URLEncoder.encode(clean, "UTF-8")
+            } else {
+                "https://www.google.com"
+            }
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(intent)
+        } catch (_: Exception) {}
+    }
+
+    fun searchYouTubeLocally(query: String) {
+        try {
+            val intent = Intent(Intent.ACTION_SEARCH).apply {
+                setPackage("com.google.android.youtube")
+                putExtra("query", query)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(intent)
+        } catch (_: Exception) {
+            try {
+                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=" + java.net.URLEncoder.encode(query, "UTF-8"))).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                startActivity(webIntent)
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun lockDeviceLocally(): Boolean {
+        return JarvisAccessibilityService.instance?.lockDevice() ?: false
+    }
+
+    fun unlockDeviceLocally(): Boolean {
+        try {
+            val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+            @Suppress("DEPRECATION")
+            val screenLock = pm?.newWakeLock(
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK or
+                PowerManager.ACQUIRE_CAUSES_WAKEUP or
+                PowerManager.ON_AFTER_RELEASE,
+                "Jarvis::UnlockScreenLocal"
+            )
+            screenLock?.acquire(3000L)
+        } catch (_: Exception) {}
+        return true
+    }
+
     private fun isMatch(text: String, keywords: List<String>): Boolean {
         val lower = text.lowercase()
         for (kw in keywords) {
@@ -802,11 +1073,12 @@ class JarvisForegroundService : Service() {
             val geminiModels = preferredGeminiModels.distinct()
 
             if (provider == "google" || provider == "gemini") {
-                if (googleKey.isNotBlank()) {
+                val effectiveGoogleKey = if (googleKey.isNotBlank()) googleKey else if (MobileConfig.isGeminiWebLoggedIn(this@JarvisForegroundService)) MobileConfig.DEFAULT_GOOGLE_KEY else ""
+                if (effectiveGoogleKey.isNotBlank()) {
                     for (model in geminiModels) {
                         if (answered) break
                         try {
-                            val result = callGeminiApi(googleKey, model, cleanPrompt)
+                            val result = callGeminiApi(effectiveGoogleKey, model, cleanPrompt)
                             if (deliverReply(result)) break
                         } catch (e: Exception) {
                             Log.w(TAG, "Gemini $model direct call: ${e.message}")

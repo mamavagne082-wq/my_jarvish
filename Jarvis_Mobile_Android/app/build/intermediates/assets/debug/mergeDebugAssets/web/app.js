@@ -551,12 +551,78 @@ function loadConfiguration() {
       }
     } catch (_) {}
     console.log("Configuration and API keys loaded successfully!");
-    // Trigger initial health refresh
-    setTimeout(() => refreshApiHealth(false), 200);
+    // Trigger initial health & gemini login status refresh
+    setTimeout(() => {
+      refreshApiHealth(false);
+      refreshGeminiLoginStatus();
+    }, 200);
   } catch (e) {
     console.error('Failed to load initial config from native bridge:', e);
   }
 }
+
+// -------------------------------------------------------------------------
+// In-App Gemini Pro & Google Account Login Controllers (100% In-App)
+// -------------------------------------------------------------------------
+function triggerInAppGeminiLogin(tier) {
+  const chosenTier = tier || 'Gemini Pro';
+  showToast(`🔑 ${chosenTier} ইন-অ্যাপ লগইন স্ক্রিন ওপেন হচ্ছে...`);
+  callNative('openInAppGeminiLogin', chosenTier);
+}
+window.triggerInAppGeminiLogin = triggerInAppGeminiLogin;
+
+function triggerGeminiLogout() {
+  callNative('logoutGeminiWeb');
+}
+window.triggerGeminiLogout = triggerGeminiLogout;
+
+function refreshGeminiLoginStatus() {
+  try {
+    const raw = callNative('getGeminiLoginStatus');
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    const dot = document.getElementById('geminiWebStatusDot');
+    const text = document.getElementById('geminiWebStatusText');
+    const badge = document.getElementById('geminiWebActiveTierBadge');
+
+    if (data.isLoggedIn) {
+      if (dot) {
+        dot.style.background = '#10b981';
+        dot.style.boxShadow = '0 0 10px #10b981';
+      }
+      if (text) text.innerText = `লগইন স্ট্যাটাস: ✅ সক্রিয় ও সংযুক্ত (${data.tier || 'Gemini Pro'})`;
+      if (badge) {
+        badge.innerText = data.tier || 'Gemini Pro';
+        badge.style.color = '#34d399';
+        badge.style.borderColor = '#10b981';
+      }
+    } else {
+      if (dot) {
+        dot.style.background = '#ef4444';
+        dot.style.boxShadow = '0 0 8px #ef4444';
+      }
+      if (text) text.innerText = 'লগইন স্ট্যাটাস: 🔴 সংযুক্ত নয় (ইন-অ্যাপ লগইন করুন)';
+      if (badge) {
+        badge.innerText = 'লগআউট';
+        badge.style.color = '#94a3b8';
+        badge.style.borderColor = '#475569';
+      }
+    }
+  } catch (e) {
+    console.error('Error refreshing Gemini login status:', e);
+  }
+}
+window.refreshGeminiLoginStatus = refreshGeminiLoginStatus;
+
+window.onGeminiLoginSuccess = function(tier) {
+  showToast(`🎉 ${tier || 'Gemini'} একাউন্ট সফলভাবে ইন-অ্যাপ যুক্ত হয়েছে!`);
+  refreshGeminiLoginStatus();
+};
+
+window.onGeminiLogoutSuccess = function() {
+  showToast('লগআউট সম্পন্ন হয়েছে।');
+  refreshGeminiLoginStatus();
+};
 
 // Debounced auto-save so user never loses their typed API keys
 let autoSaveTimer = null;
@@ -1347,9 +1413,34 @@ function promptOpenAppFromUI() {
   }
 }
 
+function promptCloseAppFromUI() {
+  const app = prompt('কোন অ্যাপটি বন্ধ করতে চান? (e.g. Facebook, WhatsApp, Chrome, YouTube):');
+  if (app && app.trim()) {
+    executeAction('close_app', { app_name: app.trim(), target: app.trim() });
+    showToast(`❌ '${app.trim()}' বন্ধ করা হচ্ছে...`);
+  }
+}
+
+function promptBrowserSearchFromUI() {
+  const q = prompt('গুগল বা ব্রাউজারে কী সার্চ করতে চান?');
+  if (q && q.trim()) {
+    executeAction('browser_search', { query: q.trim(), target: q.trim() });
+  }
+}
+
+function promptYouTubeSearchFromUI() {
+  const q = prompt('ইউটিউবে কোন গান বা ভিডিও দেখতে চান?');
+  if (q && q.trim()) {
+    executeAction('youtube_search', { query: q.trim(), target: q.trim() });
+  }
+}
+
 window.sendTextMessageFromUI = sendTextMessageFromUI;
 window.sendWelcomeTextMessage = sendWelcomeTextMessage;
 window.promptOpenAppFromUI = promptOpenAppFromUI;
+window.promptCloseAppFromUI = promptCloseAppFromUI;
+window.promptBrowserSearchFromUI = promptBrowserSearchFromUI;
+window.promptYouTubeSearchFromUI = promptYouTubeSearchFromUI;
 
 
 

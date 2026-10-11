@@ -136,6 +136,34 @@ object MobileConfig {
         return getPrefs(context).getString("gemini_web_ultra_account", "alaminmiah1976@gmail.com") ?: "alaminmiah1976@gmail.com"
     }
 
+    fun isGeminiWebLoggedIn(context: Context): Boolean {
+        return getPrefs(context).getBoolean("gemini_web_logged_in", false)
+    }
+
+    fun setGeminiWebLoggedIn(context: Context, loggedIn: Boolean, email: String = "", tier: String = "Gemini Pro") {
+        val editor = getPrefs(context).edit()
+        editor.putBoolean("gemini_web_logged_in", loggedIn)
+        if (email.isNotBlank()) editor.putString("gemini_web_active_email", email)
+        if (tier.isNotBlank()) editor.putString("gemini_web_active_tier", tier)
+        editor.apply()
+    }
+
+    fun getGeminiWebActiveEmail(context: Context): String {
+        return getPrefs(context).getString("gemini_web_active_email", "") ?: ""
+    }
+
+    fun getGeminiWebActiveTier(context: Context): String {
+        return getPrefs(context).getString("gemini_web_active_tier", "Gemini Pro") ?: "Gemini Pro"
+    }
+
+    fun clearGeminiWebLogin(context: Context) {
+        val editor = getPrefs(context).edit()
+        editor.putBoolean("gemini_web_logged_in", false)
+        editor.putString("gemini_web_active_email", "")
+        editor.putString("gemini_web_active_tier", "")
+        editor.apply()
+    }
+
     fun getTorveKey(context: Context): String {
         val raw = getPrefs(context).getString("torve_key", DEFAULT_TORVE_KEY) ?: DEFAULT_TORVE_KEY
         val clean = sanitizeKey(raw)
@@ -308,6 +336,9 @@ object MobileConfig {
                 put("gemini_web_plus_account", getGeminiPlusAccount(context))
                 put("gemini_web_pro_account", getGeminiProAccount(context))
                 put("gemini_web_ultra_account", getGeminiUltraAccount(context))
+                put("gemini_web_logged_in", isGeminiWebLoggedIn(context))
+                put("gemini_web_active_email", getGeminiWebActiveEmail(context))
+                put("gemini_web_active_tier", getGeminiWebActiveTier(context))
             }
             put("api_keys", keys)
         }

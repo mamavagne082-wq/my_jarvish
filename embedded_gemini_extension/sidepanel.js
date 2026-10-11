@@ -20,11 +20,13 @@ let isBusy = false;
 const btnScanAndSend = document.getElementById('btnScanAndSend');
 const btnAutoFill = document.getElementById('btnAutoFill');
 const btnNewChat = document.getElementById('btnNewChat');
+const btnDirectLogin = document.getElementById('btnDirectLogin');
 const statusLabel = document.getElementById('statusLabel');
 const statusBadgeText = document.getElementById('statusBadgeText');
 const activeDomainLabel = document.getElementById('activeDomainLabel');
 const loginBanner = document.getElementById('loginBanner');
-const btnLoginTab = document.getElementById('btnLoginTab');
+const btnLoginInFrame = document.getElementById('btnLoginInFrame');
+const btnDismissBanner = document.getElementById('btnDismissBanner');
 const geminiFrame = document.getElementById('geminiFrame');
 
 /**
@@ -198,6 +200,12 @@ async function handleNewChat() {
   }
 }
 
+function triggerInFrameLogin() {
+  updateStatus('Loading in-panel Google Sign-In...', 'Signing In');
+  geminiFrame.src = "https://accounts.google.com/ServiceLogin?service=mail&continue=https%3A%2F%2Fgemini.google.com%2Fapp";
+  if (loginBanner) loginBanner.style.display = 'none';
+}
+
 /**
  * Event Listeners
  */
@@ -206,8 +214,9 @@ function init() {
   btnAutoFill.addEventListener('click', handleAutoFill);
   btnNewChat.addEventListener('click', handleNewChat);
 
-  btnLoginTab.addEventListener('click', () => {
-    chrome.runtime.sendMessage({ action: 'OPEN_GEMINI_FULL_TAB' });
+  if (btnDirectLogin) btnDirectLogin.addEventListener('click', triggerInFrameLogin);
+  if (btnLoginInFrame) btnLoginInFrame.addEventListener('click', triggerInFrameLogin);
+  if (btnDismissBanner) btnDismissBanner.addEventListener('click', () => {
     loginBanner.style.display = 'none';
   });
 

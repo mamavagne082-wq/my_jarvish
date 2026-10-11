@@ -220,6 +220,10 @@
       <button id="btnNewChat" class="btn btn-icon" title="Start a fresh chat thread in Gemini">
         <span>➕ New</span>
       </button>
+
+      <button id="btnDirectLogin" class="btn btn-icon" title="গুগল / জেমিনি প্রো একাউন্ট সরাসরি এই প্যানেলেই লগইন করুন (কোনো নতুন ট্যাব ছাড়া)">
+        <span>🔑 Sign In</span>
+      </button>
     </div>
 
     <!-- Status Strip -->
@@ -229,11 +233,14 @@
     </div>
   </header>
 
-  <!-- Login Fallback Banner -->
+  <!-- In-Panel Login Banner -->
   <div id="loginBanner" class="login-helper">
-    <strong>Google Sign-in Required</strong>
-    <p>Sign into your Google Account so your active Gemini Pro/Advanced session persists inside this Side Panel.</p>
-    <button id="btnLoginTab" class="btn btn-primary" style="width: 100%;">↗ Open Gemini in Tab to Sign In</button>
+    <strong>Google / Gemini Sign-In Required</strong>
+    <p>Sign into your Google Account directly inside this Side Panel without opening any external tabs or browsers.</p>
+    <div style="display: flex; gap: 6px;">
+      <button id="btnLoginInFrame" class="btn btn-primary" style="flex: 2;">🔑 Direct In-Panel Sign In</button>
+      <button id="btnDismissBanner" class="btn btn-icon" style="flex: 1;">✕ Close</button>
+    </div>
   </div>
 
   <!-- Embedded Gemini Web Session -->
