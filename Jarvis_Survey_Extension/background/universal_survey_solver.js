@@ -24,6 +24,7 @@
     var exports = factory();
     root.UniversalSurveySolver = exports;
     root.fetchSmartSurveyAnswer = exports.fetchSmartSurveyAnswer;
+    root.queryPolymerAI = exports.fetchSmartSurveyAnswer;
     root.sanitizeFinalAnswer = exports.sanitizeFinalAnswer;
   }
 }(typeof self !== 'undefined' ? self : (typeof window !== 'undefined' ? window : globalThis), function () {
@@ -374,6 +375,7 @@
 
   return {
     fetchSmartSurveyAnswer: fetchSmartSurveyAnswer,
+    queryPolymerAI: fetchSmartSurveyAnswer,
     sanitizeFinalAnswer: sanitizeFinalAnswer,
     DEFAULT_SURVEY_PERSONA: DEFAULT_SURVEY_PERSONA
   };

@@ -52,7 +52,7 @@ if exist "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" (
 )
 
 if defined BROWSER_CMD (
-    start "" %BROWSER_CMD% --app=https://localhost:3000?auto=true --autoplay-policy=no-user-gesture-required --ignore-certificate-errors --allow-insecure-localhost
+    start "" %BROWSER_CMD% --app=https://localhost:3000?auto=true --autoplay-policy=no-user-gesture-required --ignore-certificate-errors --allow-insecure-localhost --disable-extensions
 ) else (
     start https://localhost:3000?auto=true
 )

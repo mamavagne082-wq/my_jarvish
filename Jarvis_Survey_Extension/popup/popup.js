@@ -231,13 +231,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // Load Gemini Web 3-Tier Accounts settings
-  const checkUseGeminiWeb = document.getElementById("check-use-gemini-web");
-  const inputEmailAcc1 = document.getElementById("input-gemini-email-acc1");
-  const inputPwdAcc1 = document.getElementById("input-gemini-pwd-acc1");
-  const inputEmailAcc2 = document.getElementById("input-gemini-email-acc2");
-  const inputPwdAcc2 = document.getElementById("input-gemini-pwd-acc2");
-  const inputEmailAcc3 = document.getElementById("input-gemini-email-acc3");
-  const inputPwdAcc3 = document.getElementById("input-gemini-pwd-acc3");
 
   if (checkUseGeminiWeb) checkUseGeminiWeb.checked = storage.useGeminiWeb !== false;
   if (inputEmailAcc1) inputEmailAcc1.value = storage.geminiAcc1Email || "plus.alamin@gmail.com";
@@ -866,7 +859,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   // 3. Quick Open Google Login Launcher Header Button
-  const btnQuickOpenGoogleLogin = document.getElementById("btn-quick-open-google-login");
   if (btnQuickOpenGoogleLogin) {
     btnQuickOpenGoogleLogin.addEventListener("click", () => {
       const emailAcc1 = (document.getElementById("input-gemini-email-acc1")?.value || "").trim();

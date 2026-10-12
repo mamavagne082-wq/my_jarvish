@@ -857,6 +857,41 @@ async function notifyJarvisDesktop(eventType, payload) {
   }
 }
 
+/**
+ * Triggers Chrome Desktop Notification and in-tab alert when a Gemini account limit is exhausted
+ */
+function notifyAccountLimitReached(accountLabel, detail, tabId) {
+  const title = "⚠️ জিমিনি অ্যাকাউন্ট লিমিট শেষ!";
+  const message = `${accountLabel || 'বর্তমান জিমিনি অ্যাকাউন্ট'}-এর ব্যবহারের কোটা/লিমিট শেষ হয়ে গেছে। অনুগ্রহ করে পরবর্তী জিমিনি অ্যাকাউন্ট সংযুক্ত করুন।`;
+
+  try {
+    if (chrome.notifications && chrome.notifications.create) {
+      chrome.notifications.create(`gemini_limit_${Date.now()}`, {
+        type: "basic",
+        iconUrl: chrome.runtime.getURL("icons/icon128.png"),
+        title: title,
+        message: message,
+        priority: 2,
+        requireInteraction: true
+      });
+    }
+  } catch (notifErr) {
+    console.warn("[Jarvis] Chrome notification error:", notifErr);
+  }
+
+  if (tabId) {
+    try {
+      chrome.tabs.sendMessage(tabId, {
+        action: "SHOW_ACCOUNT_LIMIT_ALERT",
+        accountLabel: accountLabel,
+        title: title,
+        message: message,
+        detail: detail
+      }).catch(() => {});
+    } catch (_) {}
+  }
+}
+
 async function ensureContentScript(tabId) {
   try {
     const tab = await chrome.tabs.get(tabId);
@@ -1171,9 +1206,14 @@ async function handleSurveyAnalysis(payload, tabId) {
         lastError = err;
         console.warn(`[Jarvis AI] ⚠️ ${attempt.label} (${attempt.model}) failed: ${err.message}`);
 
+        const isLimit = err.isQuota || err.message?.includes("429") || err.message?.includes("Quota") || err.message?.includes("RESOURCE_EXHAUSTED") || err.message?.includes("limit");
+        if (isLimit) {
+          notifyAccountLimitReached(attempt.label, err.message, tabId);
+        }
+
         if (i < attemptPipeline.length - 1) {
           const nextAttempt = attemptPipeline[i + 1];
-          const failoverMsg = `⚠️ ${attempt.label} লিমিট/ত্রুটি (${err.message.slice(0, 50)}...)। স্বয়ংক্রিয়ভাবে ${nextAttempt.label} এ সুইচ করা হচ্ছে...`;
+          const failoverMsg = `⚠️ ${attempt.label} কোটা/লিমিট শেষ (${err.message.slice(0, 50)}...)। স্বয়ংক্রিয়ভাবে ${nextAttempt.label} এ সুইচ করা হচ্ছে...`;
           try {
             if (tabId) {
               chrome.tabs.sendMessage(tabId, {
@@ -1184,6 +1224,8 @@ async function handleSurveyAnalysis(payload, tabId) {
               }).catch(() => { });
             }
           } catch (e) { }
+        } else if (isLimit) {
+          notifyAccountLimitReached("সকল জিমিনি অ্যাকাউন্ট", "সকল অ্যাকাউন্টের লিমিট শেষ হয়েছে", tabId);
         }
       }
     }
@@ -1754,6 +1796,9 @@ async function callGeminiAPI(apiKey, model, promptText, base64Image) {
     }
   }
 
+  if (lastError && (lastError.message?.includes("429") || lastError.message?.includes("Quota") || lastError.message?.includes("RESOURCE_EXHAUSTED"))) {
+    lastError.isQuota = true;
+  }
   throw lastError || new Error("❌ All Gemini models failed. Please check your API key or use OpenRouter.");
 }
 

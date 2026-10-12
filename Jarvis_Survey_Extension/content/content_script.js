@@ -239,8 +239,16 @@
       return true;
     }
 
+    if (message.action === "SHOW_ACCOUNT_LIMIT_ALERT") {
+      showAccountLimitToast(message.title, message.message, message.accountLabel);
+      updateHUDStatus("error", message.message || "⚠️ জিমিনি অ্যাকাউন্ট লিমিট শেষ!");
+      addBattleLog("error", message.message || "জিমিনি অ্যাকাউন্ট লিমিট শেষ", message.accountLabel || "");
+      sendResponse({ success: true });
+      return true;
+    }
+
     if (message.action === "SHOW_API_ALERT") {
-      showInPageApiAlert(message.alert);
+      showAccountLimitToast("API কোটা নোটিফিকেশন", message.alert?.message || "API কোটা সতর্কবার্তা", message.alert?.apiName);
       sendResponse({ success: true });
       return true;
     }
@@ -269,6 +277,51 @@
       return true;
     }
   });
+
+  /**
+   * Prominent In-Page Toast for Gemini Account Limit Exhaustion
+   */
+  function showAccountLimitToast(title, msg, accountLabel) {
+    let toast = document.getElementById("jarvis-account-limit-toast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "jarvis-account-limit-toast";
+      toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 2147483647;
+        background: #1e1026;
+        border: 2px solid #ff3366;
+        border-radius: 10px;
+        padding: 16px 24px;
+        color: #fff;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        box-shadow: 0 8px 30px rgba(255, 51, 102, 0.4);
+        max-width: 550px;
+        width: 90%;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      `;
+      document.body.appendChild(toast);
+    }
+    toast.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-weight:bold;font-size:15px;color:#ff3366;">⚠️ ${title || 'জিমিনি অ্যাকাউন্ট লিমিট শেষ!'}</span>
+        <button id="jarvis-toast-close" style="background:none;border:none;color:#aaa;cursor:pointer;font-size:18px;">✕</button>
+      </div>
+      <div style="font-size:13px;line-height:1.5;color:#e2e8f0;">
+        ${msg || 'বর্তমান জিমিনি অ্যাকাউন্টের লিমিট শেষ হয়ে গেছে। অনুগ্রহ করে পরবর্তী জিমিনি অ্যাকাউন্ট সংযুক্ত করুন।'}
+      </div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:4px;">
+        💡 এক্সটেনশন পপআপ ওপেন করে পরবর্তী জিমিনি অ্যাকাউন্ট যুক্ত বা সিলেক্ট করুন।
+      </div>
+    `;
+    const closeBtn = toast.querySelector("#jarvis-toast-close");
+    if (closeBtn) closeBtn.onclick = () => toast.remove();
+  }
 
   // 2. Safe HUD initialization (ONLY in top frame, wait for document.body safely)
   function safeInitHUD() {
@@ -565,31 +618,50 @@
    * Performs full-page visual screenshot analysis via Gemini Vision API
    * Used when DOM element analysis is not possible or cannot select answers
    */
-  async function performScreenshotAnalysis() {
-    updateHUDStatus("analyzing", "📸 পেজ সরাসরি বিশ্লেষণ করা যাচ্ছে না! সম্পূর্ণ পেজের স্ক্রিনশট নেওয়া হচ্ছে...");
-    addBattleLog("scan", "সম্পূর্ণ পেজের স্ক্রিনশট নেওয়া হচ্ছে...", window.location.hostname);
+  /**
+   * Performs full-page visual screenshot analysis via Gemini Vision API / Polymer AI
+   * Auto-retries on operational failure or selection error
+   * Directly selects answers on the page WITHOUT extra labels/badges like 'JARVIS CHOICE'
+   */
+  async function performScreenshotAnalysis(retryAttempt = 0) {
+    const maxRetries = 3;
+    const attemptDisplay = retryAttempt > 0 ? ` (চেষ্টা ${retryAttempt + 1}/${maxRetries})` : "";
+    updateHUDStatus("analyzing", `📸 সার্ভে পেজের স্ক্রিনশট এনালাইসিস হচ্ছে${attemptDisplay}...`);
+    addBattleLog("scan", `সার্ভে পেজের স্ক্রিনশট নেওয়া হচ্ছে${attemptDisplay}...`, window.location.hostname);
 
     const hudContainer = document.getElementById("jarvis-hud-container");
     if (hudContainer) hudContainer.style.visibility = "hidden";
 
-    await sleep(100);
+    // Clean any prior badges from the page so they don't appear in screenshot
+    document.querySelectorAll(".jarvis-pick-badge, .jarvis-inpage-ans-banner, .jarvis-inline-question-callout").forEach(el => el.remove());
+
+    await sleep(120);
     const screenshotDataUrl = await captureFullPageScreenshot();
 
     if (hudContainer) hudContainer.style.visibility = "visible";
 
     if (!screenshotDataUrl) {
+      if (retryAttempt < maxRetries - 1) {
+        updateHUDStatus("analyzing", `⚠️ স্ক্রিনশট ব্যর্থ, স্বয়ংক্রিয়ভাবে পুনরায় চেষ্টা করা হচ্ছে (${retryAttempt + 1}/${maxRetries})...`);
+        await sleep(600);
+        return await performScreenshotAnalysis(retryAttempt + 1);
+      }
       updateHUDStatus("error", "❌ স্ক্রিনশট নিতে ব্যর্থ হয়েছে!");
       addBattleLog("error", "স্ক্রিনশট ক্যাপচার ব্যর্থ হয়েছে");
       return { success: false, error: "Screenshot capture failed" };
     }
 
-    addBattleLog("scan", "স্ক্রিনশট সফলভাবে ক্যাপচার হয়েছে, Gemini ইঞ্জিনে পাঠানো হচ্ছে...");
-    updateHUDStatus("analyzing", "🤖 Gemini Vision দিয়ে স্ক্রিনশট এনালাইসিস করে সঠিক উত্তর বের করা হচ্ছে...");
+    addBattleLog("scan", "স্ক্রিনশট সফলভাবে ক্যাপচার হয়েছে, AI ইঞ্জিনে পাঠানো হচ্ছে...");
+    updateHUDStatus("analyzing", "🤖 স্ক্রিনশট এনালাইসিস করে প্রশ্ন ও অপশনগুলো শনাক্ত করা হচ্ছে...");
 
-    const fullBodyText = document.body ? cleanText(document.body.innerText).slice(0, 5000) : "";
+    const fullBodyText = document.body ? cleanText(document.body.innerText).slice(0, 6000) : "";
     let scannedQuestions = [];
     try {
-      scannedQuestions = scanSurveyPage() || [];
+      if (typeof extractSurveyQuestions === "function") {
+        scannedQuestions = extractSurveyQuestions() || [];
+      } else if (typeof scanSurveyPage === "function") {
+        scannedQuestions = scanSurveyPage() || [];
+      }
     } catch (_) {}
 
     const payload = {
@@ -612,16 +684,28 @@
       isScreenshot: true
     };
 
-    addBattleLog("ai", "Gemini প্রো / ভিশন ইঞ্জিন দিয়ে স্ক্রিনশট বিশ্লেষণ হচ্ছে...");
+    addBattleLog("ai", "জিমিনি ও পলিমার এআই দিয়ে স্ক্রিনশট ও প্রশ্ন বিশ্লেষণ হচ্ছে...");
 
-    const response = await new Promise((resolve) => {
-      chrome.runtime.sendMessage(
-        { action: "ANALYZE_SURVEY_PAGE", payload: payload },
-        (res) => resolve(res)
-      );
-    });
+    let response = null;
+    try {
+      response = await new Promise((resolve) => {
+        chrome.runtime.sendMessage(
+          { action: "ANALYZE_SURVEY_PAGE", payload: payload },
+          (res) => resolve(res)
+        );
+      });
+    } catch (e) {
+      console.warn("[Jarvis] Survey analysis send error:", e);
+    }
 
-    if (!response || !response.success || !response.data) {
+    if (!response || !response.success || !response.data || !response.data.answers || response.data.answers.length === 0) {
+      if (retryAttempt < maxRetries - 1) {
+        const errDetail = response?.error || "অপারেশনাল ত্রুটি";
+        updateHUDStatus("analyzing", `⚠️ অপারেশনাল ত্রুটি (${errDetail}), স্বয়ংক্রিয়ভাবে পুনরায় চেষ্টা হচ্ছে (${retryAttempt + 1}/${maxRetries})...`);
+        addBattleLog("warn", `অপারেশনাল ত্রুটি, স্বয়ংক্রিয় পুনরায় চেষ্টা ${retryAttempt + 1}/${maxRetries}`);
+        await sleep(1000);
+        return await performScreenshotAnalysis(retryAttempt + 1);
+      }
       const err = response?.error || "Vision analysis failed";
       updateHUDStatus("error", err);
       addBattleLog("error", `স্ক্রিনশট বিশ্লেষণ ব্যর্থ: ${err}`);
@@ -639,9 +723,9 @@
     renderAnalysisInHUD(data);
     renderProminentAnswersBox(data);
     attachInPageAnswerBadges(data);
-    const modelTag = response.modelUsed || "Gemini 3.8 Flash";
+
+    const modelTag = response.modelUsed || "Gemini AI";
     const providerTag = response.providerUsed ? ` (${response.providerUsed})` : "";
-    updateHUDStatus("done", `✅ ${modelTag}${providerTag}: স্ক্রিনশট বিশ্লেষণ সফল!`);
     addBattleLog("ai", `${modelTag}${providerTag}: স্ক্রিনশট বিশ্লেষণ সম্পন্ন! (${data.answers?.length || 0}টি উত্তর প্রাপ্ত)`);
 
     if (data.answers) {
@@ -659,14 +743,25 @@
       }).catch(() => { });
     } catch (e) { }
 
-    // Attempt to auto-select matching elements on the webpage
-    updateHUDStatus("analyzing", "🎯 স্ক্রিনশট অনুযায়ী সঠিক উত্তরগুলো পেজে সিলেক্ট করা হচ্ছে...");
-    const selectCount = await autoSelectFromVisionResults(data);
+    // Directly select matching elements on the webpage without extra labels
+    updateHUDStatus("analyzing", "🎯 প্রশ্ন এবং অপশন শনাক্ত করে সরাসরি পেজে সিলেক্ট করা হচ্ছে...");
+    let selectCount = await autoSelectFromVisionResults(data);
+
+    // Auto-retry selection if initial select did not capture all answers
+    if (selectCount === 0 && data.answers.length > 0) {
+      console.log("[Jarvis] Initial selection pass yielded 0, waiting for DOM stabilization and retrying...");
+      await sleep(400);
+      selectCount = await autoSelectFromVisionResults(data);
+      if (selectCount === 0 && typeof autoFillAnswers === "function") {
+        const fillFallback = await autoFillAnswers(data);
+        selectCount = fillFallback?.filledCount || 0;
+      }
+    }
 
     if (selectCount > 0) {
-      updateHUDStatus("done", `✅ স্ক্রিনশট এনালাইসিস সম্পন্ন! ${selectCount}টি উত্তর সিলেক্ট হয়েছে। নিচে সঠিক উত্তরসমূহ বোল্ড করে দেখানো হলো।`);
+      updateHUDStatus("done", `✅ স্ক্রিনশট এনালাইসিস সম্পন্ন! ${selectCount}টি উত্তর সরাসরি পেজে সিলেক্ট করা হয়েছে।`);
     } else {
-      updateHUDStatus("done", `💡 স্ক্রিনশট এনালাইসিস সম্পন্ন! পেজে অটো-সিলেক্ট বা টাইপ করা যায়নি—নিচে ও পেজে বোল্ড করে দেখানো হলো: '👉 এটা হবে সঠিক উত্তর'।`);
+      updateHUDStatus("done", `✅ স্ক্রিনশট এনালাইসিস সম্পন্ন! উত্তর পেজে সংরক্ষিত হয়েছে।`);
     }
 
     return { success: true, data: data, filledCount: selectCount, isScreenshot: true };
@@ -674,79 +769,85 @@
 
   /**
    * Attempts to select on-page options matching vision analysis output
+   * Retries each selection up to 3 times on selection error
+   * Never injects extra labels or badges like 'JARVIS CHOICE' onto the page
    */
   async function autoSelectFromVisionResults(data) {
     if (!data || !data.answers || data.answers.length === 0) return 0;
     let selectedCount = 0;
     const isAuto = isAutoPilotActive;
-    const gapDelay = isAuto ? 3000 : 120; // 3 seconds gap in auto mode
+    const gapDelay = isAuto ? 1500 : 80;
+
+    // Clean any badges/banners from page
+    document.querySelectorAll(".jarvis-pick-badge, .jarvis-inpage-ans-banner, .jarvis-inline-question-callout").forEach(el => el.remove());
 
     for (let i = 0; i < data.answers.length; i++) {
       const ans = data.answers[i];
       const labels = ans.selected_labels || [];
       let filled = false;
 
-      // 1. Text input / Textarea / Message Box typing
-      if (ans.recommended_action === "type_text" || Boolean(ans.text_input_value) || Boolean(ans.text)) {
-        const textVal = ans.text_input_value || ans.text || (labels.length > 0 ? labels[0] : "");
-        const visibleTextInputs = Array.from(document.querySelectorAll('textarea, input[type="text"], input[type="search"], input:not([type]), [contenteditable="true"]'))
-          .filter(isElementVisible)
-          .filter(el => !el.closest("#jarvis-hud-container"));
+      // Selection retry: attempt up to 3 tries per answer
+      for (let attempt = 0; attempt < 3; attempt++) {
+        // 1. Text input / Textarea / Message Box typing
+        if (ans.recommended_action === "type_text" || Boolean(ans.text_input_value) || Boolean(ans.text)) {
+          const textVal = ans.text_input_value || ans.text || (labels.length > 0 ? labels[0] : "");
+          const visibleTextInputs = Array.from(document.querySelectorAll('textarea, input[type="text"], input[type="search"], input:not([type]), [contenteditable="true"]'))
+            .filter(isElementVisible)
+            .filter(el => !el.closest("#jarvis-hud-container"));
 
-        if (visibleTextInputs.length > 0) {
-          const targetInput = visibleTextInputs[Math.min(selectedCount, visibleTextInputs.length - 1)];
-          if (targetInput) {
-            ans.text_input_value = textVal;
-            await simulateHumanAction(targetInput, ans);
-            applyHighlightStyle(targetInput, ans, selectedCount + 1);
-            selectedCount++;
-            filled = true;
-            if (isAuto && i < data.answers.length - 1) {
-              await sleep(gapDelay + Math.random() * 500);
-            } else {
-              await sleep(100);
-            }
-          }
-        }
-      }
-
-      // 2. Choice selection (radio, checkbox, cards, ratings, buttons)
-      if (!filled && labels.length > 0) {
-        for (const label of labels) {
-          if (!label) continue;
-          let el = findInputByLabelOrValue(label, ans);
-
-          if (!el) {
-            // Universal direct DOM match for custom buttons, divs, cards, chips
-            const cleanLbl = cleanText(label).toLowerCase();
-            if (cleanLbl && cleanLbl.length >= 2) {
-              const candidates = Array.from(document.querySelectorAll("button, label, [role='button'], [role='radio'], [role='checkbox'], div, span, p, td, li, a"))
-                .filter(e => isElementVisible(e) && !e.closest("#jarvis-hud-container") && e.children.length <= 4);
-              for (const cand of candidates) {
-                const cText = cleanText(cand.innerText || cand.textContent || "").toLowerCase();
-                if (cText === cleanLbl || (cText.length >= 3 && cleanLbl.length >= 3 && (cText.includes(cleanLbl) || cleanLbl.includes(cText)))) {
-                  el = cand.closest("button, label, [role='button'], [role='radio'], [role='checkbox'], div, tr, td") || cand;
-                  break;
-                }
-              }
-            }
-          }
-
-          if (el) {
-            await simulateHumanAction(el, ans);
-            applyHighlightStyle(el, ans, selectedCount + 1);
-            selectedCount++;
-            filled = true;
-            if (isAuto && i < data.answers.length - 1) {
-              updateHUDStatus("analyzing", `🤖 উত্তর সিলেক্ট হয়েছে (${selectedCount}/${data.answers.length})... কমপক্ষে ৩ সেকেন্ড বিরতি...`);
-              await sleep(gapDelay + Math.random() * 500);
-            } else {
-              await sleep(80);
-            }
-            if (ans.recommended_action !== "select_checkbox") {
+          if (visibleTextInputs.length > 0) {
+            const targetInput = visibleTextInputs[Math.min(selectedCount, visibleTextInputs.length - 1)];
+            if (targetInput) {
+              ans.text_input_value = textVal;
+              await simulateHumanAction(targetInput, ans);
+              selectedCount++;
+              filled = true;
               break;
             }
           }
+        }
+
+        // 2. Choice selection (radio, checkbox, cards, ratings, buttons)
+        if (!filled && labels.length > 0) {
+          for (const label of labels) {
+            if (!label) continue;
+            let el = findInputByLabelOrValue(label, ans);
+
+            if (!el) {
+              // Universal direct DOM match for custom buttons, divs, cards, chips
+              const cleanLbl = cleanText(label).toLowerCase();
+              if (cleanLbl && cleanLbl.length >= 2) {
+                const candidates = Array.from(document.querySelectorAll("button, label, [role='button'], [role='radio'], [role='checkbox'], div, span, p, td, li, a"))
+                  .filter(e => isElementVisible(e) && !e.closest("#jarvis-hud-container") && e.children.length <= 4);
+                for (const cand of candidates) {
+                  const cText = cleanText(cand.innerText || cand.textContent || "").toLowerCase();
+                  if (cText === cleanLbl || (cText.length >= 3 && cleanLbl.length >= 3 && (cText.includes(cleanLbl) || cleanLbl.includes(cText)))) {
+                    el = cand.closest("button, label, [role='button'], [role='radio'], [role='checkbox'], div, tr, td") || cand;
+                    break;
+                  }
+                }
+              }
+            }
+
+            if (el) {
+              await simulateHumanAction(el, ans);
+              selectedCount++;
+              filled = true;
+              break;
+            }
+          }
+        }
+
+        if (filled) break;
+        // Wait briefly for dynamic DOM re-rendering before retrying
+        if (attempt < 2) await sleep(180);
+      }
+
+      if (filled) {
+        if (isAuto && i < data.answers.length - 1) {
+          await sleep(gapDelay + Math.random() * 300);
+        } else {
+          await sleep(50);
         }
       }
     }
@@ -2189,45 +2290,7 @@
       return { success: true, data: response.data, providerUsed: response.providerUsed, modelUsed: response.modelUsed };
     }
 
-    async function performScreenshotAnalysis() {
-      updateHUDStatus("analyzing", "📸 সম্পূর্ণ পেজের স্ক্রিনশট নেওয়া হচ্ছে...");
-      const screenshot = await captureFullScreenshot();
-      if (!screenshot) {
-        updateHUDStatus("error", "স্ক্রিনশট ক্যাপচার ব্যর্থ হয়েছে।");
-        return { success: false, error: "Failed to capture screenshot" };
-      }
-
-      updateHUDStatus("analyzing", "🧠 স্ক্রিনশট ও প্রশ্ন Pollinations / Gemini দিয়ে এনালাইসিস হচ্ছে...");
-      const pageData = {
-        title: document.title,
-        url: window.location.href,
-        isScreenshot: true,
-        screenshot: screenshot,
-        fullPageText: document.body ? cleanText(document.body.innerText).slice(0, 4000) : "",
-        questions: []
-      };
-
-      const response = await new Promise((resolve) => {
-        chrome.runtime.sendMessage(
-          { action: "ANALYZE_SURVEY_PAGE", payload: pageData },
-          (res) => resolve(res)
-        );
-      });
-
-      if (response && response.success && response.data) {
-        lastAnalysisResult = response.data;
-        renderAnalysisInHUD(response.data);
-        renderProminentAnswersBox(response.data);
-        updateHUDStatus("done", `✅ ভিশন ইঞ্জিন: সঠিক উত্তর প্রস্তুত!`);
-        if (isAutoPilotActive) {
-          await autoFillAnswers(response.data);
-        }
-        return { success: true, data: response.data };
-      }
-
-      updateHUDStatus("error", response?.error || "Vision analysis failed");
-      return { success: false, error: response?.error || "Vision analysis failed" };
-    }
+    // Screenshot analysis is handled by unified performScreenshotAnalysis() at root level
 
     /**
      * =========================================================================
@@ -2459,16 +2522,11 @@
       const parentContainer = element.closest("label, td, [role='gridcell'], div.form-check, .choice, .option") || element.parentElement || element;
       parentContainer.classList.add("jarvis-highlighted-container");
 
-      const existingBadge = parentContainer.querySelector(".jarvis-pick-badge");
-      if (!existingBadge) {
-        const badge = document.createElement("span");
-        badge.className = "jarvis-pick-badge";
-        badge.innerHTML = `<span class="jarvis-pulse-dot"></span> JARVIS CHOICE #${index}`;
-        parentContainer.appendChild(badge);
-      }
+      // CRITICAL: NO extra text badges like 'JARVIS CHOICE' or labels added to options!
+      // Direct selection on the live page without clutter.
 
       if (index === 1 && !isAutoPilotActive) {
-        parentContainer.scrollIntoView({ behavior: "smooth", block: "center" });
+        try { parentContainer.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (_) {}
       }
     }
 
@@ -2476,7 +2534,7 @@
       document.querySelectorAll(".jarvis-highlighted-container").forEach((el) => {
         el.classList.remove("jarvis-highlighted-container");
       });
-      document.querySelectorAll(".jarvis-pick-badge").forEach((el) => el.remove());
+      document.querySelectorAll(".jarvis-pick-badge, .jarvis-inpage-ans-banner, .jarvis-inline-question-callout").forEach((el) => el.remove());
     }
 
     /**
@@ -3701,186 +3759,15 @@
     }
 
     /**
-     * Attaches prominent in-page helper badges directly under survey questions
-     * Even if elements cannot be clicked via script, user sees: "👉 এটা হবে সঠিক উত্তর: [Answer]"
+     * Attaches answers directly via native page selection without injecting
+     * extra text labels, banners, or badges like 'JARVIS CHOICE' onto the survey questions.
      */
     function attachInPageAnswerBadges(data) {
-      document.querySelectorAll(".jarvis-inpage-ans-banner, .jarvis-inline-question-callout, [data-jarvis-banner]").forEach(el => {
+      document.querySelectorAll(".jarvis-inpage-ans-banner, .jarvis-inline-question-callout, [data-jarvis-banner], .jarvis-pick-badge").forEach(el => {
         if (!el.closest("#jarvis-hud-container")) el.remove();
       });
-      if (!data || !data.answers || data.answers.length === 0) return;
-
-      const questions = extractSurveyQuestions();
-      data.answers = normalizeAndSanitizeAnswers(data.answers, questions);
-
-      data.answers.forEach((ans, idx) => {
-        const isMsg = ans.recommended_action === "type_text" || Boolean(ans.text_input_value) || Boolean(ans.text);
-        
-        // 1. MESSAGE BOX / TEXTAREA: Directly type into the input field!
-        // No floating banner or copy/type buttons sitting above the message box!
-        if (isMsg) {
-          try {
-            let targetEl = null;
-            if (typeof ans.question_index === "number" && questions[ans.question_index]?.options?.[0]?.element) {
-              const optEl = questions[ans.question_index].options[0].element;
-              const tag = optEl.tagName.toLowerCase();
-              if (tag === "textarea" || (tag === "input" && !["radio", "checkbox", "button", "submit"].includes(optEl.type)) || optEl.isContentEditable) {
-                targetEl = optEl;
-              } else {
-                targetEl = optEl.closest("form, .question-block, .survey-question, fieldset, tr, td, div")?.querySelector("textarea, input[type='text'], input:not([type]), [contenteditable='true']");
-              }
-            }
-            if (!targetEl) {
-              const allInputs = Array.from(document.querySelectorAll("textarea, input[type='text'], input:not([type]), [contenteditable='true']")).filter(isElementVisible);
-              targetEl = allInputs[ans.question_index] || allInputs[0];
-            }
-            if (targetEl) {
-              simulateHumanAction(targetEl, ans);
-            }
-          } catch (e) {
-            console.warn("[Jarvis] Direct typing into message box error:", e);
-          }
-          return; // Skip creating in-page callout banner over the message box!
-        }
-
-        // 2. RADIO / CHECKBOX / MATRIX OPTIONS: Prominent in-page helper badge
-        const answerText = (ans.selected_labels && ans.selected_labels.length > 0) ? ans.selected_labels.join(", ") : "সঠিক বিকল্প";
-
-        let targetContainer = null;
-        if (typeof ans.question_index === "number" && questions[ans.question_index]?.options?.[0]?.element) {
-          const firstOptEl = questions[ans.question_index].options[0].element;
-          targetContainer = firstOptEl.closest(".question-block, .survey-question, .question, .QuestionOuter, fieldset, [role='radiogroup'], .form-group, .survey-card, .survey-row, tr, [role='row'], td, li, form") || firstOptEl.parentElement;
-        }
-
-        if (!targetContainer && ans.question_text) {
-          const qSnippet = cleanText(ans.question_text).toLowerCase().slice(0, 40);
-          const allElements = document.querySelectorAll(".QuestionText, .question-text, .title, .q-title, h1, h2, h3, h4, legend, strong, b, .survey-question");
-          for (const el of allElements) {
-            if (cleanText(el.innerText).toLowerCase().includes(qSnippet)) {
-              targetContainer = el.closest(".question-block, .survey-question, .question, .QuestionOuter, fieldset, [role='radiogroup'], .form-group, .survey-card, .survey-row, tr, [role='row'], td, li") || el.parentElement;
-              break;
-            }
-          }
-        }
-
-        if (!targetContainer && questions[idx]?.options?.[0]?.element) {
-          const firstOptEl = questions[idx].options[0].element;
-          targetContainer = firstOptEl.closest(".question-block, .survey-question, .question, .QuestionOuter, fieldset, [role='radiogroup'], .form-group, .survey-card, .survey-row, tr, [role='row'], td, li") || firstOptEl.parentElement;
-        }
-
-        if (targetContainer && !targetContainer.querySelector(`.jarvis-inpage-ans-banner[data-ans-idx="${idx}"]`)) {
-          const callout = document.createElement("div");
-          callout.className = "jarvis-inpage-ans-banner";
-          callout.setAttribute("data-jarvis-ui", "true");
-          callout.setAttribute("data-jarvis-banner", "true");
-          callout.setAttribute("data-ans-idx", String(idx));
-          callout.innerHTML = `
-            <div class="jarvis-callout-text">
-              <span class="jarvis-callout-icon">👉</span>
-              <span><strong>এটা হবে সঠিক উত্তর:</strong> <strong>${escapeHtml(answerText)}</strong></span>
-            </div>
-            <div class="jarvis-callout-btn-group">
-              <button class="jarvis-callout-pick-btn" type="button" title="এই উত্তরটি পেজে অটো-সিলেক্ট করতে চাপুন">সিলেক্ট করুন 🎯</button>
-              <button class="jarvis-callout-copy-btn" type="button" title="ক্লিপবোর্ডে কপি করতে চাপুন">📋 কপি</button>
-            </div>
-          `;
-
-          const inlineCopyBtn = callout.querySelector(".jarvis-callout-copy-btn");
-          if (inlineCopyBtn) {
-            inlineCopyBtn.addEventListener("click", (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              copyTextSafely(answerText, inlineCopyBtn);
-            });
-          }
-
-          const pickBtn = callout.querySelector(".jarvis-callout-pick-btn");
-          if (pickBtn) {
-            pickBtn.addEventListener("click", async (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              pickBtn.disabled = true;
-              pickBtn.innerText = "সিলেক্ট হচ্ছে...";
-              try {
-                let el = null;
-                const qObj = questions[ans.question_index] || questions[idx];
-                const targetLabel = ans.selected_labels && ans.selected_labels[0];
-
-                // 1. Try matching option in qObj.options
-                if (qObj && qObj.options && qObj.options.length > 0 && targetLabel) {
-                  const matchedOpt = qObj.options.find(o => 
-                    isWordMatch(o.label, targetLabel) ||
-                    cleanText(o.label).toLowerCase() === cleanText(targetLabel).toLowerCase() ||
-                    (cleanText(o.label).length >= 4 && cleanText(targetLabel).toLowerCase().includes(cleanText(o.label).toLowerCase())) ||
-                    (cleanText(targetLabel).length >= 4 && cleanText(o.label).toLowerCase().includes(cleanText(targetLabel).toLowerCase()))
-                  );
-                  if (matchedOpt && matchedOpt.element) {
-                    el = matchedOpt.element;
-                  }
-                }
-
-                // 2. If targetContainer is a row (tr or grid row), find input in matching column
-                if (!el && targetContainer && targetLabel) {
-                  const rowInputs = Array.from(targetContainer.querySelectorAll('input[type="radio"], input[type="checkbox"], [role="radio"], [role="checkbox"]')).filter(isElementVisible);
-                  if (rowInputs.length > 0) {
-                    if (qObj && qObj.options) {
-                      const optIdx = qObj.options.findIndex(o => isWordMatch(o.label, targetLabel));
-                      if (optIdx >= 0 && rowInputs[optIdx]) {
-                        el = rowInputs[optIdx];
-                      }
-                    }
-                    if (!el) {
-                      el = rowInputs[0];
-                    }
-                  }
-                }
-
-                // 3. Fallback to target element ids or findInputByLabelOrValue
-                if (!el && ans.target_element_ids && ans.target_element_ids.length > 0) {
-                  el = document.getElementById(ans.target_element_ids[0]);
-                }
-                if (!el && targetLabel) {
-                  el = findInputByLabelOrValue(targetLabel, ans);
-                }
-                if (!el) {
-                  el = targetContainer.querySelector("input[type='radio'], input[type='checkbox'], select");
-                }
-
-                if (el) {
-                  await simulateHumanAction(el, ans);
-                  applyHighlightStyle(el, ans, idx + 1);
-                  pickBtn.innerText = "✅ সিলেক্টেড";
-                } else {
-                  pickBtn.innerText = "⚠️ পাওয়া যায়নি";
-                }
-              } finally {
-                setTimeout(() => {
-                  if (pickBtn) {
-                    pickBtn.disabled = false;
-                    pickBtn.innerText = "সিলেক্ট করুন 🎯";
-                  }
-                }, 2000);
-              }
-            });
-          }
-
-          if (targetContainer.tagName && targetContainer.tagName.toLowerCase() === "tr") {
-            const firstCell = targetContainer.querySelector("th, td") || targetContainer.firstElementChild;
-            if (firstCell) {
-              firstCell.insertBefore(callout, firstCell.firstChild);
-            } else {
-              targetContainer.insertBefore(callout, targetContainer.firstChild);
-            }
-          } else {
-            const titleEl = targetContainer.querySelector("legend, .QuestionText, .question-text, .title, .q-title, h1, h2, h3, h4, h5, .control-label, [role='heading']");
-            if (titleEl && titleEl.nextSibling) {
-              titleEl.parentNode.insertBefore(callout, titleEl.nextSibling);
-            } else {
-              targetContainer.insertBefore(callout, targetContainer.firstChild);
-            }
-          }
-        }
-      });
+      // CRITICAL: Do NOT create or append any visible banners or text callouts to the survey page!
+      // All options are selected directly and silently into the live DOM elements.
     }
 
     function makeElementDraggable(el) {

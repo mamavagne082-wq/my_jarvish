@@ -30,6 +30,7 @@
     var exports = factory();
     root.JarvisCrossPlatformCopilot = exports;
     root.queryPollinationsAI = exports.queryPollinationsAI;
+    root.queryPolymerAI = exports.queryPollinationsAI;
     root.renderGeminiWebFrame = exports.renderGeminiWebFrame;
     root.checkGeminiSessionStatus = exports.checkGeminiSessionStatus;
     root.captureFullPageScreenshot = exports.captureFullPageScreenshot;
@@ -652,6 +653,7 @@
 
   return {
     queryPollinationsAI: queryPollinationsAI,
+    queryPolymerAI: queryPollinationsAI,
     renderGeminiWebFrame: renderGeminiWebFrame,
     checkGeminiSessionStatus: checkGeminiSessionStatus,
     captureFullPageScreenshot: captureFullPageScreenshot,

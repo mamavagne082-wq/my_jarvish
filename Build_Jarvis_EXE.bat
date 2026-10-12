@@ -15,6 +15,10 @@ if exist "%ROOT_DIR%Jarvis\Jarvis_code" (
 )
 
 echo [1/2] Compiling Native Jarvis.exe and service.exe with Self-Healing Watchdog...
+taskkill /f /im Jarvis.exe >nul 2>&1
+taskkill /f /im service.exe >nul 2>&1
+ping 127.0.0.1 -n 2 >nul
+
 if exist "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" (
     C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /target:winexe "/out:%JARVIS_DIR%Jarvis.exe" "%JARVIS_DIR%Jarvis.cs"
     copy /y "%JARVIS_DIR%Jarvis.exe" "%ROOT_DIR%Jarvis.exe" >nul 2>nul

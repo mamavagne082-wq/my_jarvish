@@ -517,22 +517,10 @@
 }
 
 .jarvis-pick-badge {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 5px !important;
-  margin-left: 8px !important;
-  padding: 2px 8px !important;
-  background: linear-gradient(135deg, #00f0ff 0%, #0088cc 100%) !important;
-  color: #030d1a !important;
-  font-size: 10px !important;
-  font-weight: 800 !important;
-  border-radius: 12px !important;
-  letter-spacing: 0.5px !important;
-  vertical-align: middle !important;
-  box-shadow: 0 2px 6px rgba(0, 240, 255, 0.4) !important;
-  animation: jarvis-fade-in 0.3s ease !important;
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
   pointer-events: none !important;
-  user-select: none !important;
 }
 
 .jarvis-pulse-dot {
@@ -739,22 +727,10 @@
 
 .jarvis-inpage-ans-banner,
 .jarvis-inline-question-callout {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  background: linear-gradient(90deg, #021a10 0%, #042416 100%) !important;
-  border: 1.5px solid #00ff88 !important;
-  border-radius: 8px !important;
-  padding: 7px 12px !important;
-  margin: 8px 0 !important;
-  color: #fff !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
-  box-shadow: 0 4px 14px rgba(0, 255, 136, 0.25) !important;
-  z-index: 10 !important;
-  clear: both !important;
-  position: relative !important;
-  animation: jarvis-fade-in 0.3s ease !important;
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 .jarvis-inpage-ans-banner.jarvis-callout-msg-type,

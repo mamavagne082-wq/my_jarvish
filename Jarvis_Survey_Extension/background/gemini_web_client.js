@@ -795,12 +795,9 @@ const GeminiWebClient = (function () {
     }
 
     if (!targetTab) {
-      console.log(`[GeminiWebClient] Establishing silent background tab for Account ${accountIndex}...`);
-      try {
-        targetTab = await openOrConnectGeminiTab(accountIndex);
-      } catch (tabCreateErr) {
-        throw new Error(`[GeminiWebClient] No background Gemini tab available for Account ${accountIndex}: ${tabCreateErr.message}`);
-      }
+      // STRICT REQUIREMENT: Never open new tabs during survey answering!
+      // Keep execution strictly in background or same survey tab.
+      throw new Error(`[GeminiWebClient] Background Gemini tab not currently open for Account ${accountIndex}. Skipped tab creation to stay on same survey tab.`);
     }
 
     if (!targetTab || !targetTab.id) {

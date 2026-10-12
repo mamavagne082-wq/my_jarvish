@@ -326,8 +326,11 @@ export async function fetchSmartSurveyAnswer(
   return "Agree";
 }
 
+export const queryPolymerAI = fetchSmartSurveyAnswer;
+
 export default {
   fetchSmartSurveyAnswer,
+  queryPolymerAI,
   sanitizeFinalAnswer,
   DEFAULT_SURVEY_PERSONA
 };
