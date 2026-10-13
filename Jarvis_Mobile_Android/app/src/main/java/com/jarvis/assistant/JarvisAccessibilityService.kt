@@ -366,13 +366,47 @@ class JarvisAccessibilityService : AccessibilityService() {
                 val phrase = payload.optString("phrase", "hey jarvis")
                 bringAppToFront(phrase)
             }
-            "minimize", "hide_ui", "background" -> {
-                performGlobalAction(GLOBAL_ACTION_HOME)
-            }
             "answer_call" -> answerIncomingCall()
             "end_call" -> endActiveCall()
             "home" -> performGlobalAction(GLOBAL_ACTION_HOME)
             "back" -> performGlobalAction(GLOBAL_ACTION_BACK)
+            // ── ByteDance UI-TARS Autonomous Remote Mobile Operator ──────────────
+            "uitars_tap", "tap_coordinate", "click_coordinate" -> {
+                val x = payload.optDouble("x", 500.0).toFloat()
+                val y = payload.optDouble("y", 500.0).toFloat()
+                performUiTarsTap(x, y)
+            }
+            "uitars_double_tap" -> {
+                val x = payload.optDouble("x", 500.0).toFloat()
+                val y = payload.optDouble("y", 500.0).toFloat()
+                performUiTarsDoubleTap(x, y)
+            }
+            "uitars_drag", "swipe_coordinate" -> {
+                val x1 = payload.optDouble("x1", payload.optDouble("startX", 500.0)).toFloat()
+                val y1 = payload.optDouble("y1", payload.optDouble("startY", 500.0)).toFloat()
+                val x2 = payload.optDouble("x2", payload.optDouble("endX", 500.0)).toFloat()
+                val y2 = payload.optDouble("y2", payload.optDouble("endY", 500.0)).toFloat()
+                val dur = payload.optLong("duration", 400L)
+                performUiTarsDrag(x1, y1, x2, y2, dur)
+            }
+            "uitars_scroll", "scroll_coordinate" -> {
+                val dir = payload.optString("direction", "down").lowercase()
+                performScroll(dir)
+            }
+            "uitars_type" -> {
+                val text = payload.optString("text", payload.optString("content", ""))
+                typeTextIntoActive(text)
+            }
+            "uitars_key" -> {
+                val key = payload.optString("key", "back").lowercase()
+                when (key) {
+                    "back", "escape" -> performGlobalAction(GLOBAL_ACTION_BACK)
+                    "home" -> performGlobalAction(GLOBAL_ACTION_HOME)
+                    "recents", "app_switch" -> performGlobalAction(GLOBAL_ACTION_RECENTS)
+                    "notifications" -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
+                    else -> performGlobalAction(GLOBAL_ACTION_BACK)
+                }
+            }
             else -> Log.w(TAG, "Unknown mobile action: $action")
         }
     }
@@ -1735,6 +1769,92 @@ class JarvisAccessibilityService : AccessibilityService() {
             dispatchGesture(gesture, null, null)
             Log.d(TAG, "Dispatched tap gesture at ($x, $y)")
         }
+    }
+
+    /**
+     * Executes ByteDance UI-TARS normalized (0-1000) tap gesture scaled to current display resolution.
+     */
+    fun performUiTarsTap(xNorm: Float, yNorm: Float) {
+        val metrics = resources.displayMetrics
+        val realX = (xNorm.coerceIn(0f, 1000f) / 1000f) * metrics.widthPixels
+        val realY = (yNorm.coerceIn(0f, 1000f) / 1000f) * metrics.heightPixels
+        tapCoordinates(realX, realY)
+    }
+
+    /**
+     * Executes ByteDance UI-TARS double-tap gesture.
+     */
+    fun performUiTarsDoubleTap(xNorm: Float, yNorm: Float) {
+        val metrics = resources.displayMetrics
+        val realX = (xNorm.coerceIn(0f, 1000f) / 1000f) * metrics.widthPixels
+        val realY = (yNorm.coerceIn(0f, 1000f) / 1000f) * metrics.heightPixels
+        tapCoordinates(realX, realY)
+        serviceScope.launch {
+            delay(120L)
+            tapCoordinates(realX, realY)
+        }
+    }
+
+    /**
+     * Executes ByteDance UI-TARS drag/swipe gesture from (x1, y1) to (x2, y2).
+     */
+    fun performUiTarsDrag(x1Norm: Float, y1Norm: Float, x2Norm: Float, y2Norm: Float, durationMs: Long = 400L) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val metrics = resources.displayMetrics
+            val startX = (x1Norm.coerceIn(0f, 1000f) / 1000f) * metrics.widthPixels
+            val startY = (y1Norm.coerceIn(0f, 1000f) / 1000f) * metrics.heightPixels
+            val endX = (x2Norm.coerceIn(0f, 1000f) / 1000f) * metrics.widthPixels
+            val endY = (y2Norm.coerceIn(0f, 1000f) / 1000f) * metrics.heightPixels
+
+            val path = Path().apply {
+                moveTo(startX, startY)
+                lineTo(endX, endY)
+            }
+            val gesture = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0, durationMs.coerceIn(100L, 2000L)))
+                .build()
+            dispatchGesture(gesture, null, null)
+            Log.d(TAG, "Dispatched UI-TARS drag: ($startX, $startY) -> ($endX, $endY)")
+        }
+    }
+
+    /**
+     * Inputs text directly into the active focused input field or search bar.
+     */
+    fun typeTextIntoActive(text: String): Boolean {
+        try {
+            val root = rootInActiveWindow ?: return false
+            val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            if (focused != null && focused.isEditable) {
+                val args = Bundle().apply {
+                    putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+                }
+                val res = focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                if (res) return true
+            }
+
+            fun findEditable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+                if (node == null) return null
+                if (node.isEditable) return node
+                for (i in 0 until node.childCount) {
+                    val child = node.getChild(i)
+                    val found = findEditable(child)
+                    if (found != null) return found
+                }
+                return null
+            }
+
+            val target = findEditable(root)
+            if (target != null) {
+                val args = Bundle().apply {
+                    putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+                }
+                return target.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "typeTextIntoActive error: ${e.message}")
+        }
+        return false
     }
 
     /**

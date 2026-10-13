@@ -74,5 +74,16 @@
         "allowShellCommands": true,
         "allowScreenVision": true,
         "windowManagerActive": true
+    },
+    "uitars": {
+        "enabled": true,
+        "provider": "auto",
+        "base_url": "http://127.0.0.1:8000/v1",
+        "api_key": "",
+        "model": "ByteDance-Seed/UI-TARS-7B-DPO",
+        "fallback_provider": "google",
+        "fallback_model": "gemini-3.8-flash",
+        "max_steps": 15,
+        "screenshot_delay": 0.8
     }
 }

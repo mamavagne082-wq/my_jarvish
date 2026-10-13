@@ -20,7 +20,7 @@ taskkill /f /im service.exe >nul 2>&1
 ping 127.0.0.1 -n 2 >nul
 
 if exist "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" (
-    C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /target:winexe "/out:%JARVIS_DIR%Jarvis.exe" "%JARVIS_DIR%Jarvis.cs"
+    C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /codepage:65001 /utf8output /target:winexe "/out:%JARVIS_DIR%Jarvis.exe" "%JARVIS_DIR%Jarvis.cs"
     copy /y "%JARVIS_DIR%Jarvis.exe" "%ROOT_DIR%Jarvis.exe" >nul 2>nul
     copy /y "%JARVIS_DIR%Jarvis.exe" "%JARVIS_DIR%service.exe" >nul 2>nul
     copy /y "%JARVIS_DIR%Jarvis.exe" "%ROOT_DIR%service.exe" >nul 2>nul

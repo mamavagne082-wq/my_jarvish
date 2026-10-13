@@ -1312,6 +1312,28 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // ── ByteDance UI-TARS Mobile Operator Bridge ─────────────────────────
+        @JavascriptInterface
+        fun getUiTarsStatusJson(): String {
+            val serviceActive = JarvisAccessibilityService.isServiceRunning
+            val obj = JSONObject()
+            obj.put("enabled", true)
+            obj.put("accessibilityActive", serviceActive)
+            obj.put("engine", "ByteDance UI-TARS Mobile Operator")
+            obj.put("supportedActions", "uitars_tap, uitars_double_tap, uitars_drag, uitars_scroll, uitars_type, uitars_key")
+            return obj.toString()
+        }
+
+        @JavascriptInterface
+        fun triggerUiTarsTestTap(xNorm: Float, yNorm: Float): Boolean {
+            val service = JarvisAccessibilityService.instance ?: return false
+            service.performUiTarsTap(xNorm, yNorm)
+            activity.runOnUiThread {
+                Toast.makeText(activity, "⚡ UI-TARS Tap executed at ($xNorm, $yNorm)", Toast.LENGTH_SHORT).show()
+            }
+            return true
+        }
+
         // ── Lia AI Feature: Live 3D Website Forge & File Operations ──────────
         @JavascriptInterface
         fun saveWebsiteFile(filename: String, htmlContent: String): String {

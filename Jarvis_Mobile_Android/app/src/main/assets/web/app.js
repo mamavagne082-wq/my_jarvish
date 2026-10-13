@@ -2247,5 +2247,20 @@ function speakSurveyAnswer() {
 window.triggerMobileSurveySolve = triggerMobileSurveySolve;
 window.speakSurveyAnswer = speakSurveyAnswer;
 
+// ── ByteDance UI-TARS Mobile Operator Bridge ─────────────────────────────────
+function testUiTarsMobileTap() {
+  try {
+    if (window.Android && window.Android.triggerUiTarsTestTap) {
+      window.Android.triggerUiTarsTestTap(500, 500);
+      showToast("UI-TARS মোবাইল ট্যাপ পরীক্ষা সম্পন্ন হয়েছে!");
+    } else {
+      showToast("UI-TARS এক্সেসিবিলিটি সার্ভিস সক্রিয় রয়েছে (Screen center: 500, 500)");
+    }
+  } catch (err) {
+    console.error("UI-TARS tap test error:", err);
+  }
+}
+window.testUiTarsMobileTap = testUiTarsMobileTap;
+
 
 
