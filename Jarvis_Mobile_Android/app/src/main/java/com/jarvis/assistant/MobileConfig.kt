@@ -37,6 +37,11 @@ object MobileConfig {
     const val DEFAULT_ELEVENLABS_KEY = "sk_9177b45b24484fbbc84b3ea08febf2445d061bfb2a003f17"
     const val DEFAULT_ELEVENLABS_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"
 
+    const val DEFAULT_MAXKB_ENDPOINT = "http://127.0.0.1:8080"
+    const val DEFAULT_MAXKB_KEY = ""
+    const val DEFAULT_MAXKB_APP_ID = ""
+    const val DEFAULT_MAXKB_DATASET_ID = ""
+
     const val DEFAULT_ROOM_NAME = "jarvis-room"
     const val DEFAULT_PC_HOST = "http://192.168.0.100:3000"
 
@@ -218,6 +223,59 @@ object MobileConfig {
         return if (clean.isNotBlank()) clean else DEFAULT_ELEVENLABS_VOICE_ID
     }
 
+    // ── MaxKB Enterprise Knowledge Base (1Panel-dev) ──
+    fun getMaxKbEndpoint(context: Context): String {
+        val raw = getPrefs(context).getString("maxkb_endpoint", DEFAULT_MAXKB_ENDPOINT) ?: DEFAULT_MAXKB_ENDPOINT
+        val clean = sanitizeKey(raw)
+        return if (clean.isNotBlank()) clean.trimEnd('/') else DEFAULT_MAXKB_ENDPOINT
+    }
+
+    fun setMaxKbEndpoint(context: Context, endpoint: String) {
+        val clean = sanitizeKey(endpoint).trimEnd('/')
+        getPrefs(context).edit().putString("maxkb_endpoint", clean).apply()
+    }
+
+    fun getMaxKbKey(context: Context): String {
+        val raw = getPrefs(context).getString("maxkb_key", DEFAULT_MAXKB_KEY) ?: DEFAULT_MAXKB_KEY
+        val clean = sanitizeKey(raw)
+        return if (clean.isNotBlank()) clean else DEFAULT_MAXKB_KEY
+    }
+
+    fun setMaxKbKey(context: Context, key: String) {
+        val clean = sanitizeKey(key)
+        getPrefs(context).edit().putString("maxkb_key", clean).apply()
+    }
+
+    fun getMaxKbAppId(context: Context): String {
+        val raw = getPrefs(context).getString("maxkb_app_id", DEFAULT_MAXKB_APP_ID) ?: DEFAULT_MAXKB_APP_ID
+        val clean = sanitizeKey(raw)
+        return if (clean.isNotBlank()) clean else DEFAULT_MAXKB_APP_ID
+    }
+
+    fun setMaxKbAppId(context: Context, appId: String) {
+        val clean = sanitizeKey(appId)
+        getPrefs(context).edit().putString("maxkb_app_id", clean).apply()
+    }
+
+    fun getMaxKbDatasetId(context: Context): String {
+        val raw = getPrefs(context).getString("maxkb_dataset_id", DEFAULT_MAXKB_DATASET_ID) ?: DEFAULT_MAXKB_DATASET_ID
+        val clean = sanitizeKey(raw)
+        return if (clean.isNotBlank()) clean else DEFAULT_MAXKB_DATASET_ID
+    }
+
+    fun setMaxKbDatasetId(context: Context, datasetId: String) {
+        val clean = sanitizeKey(datasetId)
+        getPrefs(context).edit().putString("maxkb_dataset_id", clean).apply()
+    }
+
+    fun isMaxKbEnabled(context: Context): Boolean {
+        return getPrefs(context).getBoolean("maxkb_enabled", true)
+    }
+
+    fun setMaxKbEnabled(context: Context, enabled: Boolean) {
+        getPrefs(context).edit().putBoolean("maxkb_enabled", enabled).apply()
+    }
+
     fun getPcHost(context: Context): String =
         getPrefs(context).getString("pc_host", DEFAULT_PC_HOST) ?: DEFAULT_PC_HOST
 
@@ -299,9 +357,24 @@ object MobileConfig {
         if (apiKeys.has("elevenlabs")) putSanitized("elevenlabs_key", apiKeys.optString("elevenlabs"))
         if (apiKeys.has("elevenlabs_key")) putSanitized("elevenlabs_key", apiKeys.optString("elevenlabs_key"))
         if (apiKeys.has("elevenlabs_voice_id")) putSanitized("elevenlabs_voice_id", apiKeys.optString("elevenlabs_voice_id"))
-        if (apiKeys.has("gemini_web_plus_account")) editor.putString("gemini_web_plus_account", apiKeys.optString("gemini_web_plus_account"))
-        if (apiKeys.has("gemini_web_pro_account")) editor.putString("gemini_web_pro_account", apiKeys.optString("gemini_web_pro_account"))
         if (apiKeys.has("gemini_web_ultra_account")) editor.putString("gemini_web_ultra_account", apiKeys.optString("gemini_web_ultra_account"))
+
+        // MaxKB configuration
+        if (apiKeys.has("maxkb")) putSanitized("maxkb_key", apiKeys.optString("maxkb"))
+        if (apiKeys.has("maxkb_key")) putSanitized("maxkb_key", apiKeys.optString("maxkb_key"))
+        if (apiKeys.has("maxkb_endpoint")) putSanitized("maxkb_endpoint", apiKeys.optString("maxkb_endpoint"))
+        if (apiKeys.has("maxkb_app_id")) putSanitized("maxkb_app_id", apiKeys.optString("maxkb_app_id"))
+        if (apiKeys.has("maxkb_application_id")) putSanitized("maxkb_app_id", apiKeys.optString("maxkb_application_id"))
+        if (apiKeys.has("maxkb_dataset_id")) putSanitized("maxkb_dataset_id", apiKeys.optString("maxkb_dataset_id"))
+
+        val maxkbObj = json.optJSONObject("maxkb")
+        if (maxkbObj != null) {
+            if (maxkbObj.has("endpoint")) putSanitized("maxkb_endpoint", maxkbObj.optString("endpoint"))
+            if (maxkbObj.has("api_key")) putSanitized("maxkb_key", maxkbObj.optString("api_key"))
+            if (maxkbObj.has("application_id")) putSanitized("maxkb_app_id", maxkbObj.optString("application_id"))
+            if (maxkbObj.has("dataset_id")) putSanitized("maxkb_dataset_id", maxkbObj.optString("dataset_id"))
+            if (maxkbObj.has("enabled")) editor.putBoolean("maxkb_enabled", maxkbObj.optBoolean("enabled", true))
+        }
 
         editor.apply()
     }
@@ -317,6 +390,16 @@ object MobileConfig {
             put("llm_model", getLlmModel(context))
             put("orb_theme", getOrbTheme(context))
             put("pc_host", getPcHost(context))
+
+            val maxkbConfig = JSONObject().apply {
+                put("enabled", isMaxKbEnabled(context))
+                put("endpoint", getMaxKbEndpoint(context))
+                put("api_key", getMaxKbKey(context))
+                put("application_id", getMaxKbAppId(context))
+                put("dataset_id", getMaxKbDatasetId(context))
+                put("auto_fallback_local", true)
+            }
+            put("maxkb", maxkbConfig)
 
             val keys = JSONObject().apply {
                 put("livekit_url", getLiveKitUrl(context))
@@ -339,6 +422,10 @@ object MobileConfig {
                 put("gemini_web_logged_in", isGeminiWebLoggedIn(context))
                 put("gemini_web_active_email", getGeminiWebActiveEmail(context))
                 put("gemini_web_active_tier", getGeminiWebActiveTier(context))
+                put("maxkb", getMaxKbKey(context))
+                put("maxkb_endpoint", getMaxKbEndpoint(context))
+                put("maxkb_app_id", getMaxKbAppId(context))
+                put("maxkb_dataset_id", getMaxKbDatasetId(context))
             }
             put("api_keys", keys)
         }

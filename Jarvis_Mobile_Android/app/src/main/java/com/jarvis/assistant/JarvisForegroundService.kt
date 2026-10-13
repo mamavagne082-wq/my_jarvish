@@ -555,6 +555,32 @@ class JarvisForegroundService : Service() {
             return
         }
 
+        // 0.1 MAXKB ENTERPRISE KNOWLEDGE BASE & RAG (1Panel-dev)
+        if (lower.startsWith("maxkb:") || lower.startsWith("নলেজ বেস:") || lower.startsWith("knowledge:") ||
+            lower.contains("নলেজ বেস") || lower.contains("knowledge base") || lower.contains("maxkb") ||
+            (lower.contains("ডকুমেন্ট") && (lower.contains("খোঁজো") || lower.contains("বলো") || lower.contains("সার্চ") || lower.contains("থেকে"))) ||
+            (lower.contains("নোট") && (lower.contains("খোঁজো") || lower.contains("বলো") || lower.contains("নলেজ")))) {
+
+            val kbQuery = clean.replace(Regex("(?i)^(maxkb:|নলেজ বেস:|knowledge:|maxkb দিয়ে বলো|নলেজ বেস থেকে বলো|ডকুমেন্ট থেকে বলো)"), "").trim()
+            val endpoint = MobileConfig.getMaxKbEndpoint(this)
+            val apiKey = MobileConfig.getMaxKbKey(this)
+            val appId = MobileConfig.getMaxKbAppId(this)
+
+            serviceScope.launch(Dispatchers.IO) {
+                val answer = callMaxKbApi(endpoint, apiKey, appId, if (kbQuery.isNotBlank()) kbQuery else clean)
+                val reply = if (answer.isNotBlank()) {
+                    answer
+                } else {
+                    "নলেজ বেসে নির্দিষ্ট কোনো তথ্য পাওয়া যায়নি। আপনি MaxKB ডকার অথবা লোকাল নলেজ স্টোর ব্যবহার করে তথ্য সংরক্ষণ করতে পারেন।"
+                }
+                withContext(Dispatchers.Main) {
+                    MainActivity.instance?.postDirectTranscript(clean, reply)
+                    speakTextLocally(reply)
+                }
+            }
+            return
+        }
+
         // Check if user spoken command directly targets any mobile skill (e.g. torch, alarm, camera, calculator, etc.)
         val matchedSkill = JarvisMobileSkillsManager.findMatchingSkill(this, clean)
         if (matchedSkill != null && !lower.contains("ফেসবুক") && !lower.contains("ইউটিউব") && !lower.contains("facebook") && !lower.contains("youtube") && !lower.contains("লক") && !lower.contains("lock") && !lower.contains("আনলক") && !lower.contains("unlock") && !lower.contains("মিনিমাইজ") && !lower.contains("minimize") && !lower.contains("সার্চ") && !lower.contains("search") && !lower.contains("বন্ধ") && !lower.contains("close")) {
@@ -1112,6 +1138,18 @@ class JarvisForegroundService : Service() {
                         }
                     }
                 }
+            } else if (provider == "maxkb" || provider == "knowledge") {
+                val endpoint = MobileConfig.getMaxKbEndpoint(this@JarvisForegroundService)
+                val apiKey = MobileConfig.getMaxKbKey(this@JarvisForegroundService)
+                val appId = MobileConfig.getMaxKbAppId(this@JarvisForegroundService)
+                if (endpoint.isNotBlank()) {
+                    try {
+                        val result = callMaxKbApi(endpoint, apiKey, appId, cleanPrompt)
+                        deliverReply(result)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "MaxKB direct call: ${e.message}")
+                    }
+                }
             }
 
             // ── Priority 2: Google Gemini (if not already answered and key is configured) ──
@@ -1474,6 +1512,142 @@ class JarvisForegroundService : Service() {
             }
         }
         conn.disconnect()
+        return ""
+    }
+
+    // ── MaxKB Enterprise Knowledge Base RAG API Client (1Panel-dev) ──
+    fun callMaxKbApi(endpoint: String, apiKey: String, appId: String, message: String): String {
+        val cleanEndpoint = if (endpoint.isNotBlank()) endpoint.trim().trimEnd('/') else MobileConfig.DEFAULT_MAXKB_ENDPOINT
+        val cleanAppId = appId.trim()
+        val cleanKey = apiKey.trim()
+
+        if (cleanAppId.isNotBlank()) {
+            // Strategy 1: MaxKB Application Open Chat API: POST /api/application/{appId}/chat/open
+            try {
+                val openUrl = java.net.URL("$cleanEndpoint/api/application/$cleanAppId/chat/open")
+                val conn = (openUrl.openConnection() as java.net.HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 7000
+                    readTimeout = 12000
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                    if (cleanKey.isNotBlank()) {
+                        setRequestProperty("AUTHORIZATION", cleanKey)
+                        setRequestProperty("Authorization", "Bearer $cleanKey")
+                    }
+                }
+                val body = JSONObject().apply {
+                    put("message", message)
+                    put("re_chat", false)
+                    put("stream", false)
+                }
+                conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                val code = conn.responseCode
+                if (code == 200) {
+                    val resp = conn.inputStream.bufferedReader().use { it.readText() }
+                    conn.disconnect()
+                    val json = JSONObject(resp)
+                    val data = json.optJSONObject("data")
+                    val content = data?.optString("content") ?: data?.optString("answer") ?: json.optString("message", "")
+                    if (content.isNotBlank()) {
+                        return "[MaxKB এন্টারপ্রাইজ নলেজ বেস]: $content"
+                    }
+                }
+                conn.disconnect()
+            } catch (e: Exception) {
+                Log.d(TAG, "MaxKB /chat/open failed: ${e.message}")
+            }
+
+            // Strategy 2: MaxKB OpenAI-Compatible API: POST /api/application/{appId}/chat/completions
+            try {
+                val compUrl = java.net.URL("$cleanEndpoint/api/application/$cleanAppId/chat/completions")
+                val conn = (compUrl.openConnection() as java.net.HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 7000
+                    readTimeout = 12000
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                    if (cleanKey.isNotBlank()) {
+                        setRequestProperty("Authorization", "Bearer $cleanKey")
+                    }
+                }
+                val body = JSONObject().apply {
+                    put("model", "maxkb")
+                    val messages = JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("role", "user")
+                            put("content", message)
+                        })
+                    }
+                    put("messages", messages)
+                    put("stream", false)
+                }
+                conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                val code = conn.responseCode
+                if (code == 200) {
+                    val resp = conn.inputStream.bufferedReader().use { it.readText() }
+                    conn.disconnect()
+                    val json = JSONObject(resp)
+                    val content = json.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content", "") ?: ""
+                    if (content.isNotBlank()) {
+                        return "[MaxKB AI]: $content"
+                    }
+                }
+                conn.disconnect()
+            } catch (e: Exception) {
+                Log.d(TAG, "MaxKB /chat/completions failed: ${e.message}")
+            }
+        }
+
+        // Strategy 3: Dataset Hit Testing if dataset_id configured
+        val datasetId = MobileConfig.getMaxKbDatasetId(this)
+        if (datasetId.isNotBlank()) {
+            try {
+                val hitUrl = java.net.URL("$cleanEndpoint/api/dataset/$datasetId/hit_test")
+                val conn = (hitUrl.openConnection() as java.net.HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 6000
+                    readTimeout = 8000
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                    if (cleanKey.isNotBlank()) {
+                        setRequestProperty("AUTHORIZATION", cleanKey)
+                        setRequestProperty("Authorization", "Bearer $cleanKey")
+                    }
+                }
+                val body = JSONObject().apply {
+                    put("query_text", message)
+                    put("similarity", 0.5)
+                    put("top_n", 3)
+                }
+                conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                val code = conn.responseCode
+                if (code == 200) {
+                    val resp = conn.inputStream.bufferedReader().use { it.readText() }
+                    conn.disconnect()
+                    val json = JSONObject(resp)
+                    val hits = json.optJSONArray("data")
+                    if (hits != null && hits.length() > 0) {
+                        val sb = StringBuilder()
+                        for (i in 0 until hits.length()) {
+                            val h = hits.optJSONObject(i)
+                            val c = h?.optString("content", "") ?: ""
+                            if (c.isNotBlank()) {
+                                if (sb.isNotEmpty()) sb.append("\n\n")
+                                sb.append(c)
+                            }
+                        }
+                        if (sb.isNotEmpty()) {
+                            return "[MaxKB নলেজ ডাটাসেট থেকে তথ্য]: $sb"
+                        }
+                    }
+                }
+                conn.disconnect()
+            } catch (e: Exception) {
+                Log.d(TAG, "MaxKB dataset hit_test failed: ${e.message}")
+            }
+        }
+
         return ""
     }
 

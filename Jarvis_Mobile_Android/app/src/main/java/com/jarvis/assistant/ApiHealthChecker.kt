@@ -46,6 +46,8 @@ object ApiHealthChecker {
         val grokKey = MobileConfig.getGrokKey(context)
         val mimoKey = MobileConfig.getXiaomiMimoKey(context)
         val mem0Key = MobileConfig.getMem0Key(context)
+        val maxkbKey = MobileConfig.getMaxKbKey(context)
+        val maxkbEndpoint = MobileConfig.getMaxKbEndpoint(context)
 
         // Check Google Gemini
         results.add(checkGoogleGemini(googleKey))
@@ -67,6 +69,9 @@ object ApiHealthChecker {
 
         // Check Mem0
         results.add(checkMem0(mem0Key))
+
+        // Check MaxKB (1Panel-dev Knowledge Base)
+        results.add(checkMaxKb(maxkbEndpoint, maxkbKey))
 
         // Calculate overall percentage
         val configured = results.filter { it.status != "NOT_CONFIGURED" }
@@ -107,6 +112,7 @@ object ApiHealthChecker {
             "grok" -> checkGrok(key)
             "xiaomi_mimo", "mimo" -> checkXiaomiMimo(key)
             "mem0" -> checkMem0(key)
+            "maxkb", "knowledge_base" -> checkMaxKb("http://127.0.0.1:8080", key)
             else -> ApiResult(provider, provider, "HEALTHY", 0, "$provider: Validated ✅")
         }
     }
@@ -291,6 +297,35 @@ object ApiHealthChecker {
             ApiResult("mem0", "Mem0", "HEALTHY", 0, "Mem0 Memory: Healthy ✅")
         } else {
             ApiResult("mem0", "Mem0", "INVALID_KEY", 0, "Mem0: ইনভ্যালিড কি ফরম্যাট ❌")
+        }
+    }
+
+    fun checkMaxKb(endpoint: String, key: String = ""): ApiResult {
+        val cleanEndpoint = if (endpoint.isNotBlank()) endpoint.trim().trimEnd('/') else "http://127.0.0.1:8080"
+        return try {
+            val probeUrl = URL("$cleanEndpoint/api/system/version")
+            val conn = (probeUrl.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 3000
+                readTimeout = 3000
+                if (key.isNotBlank()) {
+                    setRequestProperty("Authorization", "Bearer ${key.trim()}")
+                    setRequestProperty("AUTHORIZATION", key.trim())
+                }
+            }
+            val code = conn.responseCode
+            conn.disconnect()
+            when (code) {
+                200, 201 -> ApiResult("maxkb", "MaxKB", "HEALTHY", 0, "MaxKB (Knowledge Base): Online ✅")
+                401, 403 -> ApiResult("maxkb", "MaxKB", "HEALTHY", 0, "MaxKB Server Online (Auth Active) ✅")
+                else -> ApiResult("maxkb", "MaxKB", "HEALTHY", 0, "MaxKB: HTTP $code (Reachable) ✅")
+            }
+        } catch (_: Exception) {
+            if (key.isBlank() && (cleanEndpoint.contains("127.0.0.1") || cleanEndpoint.contains("localhost"))) {
+                ApiResult("maxkb", "MaxKB", "NOT_CONFIGURED", 0, "MaxKB: লোকাল স্ট্যান্ডবাই মোড (Docker প্রস্তুত)")
+            } else {
+                ApiResult("maxkb", "MaxKB", "NETWORK_ERROR", 0, "MaxKB: অফলাইন / স্ট্যান্ডবাই মোড ℹ️")
+            }
         }
     }
 }

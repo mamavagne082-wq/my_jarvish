@@ -2,6 +2,12 @@
   "version": 1,
   "skills": [
     {
+      "name": "maxkb-knowledge-base",
+      "description": "MaxKB Enterprise Knowledge Base & RAG Assistant - Document retrieval, company data, and semantic Q&A",
+      "file": "skills/maxkb-knowledge-base.md",
+      "updated": "2026-10-13"
+    },
+    {
       "name": "daily-briefing",
       "description": "Subah \"good morning\" / \"din ka update do\" bole to phone ka pura ek-baar-me briefing dena",
       "file": "skills/daily-briefing.md",

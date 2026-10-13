@@ -38,7 +38,11 @@
         "fast_router_backup_1": "pk-v1-819765dbde1db23db69d64ade5b0e9759293398f9ffdf334085d1e40b22596ab",
         "gemini_web_plus_account": "plus.alamin@gmail.com",
         "gemini_web_pro_account": "pro.alamin@gmail.com",
-        "gemini_web_ultra_account": "alaminmiah1976@gmail.com"
+        "gemini_web_ultra_account": "alaminmiah1976@gmail.com",
+        "maxkb": "",
+        "maxkb_endpoint": "http://127.0.0.1:8080",
+        "maxkb_application_id": "",
+        "maxkb_dataset_id": ""
     },
     "model_routing": {
         "screenshot_vision": "gemini-3.8-flash",
@@ -85,5 +89,13 @@
         "fallback_model": "gemini-3.8-flash",
         "max_steps": 15,
         "screenshot_delay": 0.8
+    },
+    "maxkb": {
+        "enabled": true,
+        "endpoint": "http://127.0.0.1:8080",
+        "api_key": "",
+        "application_id": "",
+        "dataset_id": "",
+        "auto_fallback_local": true
     }
 }

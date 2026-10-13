@@ -11,16 +11,20 @@ echo পিসির ব্যাকগ্রাউন্ডে স্বয়ং�
 echo.
 
 set ROOT_DIR=%~dp0
-if exist "%ROOT_DIR%Jarvis\service.exe" (
-    set SERVICE_EXE="%ROOT_DIR%Jarvis\service.exe"
+if exist "%ROOT_DIR%Jarvis.exe" (
+    set SERVICE_EXE="%ROOT_DIR%Jarvis.exe"
+) else if exist "%ROOT_DIR%Jarvis\Jarvis.exe" (
+    set SERVICE_EXE="%ROOT_DIR%Jarvis\Jarvis.exe"
 ) else if exist "%ROOT_DIR%service.exe" (
     set SERVICE_EXE="%ROOT_DIR%service.exe"
+) else if exist "%ROOT_DIR%Jarvis\service.exe" (
+    set SERVICE_EXE="%ROOT_DIR%Jarvis\service.exe"
 ) else (
     set SERVICE_EXE=
 )
 
 if defined SERVICE_EXE (
-    %SERVICE_EXE% --install
+    start "" /wait %SERVICE_EXE% --install
 ) else (
     if exist "%ROOT_DIR%Jarvis\venv\Scripts\python.exe" (
         set PY="%ROOT_DIR%Jarvis\venv\Scripts\python.exe"

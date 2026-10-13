@@ -9,6 +9,22 @@ echo =======================================================
 echo.
 
 set ROOT_DIR=%~dp0
+if exist "%ROOT_DIR%Jarvis.exe" (
+    echo Starting Unified Jarvis.exe (Services + UI + Watchdog)...
+    start "" "%ROOT_DIR%Jarvis.exe"
+    exit /b 0
+)
+if exist "%ROOT_DIR%Jarvis\Jarvis.exe" (
+    echo Starting Unified Jarvis.exe (Services + UI + Watchdog)...
+    start "" "%ROOT_DIR%Jarvis\Jarvis.exe"
+    exit /b 0
+)
+if exist "%ROOT_DIR%service.exe" (
+    echo Starting Unified service.exe (Services + UI + Watchdog)...
+    start "" "%ROOT_DIR%service.exe"
+    exit /b 0
+)
+
 if exist "%ROOT_DIR%Jarvis\Jarvis_code" (
     set JARVIS_ROOT=%ROOT_DIR%Jarvis\
 ) else (

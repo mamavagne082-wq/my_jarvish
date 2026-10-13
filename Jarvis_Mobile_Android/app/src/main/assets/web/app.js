@@ -536,6 +536,8 @@ function loadConfiguration() {
     setFieldVal('cfgGeminiPlusEmail', keys.gemini_web_plus_account || keys.gemini_plus_email || 'plus.alamin@gmail.com');
     setFieldVal('cfgGeminiProEmail', keys.gemini_web_pro_account || keys.gemini_pro_email || 'pro.alamin@gmail.com');
     setFieldVal('cfgGeminiUltraEmail', keys.gemini_web_ultra_account || keys.gemini_ultra_email || 'alaminmiah1976@gmail.com');
+    setFieldVal('cfgMaxKbKey', keys.maxkb || keys.maxkb_key || '');
+    setFieldVal('cfgMaxKbEndpoint', keys.maxkb_endpoint || 'http://127.0.0.1:8080');
 
     // Load initial PC Pairing Status
     try {
@@ -663,6 +665,8 @@ function saveConfiguration(silent = false) {
       gemini_web_plus_account: getFieldVal('cfgGeminiPlusEmail'),
       gemini_web_pro_account: getFieldVal('cfgGeminiProEmail'),
       gemini_web_ultra_account: getFieldVal('cfgGeminiUltraEmail'),
+      maxkb: getFieldVal('cfgMaxKbKey'),
+      maxkb_endpoint: getFieldVal('cfgMaxKbEndpoint'),
     }
   };
 

@@ -135,6 +135,7 @@ object JarvisMobileSkillsManager {
             listOf("call", "কল ধরো", "কে ফোন দিচ্ছে") to "call-secretary",
             listOf("routine", "রুটিন", "সকালের রুটিন") to "routine-builder",
             listOf("briefing", "দিন কেমন", "আপডেট দাও", "আজকের সারাংশ") to "daily-briefing",
+            listOf("maxkb", "knowledge", "নলেজ বেস", "নলেজবেস", "তথ্যভাণ্ডার", "ডকুমেন্ট সার্চ", "কোম্পানি ডাটা") to "maxkb-knowledge-base",
             listOf("file", "ফাইল", "ডকুমেন্ট") to "file-manager"
         )
 
@@ -435,6 +436,20 @@ object JarvisMobileSkillsManager {
                     }
                     context.startActivity(intent)
                     return Pair(true, "AI ক্রিয়েটিভ টুল ব্রাউজারে চালু করা হয়েছে।")
+                }
+
+                // 25. MaxKB Knowledge Base
+                slug == "maxkb-knowledge-base" || slug == "maxkb" || prompt.contains("maxkb") || prompt.contains("নলেজ") -> {
+                    val endpoint = MobileConfig.getMaxKbEndpoint(context)
+                    val apiKey = MobileConfig.getMaxKbKey(context)
+                    val appId = MobileConfig.getMaxKbAppId(context)
+                    if (endpoint.isNotBlank()) {
+                        val reply = JarvisForegroundService.instance?.callMaxKbApi(endpoint, apiKey, appId, userPrompt.ifBlank { "MaxKB নলেজ বেস সার্চ" })
+                        if (!reply.isNullOrBlank()) {
+                            return Pair(true, reply)
+                        }
+                    }
+                    return Pair(true, "MaxKB নলেজ বেস সক্রিয় আছে। আপনার প্রশ্ন বা অনুসন্ধানের বিষয় বলুন।")
                 }
 
                 // Fallback for any other custom skill: launch relevant app or search web

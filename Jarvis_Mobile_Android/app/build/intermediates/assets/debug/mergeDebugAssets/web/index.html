@@ -911,6 +911,19 @@
           <label for="cfgElevenLabsVoiceId">ElevenLabs Voice ID (Optional)</label>
           <input type="text" id="cfgElevenLabsVoiceId" class="form-control" placeholder="EXAVITQu4vr4xnSDxMaL (Default Aoede)" oninput="triggerAutoSave()" title="ElevenLabs Voice ID" aria-label="ElevenLabs Voice ID">
         </div>
+
+        <div class="form-group">
+          <label for="cfgMaxKbKey">MaxKB Knowledge Base API Key / Token (1Panel-dev)</label>
+          <div class="input-toggle-group">
+            <input type="password" id="cfgMaxKbKey" class="form-control" placeholder="MaxKB API Key (Optional)" oninput="triggerAutoSave()" title="MaxKB API Key" aria-label="MaxKB API Key">
+            <button type="button" class="btn-toggle-eye" onclick="toggleFieldVisibility('cfgMaxKbKey')" title="Show/Hide">👁️</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="cfgMaxKbEndpoint">MaxKB Server Endpoint URL</label>
+          <input type="text" id="cfgMaxKbEndpoint" class="form-control" placeholder="http://127.0.0.1:8080 (Default)" oninput="triggerAutoSave()" title="MaxKB Endpoint URL" aria-label="MaxKB Endpoint URL">
+        </div>
       </div>
 
       <!-- Mobile Permissions & 24/7 Engine -->

@@ -59,10 +59,9 @@ goto MENU
 echo.
 if defined JARVIS_EXE (
     echo Registering Jarvis.exe for Windows startup...
-    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "JarvisAssistant" /t REG_SZ /d %JARVIS_EXE% /f >nul 2>&1
-)
-if defined SERVICE_EXE (
-    %SERVICE_EXE% --install
+    start "" /wait %JARVIS_EXE% --install
+) else if defined SERVICE_EXE (
+    start "" /wait %SERVICE_EXE% --install
 ) else (
     python "%ROOT_DIR%service.py" --install
 )
@@ -73,10 +72,9 @@ goto MENU
 :DISABLE
 echo.
 if defined JARVIS_EXE (
-    reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "JarvisAssistant" /f >nul 2>&1
-)
-if defined SERVICE_EXE (
-    %SERVICE_EXE% --uninstall
+    start "" /wait %JARVIS_EXE% --uninstall
+) else if defined SERVICE_EXE (
+    start "" /wait %SERVICE_EXE% --uninstall
 ) else (
     python "%ROOT_DIR%service.py" --uninstall
 )
@@ -100,8 +98,10 @@ goto MENU
 
 :STATUS
 echo.
-if defined SERVICE_EXE (
-    %SERVICE_EXE% status
+if defined JARVIS_EXE (
+    start "" /wait %JARVIS_EXE% status
+) else if defined SERVICE_EXE (
+    start "" /wait %SERVICE_EXE% status
 ) else (
     python "%ROOT_DIR%service.py" status
 )
