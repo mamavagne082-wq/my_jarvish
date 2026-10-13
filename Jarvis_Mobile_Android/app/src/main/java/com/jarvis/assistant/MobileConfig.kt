@@ -43,7 +43,7 @@ object MobileConfig {
     const val DEFAULT_MAXKB_DATASET_ID = ""
 
     const val DEFAULT_ROOM_NAME = "jarvis-room"
-    const val DEFAULT_PC_HOST = "http://192.168.0.100:3000"
+    const val DEFAULT_PC_HOST = "http://192.168.31.163:3000"
 
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

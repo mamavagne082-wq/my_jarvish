@@ -33,10 +33,15 @@ echo.
 echo [3/3] Checking output APK...
 if exist "%MOBILE_DIR%\app\build\outputs\apk\debug\app-debug.apk" (
     copy /y "%MOBILE_DIR%\app\build\outputs\apk\debug\app-debug.apk" "%ROOT_DIR%Jarvis_Mobile.apk" >nul 2>&1
+    if exist "%ROOT_DIR%Jarvis" (
+        copy /y "%MOBILE_DIR%\app\build\outputs\apk\debug\app-debug.apk" "%ROOT_DIR%Jarvis\Jarvis_Mobile.apk" >nul 2>&1
+    )
+    copy /y "%MOBILE_DIR%\app\build\outputs\apk\debug\app-debug.apk" "%MOBILE_DIR%\Jarvis_Mobile.apk" >nul 2>&1
     echo.
     echo ===============================================================
     echo  [SUCCESS] Mobile APK successfully compiled!
     echo  Location: %ROOT_DIR%Jarvis_Mobile.apk
+    echo  Location: %ROOT_DIR%Jarvis\Jarvis_Mobile.apk
     echo ===============================================================
 )
 
