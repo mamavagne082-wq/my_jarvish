@@ -1078,7 +1078,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  // 7. Action: Manual Mode 1-Click Page Auto-Fill
+  // 7. Action: 1-Click Page Auto-Fill & Next
   if (btnOneclickFill) {
     btnOneclickFill.addEventListener("click", async () => {
       const targetTab = await getCurrentTab();
@@ -1088,28 +1088,27 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
 
       btnOneclickFill.disabled = true;
-      btnOneclickFill.innerHTML = `<span>⏳</span> উত্তর সিলেক্ট হচ্ছে...`;
-      updateStatus("loading", "ম্যানুয়াল মোড: জেমিনি ৩.৮ দিয়ে পেজ এনালাইসিস ও উত্তর নির্বাচন হচ্ছে...");
+      btnOneclickFill.innerHTML = `<span>⏳</span> উত্তর সিলেক্ট ও Next হচ্ছে...`;
+      updateStatus("loading", "১-ক্লিক মোড: পেজ এনালাইসিস, উত্তর সিলেক্ট ও স্বয়ংক্রিয় Next হচ্ছে...");
 
       try {
         const response = await sendTabAction(targetTab.id, {
-          action: "ONE_CLICK_AUTOFILL_NEXT"
+          action: "ONE_CLICK_AUTOFILL_NEXT",
+          autoProceed: true
         });
 
         if (response && response.success) {
           if (response.data) {
             renderResults(response.data);
           }
-          if (response.isScreenshot) {
+          if (response.proceeded) {
+            updateStatus("success", `⚡ ${response.filledCount || 0}টি উত্তর পূরণ সম্পন্ন এবং স্বয়ংক্রিয়ভাবে Next পেজে অগ্রসর হয়েছে!`);
+          } else if (response.isScreenshot) {
             updateStatus("success", `📸 স্ক্রিনশট এনালাইসিস সম্পন্ন! নিচে সঠিক উত্তরগুলো দেখানো হলো।`);
           } else if (response.data?.is_from_cache || response.data?.source === "memory_cache") {
-            updateStatus("success", `⚡ Answered from Memory Cache ⚡ (${response.filledCount || response.data?.answers?.length || 0}টি উত্তর সিলেক্ট সম্পন্ন, 0 API Calls)`);
-          } else if (response.data?.source === "knowledge_base") {
-            updateStatus("success", `📄 Answered from Knowledge Base 📄 (${response.filledCount || response.data?.answers?.length || 0}টি উত্তর ফাইল থেকে সিলেক্ট সম্পন্ন)`);
-          } else if (response.data?.source === "mixed_api") {
-            updateStatus("success", `⚡🤖 Hybrid: Memory Cache + API (${response.filledCount || response.data?.answers?.length || 0}টি উত্তর সিলেক্ট সম্পন্ন)`);
+            updateStatus("success", `⚡ Memory Cache (${response.filledCount || 0}টি উত্তর পূরণ সম্পন্ন এবং Next বাটনে ক্লিক করা হয়েছে)`);
           } else {
-            updateStatus("success", `🤖 Answered via API 🤖 (${response.filledCount || 0}টি উত্তর সিলেক্ট সম্পন্ন! আপনি দেখে নিয়ে Next চাপুন)`);
+            updateStatus("success", `✅ ${response.filledCount || 0}টি উত্তর পূরণ সম্পন্ন এবং Next বাটনে ক্লিক করা হয়েছে!`);
           }
         } else {
           updateStatus("error", response?.message || response?.error || "Auto-fill failed.");
@@ -1118,7 +1117,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         updateStatus("error", err.message || "Operation failed.");
       } finally {
         btnOneclickFill.disabled = false;
-        btnOneclickFill.innerHTML = `<span class="btn-icon">🎯</span><span class="btn-label">ম্যানুয়ালি উত্তর সিলেক্ট করুন (Alt+S)</span>`;
+        btnOneclickFill.innerHTML = `<span class="btn-icon">⚡</span><span class="btn-label">১-ক্লিক অটো-ফিল ও নেক্সট (Alt+S)</span>`;
       }
     });
   }
@@ -1128,15 +1127,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     btnClickNext.addEventListener("click", async () => {
       const targetTab = await getCurrentTab();
       if (!targetTab?.id) return;
+      btnClickNext.disabled = true;
+      updateStatus("loading", "Next বাটন খোঁজা ও ক্লিক করা হচ্ছে...");
       try {
         const res = await sendTabAction(targetTab.id, { action: "CLICK_NEXT_BUTTON" });
         if (res && res.success) {
-          updateStatus("success", "Proceeding to next page...");
+          updateStatus("success", "⏭️ Next বাটনে সফলভাবে ক্লিক করা হয়েছে!");
         } else {
           updateStatus("error", res?.message || "Next button not detected.");
         }
       } catch (err) {
         updateStatus("error", err.message || "Could not trigger next button.");
+      } finally {
+        btnClickNext.disabled = false;
       }
     });
   }

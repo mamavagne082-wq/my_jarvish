@@ -1,0 +1,99 @@
+{
+  "user_name": "User",
+  "assistant_name": "Jarvis",
+  "llm": {
+    "provider": "google",
+    "model": "gemini-3.8-live"
+  },
+  "api_keys": {
+    "google": "",
+    "openai": "",
+    "anthropic": "",
+    "livekit_url": "wss://your-project.livekit.cloud",
+    "livekit_key": "",
+    "livekit_secret": "",
+    "mem0": "",
+    "google_search": "",
+    "search_engine_id": "",
+    "openweather": "",
+    "openrouter": "",
+    "grok": "",
+    "xiaomi_mimo": "",
+    "mimo": "",
+    "elevenlabs": "",
+    "google_backup_1": "",
+    "google_backup_2": "",
+    "openai_backup_1": "",
+    "openrouter_backup_1": "",
+    "grok_backup_1": "",
+    "anthropic_backup_1": "",
+    "xiaomi_mimo_backup_1": "",
+    "elevenlabs_backup_1": "",
+    "mem0_backup_1": "",
+    "meta_ai": "",
+    "meta_ai_backup_1": "",
+    "meta": "",
+    "fast_router": "",
+    "fast_router_backup_1": "",
+    "gemini_web_plus_account": "",
+    "gemini_web_pro_account": "",
+    "gemini_web_ultra_account": "",
+    "maxkb": "",
+    "maxkb_endpoint": "http://127.0.0.1:8080",
+    "maxkb_application_id": "",
+    "maxkb_dataset_id": ""
+  },
+  "model_routing": {
+    "screenshot_vision": "gemini-3.8-flash",
+    "coding_reasoning": "grok-2-1212",
+    "mimo": "mimo-v2.6-flash"
+  },
+  "specialized_roles": {
+    "vision": "google",
+    "coding_reasoning": "google",
+    "data_processing": "google"
+  },
+  "voice_profile": "female",
+  "voice_name": "Aoede",
+  "elevenlabs_voice_id": "EXAVITQu4vr4xnSDxMaL",
+  "orb_theme": "particle-nebula",
+  "overlay_mode": "border-glow",
+  "location": "Dhaka, Bangladesh",
+  "deep_research": {
+    "deepResearchEnabled": true,
+    "searchDepth": 8,
+    "autoCite": true,
+    "surveyAutoPilot": true,
+    "academicMode": false
+  },
+  "pc_bridge": {
+    "hostIp": "127.0.0.1",
+    "port": "8765",
+    "authPin": "123456",
+    "autoConnect": true,
+    "safeMode": true,
+    "allowPyAutoGUI": true,
+    "allowShellCommands": true,
+    "allowScreenVision": true,
+    "windowManagerActive": true
+  },
+  "uitars": {
+    "enabled": true,
+    "provider": "auto",
+    "base_url": "http://127.0.0.1:8000/v1",
+    "api_key": "",
+    "model": "ByteDance-Seed/UI-TARS-7B-DPO",
+    "fallback_provider": "google",
+    "fallback_model": "gemini-3.8-flash",
+    "max_steps": 15,
+    "screenshot_delay": 0.8
+  },
+  "maxkb": {
+    "enabled": true,
+    "endpoint": "http://127.0.0.1:8080",
+    "api_key": "",
+    "application_id": "",
+    "dataset_id": "",
+    "auto_fallback_local": true
+  }
+}

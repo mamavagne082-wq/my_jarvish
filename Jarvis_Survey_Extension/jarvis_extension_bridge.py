@@ -43,6 +43,28 @@ class JarvisBridgeHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(resp).encode("utf-8"))
             return
 
+        if self.path in ("/diagnostics", "/api/diagnostics", "/health"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self._send_cors_headers()
+            self.end_headers()
+            self.wfile.write(json.dumps(diagnose_server_health()).encode("utf-8"))
+            return
+
+        if self.path in ("/self_heal", "/api/self_heal"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self._send_cors_headers()
+            self.end_headers()
+            heal_ok = self_heal_port_conflict(PORT)
+            resp = {
+                "success": heal_ok,
+                "message": "Bridge self-healing pass completed.",
+                "diagnostics": diagnose_server_health()
+            }
+            self.wfile.write(json.dumps(resp).encode("utf-8"))
+            return
+
         if self.path == "/pending_command":
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -319,6 +341,19 @@ class JarvisBridgeHandler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
 
+        if self.path in ("/self_heal", "/api/self_heal"):
+            heal_ok = self_heal_port_conflict(PORT)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self._send_cors_headers()
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "success": heal_ok,
+                "message": "Bridge self-healing pass completed.",
+                "diagnostics": diagnose_server_health()
+            }).encode("utf-8"))
+            return
+
         self.send_response(404)
         self.end_headers()
 
@@ -327,16 +362,115 @@ class JarvisBridgeHandler(BaseHTTPRequestHandler):
         # Suppress noisy default logging
         logger.info(format % args)
 
+
+class ReusableHTTPServer(HTTPServer):
+    allow_reuse_address = True
+
+    def server_bind(self):
+        try:
+            import socket
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        except Exception:
+            pass
+        super().server_bind()
+
+
+def check_port_in_use(port: int, host: str = "127.0.0.1") -> bool:
+    import socket
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.5)
+            return s.connect_ex((host, port)) == 0
+    except Exception:
+        return False
+
+
+def self_heal_port_conflict(port: int = PORT) -> bool:
+    """Diagnoses and frees port 8765 if held by an orphaned/hung process."""
+    if not check_port_in_use(port):
+        return True
+
+    # Test if existing process is already our responsive bridge
+    try:
+        import urllib.request
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/status")
+        with urllib.request.urlopen(req, timeout=0.8) as resp:
+            if resp.status == 200:
+                logger.info(f"[AutoDiagnostics] Port {port} is healthy and responsive.")
+                return True
+    except Exception:
+        pass
+
+    logger.warning(f"[SelfHealing] Port {port} is occupied by an unresponsive process. Healing...")
+    try:
+        import subprocess, os
+        cmd = f'netstat -ano | findstr :{port}'
+        output = subprocess.check_output(cmd, shell=True, text=True, errors="ignore")
+        current_pid = os.getpid()
+        killed = False
+        for line in output.strip().splitlines():
+            parts = line.split()
+            if len(parts) >= 5 and "LISTENING" in line:
+                pid_str = parts[-1]
+                if pid_str.isdigit():
+                    pid = int(pid_str)
+                    if pid != current_pid and pid != 0:
+                        logger.info(f"[SelfHealing] Terminating orphaned process {pid} on port {port}...")
+                        subprocess.run(f"taskkill /F /PID {pid}", shell=True, capture_output=True)
+                        killed = True
+        if killed:
+            time.sleep(1.0)
+    except Exception as ex:
+        logger.error(f"[SelfHealing] Error healing port {port}: {ex}")
+
+    return not check_port_in_use(port)
+
+
+def diagnose_server_health():
+    port_open = check_port_in_use(PORT)
+    import socket, os
+    return {
+        "status": "healthy" if port_open else "degraded",
+        "service": "Jarvis Desktop Survey Bridge",
+        "port": PORT,
+        "port_listening": port_open,
+        "host": "127.0.0.1",
+        "hostname": socket.gethostname(),
+        "timestamp": time.time(),
+        "self_healing_enabled": True
+    }
+
+
 def run():
-    server_address = ("127.0.0.1", PORT)
-    httpd = HTTPServer(server_address, JarvisBridgeHandler)
-    logger.info(f"Jarvis Survey Extension Bridge running on http://127.0.0.1:{PORT}")
-    logger.info("Ready to communicate with Chrome/Edge Extension.")
+    # 1. Pre-flight auto-diagnostics & self-healing
+    if check_port_in_use(PORT):
+        self_heal_port_conflict(PORT)
+
+    bind_hosts = ["127.0.0.1", "0.0.0.0"]
+    httpd = None
+
+    for host in bind_hosts:
+        try:
+            server_address = (host, PORT)
+            httpd = ReusableHTTPServer(server_address, JarvisBridgeHandler)
+            logger.info(f"Jarvis Survey Extension Bridge running on http://{host}:{PORT}")
+            logger.info("Ready to communicate with Chrome/Edge Extension.")
+            break
+        except Exception as e:
+            logger.warning(f"Could not bind to {host}:{PORT}: {e}. Retrying with self-healing...")
+            self_heal_port_conflict(PORT)
+            time.sleep(0.5)
+
+    if not httpd:
+        logger.error(f"Failed to start bridge on port {PORT} after all self-healing attempts.")
+        return
+
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         logger.info("Bridge server stopping...")
         httpd.server_close()
+
 
 if __name__ == "__main__":
     run()

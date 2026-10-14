@@ -10,74 +10,23 @@ echo.
 
 set ROOT_DIR=%~dp0
 if exist "%ROOT_DIR%Jarvis.exe" (
-    echo Starting Unified Jarvis.exe (Services + UI + Watchdog)...
+    echo Starting Native Jarvis.exe Desktop Core...
     start "" "%ROOT_DIR%Jarvis.exe"
     exit /b 0
 )
 if exist "%ROOT_DIR%Jarvis\Jarvis.exe" (
-    echo Starting Unified Jarvis.exe (Services + UI + Watchdog)...
+    echo Starting Native Jarvis.exe Desktop Core...
     start "" "%ROOT_DIR%Jarvis\Jarvis.exe"
     exit /b 0
 )
-if exist "%ROOT_DIR%service.exe" (
-    echo Starting Unified service.exe (Services + UI + Watchdog)...
-    start "" "%ROOT_DIR%service.exe"
+
+echo Compiling Jarvis.exe Native Executable...
+call "%ROOT_DIR%Build_Jarvis_EXE.bat"
+if exist "%ROOT_DIR%Jarvis.exe" (
+    start "" "%ROOT_DIR%Jarvis.exe"
     exit /b 0
 )
 
-if exist "%ROOT_DIR%Jarvis\Jarvis_code" (
-    set JARVIS_ROOT=%ROOT_DIR%Jarvis\
-) else (
-    set JARVIS_ROOT=%ROOT_DIR%
-)
+echo [ERROR] Jarvis.exe could not be started.
+pause
 
-echo [1/3] Checking environment...
-if exist "%ROOT_DIR%.venv\Scripts\python.exe" (
-    set PYTHON_CMD="%ROOT_DIR%.venv\Scripts\python.exe"
-) else if exist "%JARVIS_ROOT%Jarvis_code\venv\Scripts\python.exe" (
-    set PYTHON_CMD="%JARVIS_ROOT%Jarvis_code\venv\Scripts\python.exe"
-) else if exist "%JARVIS_ROOT%venv\Scripts\python.exe" (
-    set PYTHON_CMD="%JARVIS_ROOT%venv\Scripts\python.exe"
-) else (
-    set PYTHON_CMD=python
-)
-
-echo [2/3] Starting Jarvis Python Vision Agent...
-start "Jarvis-Agent-Backend" cmd /k "cd /d "%JARVIS_ROOT%Jarvis_code" && %PYTHON_CMD% agent.py dev"
-
-echo [3/3] Starting Jarvis Frontend UI...
-cd /d "%JARVIS_ROOT%agent-starter-react"
-start "Jarvis-Frontend-UI" cmd /k "cd /d "%JARVIS_ROOT%agent-starter-react" && npm run next:dev"
-
-echo.
-echo Waiting for servers to initialize...
-timeout /t 4 /nobreak >nul
-
-echo Opening Jarvis Interface in browser with Voice Auto-Connect...
-set BROWSER_CMD=
-if exist "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" (
-    set BROWSER_CMD="%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"
-) else if exist "%ProgramFiles%\Microsoft\Edge\Application\msedge.exe" (
-    set BROWSER_CMD="%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"
-) else if exist "%ProgramFiles%\Google\Chrome\Application\chrome.exe" (
-    set BROWSER_CMD="%ProgramFiles%\Google\Chrome\Application\chrome.exe"
-) else if exist "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe" (
-    set BROWSER_CMD="%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
-) else if exist "%LocalAppData%\Google\Chrome\Application\chrome.exe" (
-    set BROWSER_CMD="%LocalAppData%\Google\Chrome\Application\chrome.exe"
-)
-
-if defined BROWSER_CMD (
-    start "" %BROWSER_CMD% --app=https://localhost:3000?auto=true --autoplay-policy=no-user-gesture-required --ignore-certificate-errors --allow-insecure-localhost --disable-extensions
-) else (
-    start https://localhost:3000?auto=true
-)
-
-echo.
-echo =======================================================
-echo   Jarvis is now running!
-echo   - Backend Agent & Frontend Web UI are both launched
-echo   - Voice Assistant: Ready
-echo =======================================================
-timeout /t 5 >nul
-exit

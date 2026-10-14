@@ -183,7 +183,8 @@
     }
 
     if (message.action === "ONE_CLICK_AUTOFILL_NEXT") {
-      runOneClickAutoFillAndNext()
+      const autoProceed = message.autoProceed !== false;
+      runOneClickAutoFillAndNext(autoProceed)
         .then((res) => sendResponse(res || { success: true }))
         .catch((err) => {
           console.error("[Jarvis] Auto-fill error:", err);
@@ -193,13 +194,17 @@
     }
 
     if (message.action === "CLICK_NEXT_BUTTON") {
-      const nextBtn = findNextButton();
-      if (nextBtn) {
-        clickElementLikeHuman(nextBtn);
-        sendResponse({ success: true, message: "Next button clicked" });
-      } else {
-        sendResponse({ success: false, message: "Next button not found" });
-      }
+      findAndClickNextButton(4000)
+        .then((clicked) => {
+          if (clicked) {
+            sendResponse({ success: true, message: "Next button clicked successfully" });
+          } else {
+            sendResponse({ success: false, message: "Next button not found" });
+          }
+        })
+        .catch((err) => {
+          sendResponse({ success: false, message: err.message || String(err) });
+        });
       return true;
     }
 
@@ -1075,11 +1080,9 @@
           }
           if (filledCount === 0) {
             // Check if page has Next button (transition, disclosure, or single button page)
-            const nextBtnFallback = findNextButton();
-            if (nextBtnFallback) {
+            const clicked = await findAndClickNextButton(2500);
+            if (clicked) {
               updateHUDStatus("done", "🤖 পেজের নেক্সট বাটনে ক্লিক করে অগ্রসর হওয়া হচ্ছে...");
-              await sleep(1200);
-              clickElementLikeHuman(nextBtnFallback);
               setTimeout(() => { if (isAutoPilotActive && !autoPilotRunningCycle) triggerAutoPilotCycle(); }, 1600);
               autoPilotRunningCycle = false;
               return;
@@ -1096,57 +1099,24 @@
         }
 
         // 8. Auto-Advance & Next Page Transition Logic (Strict 3-4 Second Observation Rule)
-        // User Requirement:
         // উত্তর সিলেক্ট করার পর ৩ সেকেন্ড সময় নিয়ে দেখবে স্বয়ংক্রিয়ভাবে নেক্সট পেজ আসে কিনা।
         // যদি স্বয়ংক্রিয়ভাবে নেক্সট পেজ আসে, তবে নতুন পেজ এনালাইসিস করে উত্তর দিবে (Next চাপবে না)।
         // আর যদি ৩ সেকেন্ডের মধ্যে নেক্সট পেজ না আসে, তবে স্বয়ংক্রিয়ভাবে Next বাটনে ক্লিক করবে।
-        let didAutoAdvance = fillRes?.autoAdvanced || false;
-        if (!didAutoAdvance) {
-          updateHUDStatus("analyzing", "👀 উত্তর সিলেক্ট সম্পন্ন! ৩ সেকেন্ড পর্যবেক্ষণ করা হচ্ছে স্বয়ংক্রিয় নেক্সট পেজ আসে কিনা...");
-          const watchStart = Date.now();
-          while (Date.now() - watchStart < 3000) {
-            await sleep(200);
-            if (!isAutoPilotActive) { autoPilotRunningCycle = false; return; }
-            const currentSig = getQuestionsFingerprint();
-            if (currentSig && currentSig !== initialQuestionsSig) {
-              didAutoAdvance = true;
-              break;
-            }
-          }
-        }
+        const isFinalPage = isLastSurveyPage(analysisData) || isLastPageInitial;
+        const advanced = await smartAutoAdvance({
+          maxWaitMs: 3000,
+          triggerNextCycle: !isFinalPage,
+          isFinalPage
+        });
 
-        if (didAutoAdvance) {
-          lastHandledQuestionFingerprint = initialQuestionsSig;
-          updateHUDStatus("analyzing", "⚡ সার্ভে নিজে থেকেই পরবর্তী প্রশ্নে চলে গেছে! তাৎক্ষণিক নতুন প্রশ্ন সমাধান শুরু হচ্ছে...");
+        if (advanced) {
           autoPilotRunningCycle = false;
-          setTimeout(() => {
-            if (isAutoPilotActive && !autoPilotRunningCycle) {
-              triggerAutoPilotCycle();
-            }
-          }, 400);
           return;
         }
 
-        // If after 3 seconds it did not auto-advance, click Next / Submit
-        const isFinalPage = isLastSurveyPage(analysisData) || isLastPageInitial;
-        const nextBtn = findNextButton();
-        if (nextBtn) {
-          updateHUDStatus("done", isFinalPage ? "🛑 লাস্ট পেজ: সাবমিট বাটনে ক্লিক করা হচ্ছে..." : "🤖 ৩ সেকেন্ড অপেক্ষা শেষে Next বাটনে ক্লিক করা হচ্ছে...");
-          await sleep(250);
-          lastHandledQuestionFingerprint = initialQuestionsSig;
-          clickElementLikeHuman(nextBtn);
-
-          // Schedule next cycle for dynamic SPAs or multi-step question flow
-          if (!isFinalPage) {
-            setTimeout(() => {
-              if (isAutoPilotActive && !autoPilotRunningCycle) {
-                triggerAutoPilotCycle();
-              }
-            }, 1400);
-          }
-        } else {
-          lastHandledQuestionFingerprint = initialQuestionsSig;
-          updateHUDStatus("analyzing", "🤖 ইন-পেজ সার্ভে: কোনো Next বাটন নেই, পরবর্তী প্রশ্ন পর্যবেক্ষণ করা হচ্ছে...");
+        // If after smartAutoAdvance the page has not advanced, monitor dynamic SPA in-place questions
+        lastHandledQuestionFingerprint = initialQuestionsSig;
+        updateHUDStatus("analyzing", "🤖 ইন-পেজ সার্ভে: কোনো Next বাটন নেই, পরবর্তী প্রশ্ন পর্যবেক্ষণ করা হচ্ছে...");
 
           // Polling loop for in-place question transitions (supports 10-15+ sequential questions on same page!)
           let detectedNextQuestion = false;
@@ -1200,7 +1170,6 @@
           }
 
           updateHUDStatus("done", "🤖 পেজের উত্তর সম্পন্ন। স্বয়ংক্রিয় পরিবর্তনের জন্য ব্যাকগ্রাউন্ডে পর্যবেক্ষণ চলছে...");
-        }
 
       } catch (e) {
         console.error("Auto-pilot cycle error:", e);
@@ -1213,10 +1182,10 @@
     /**
      * 1-Click Auto-Fill current page with human simulation & Screenshot fallback
      */
-    async function runOneClickAutoFillAndNext(autoProceed = false) {
+    async function runOneClickAutoFillAndNext(autoProceed = true) {
       try {
         toggleHUD(true);
-        updateHUDStatus("analyzing", "⚡ ম্যানুয়াল মোড: সম্পূর্ণ পেজ বিশ্লেষণ করা হচ্ছে...");
+        updateHUDStatus("analyzing", "⚡ ১-ক্লিক মোড: সম্পূর্ণ পেজ বিশ্লেষণ করা হচ্ছে...");
 
         let analysisData = null;
         let filledCount = 0;
@@ -1267,10 +1236,10 @@
         }
 
         if (autoProceed) {
-          await sleep(1500 + Math.random() * 500);
-          const nextBtn = findNextButton();
-          if (nextBtn) {
-            clickElementLikeHuman(nextBtn);
+          await sleep(1000 + Math.random() * 400);
+          updateHUDStatus("analyzing", "⚡ উত্তর পূরণ সম্পন্ন! স্বয়ংক্রিয়ভাবে Next পেজে যাওয়া হচ্ছে...");
+          const advanced = await smartAutoAdvance({ maxWaitMs: 2500, triggerNextCycle: false, manualMode: true });
+          if (advanced) {
             return { success: true, filledCount, proceeded: true, data: analysisData, isScreenshot };
           }
         }
@@ -1278,7 +1247,7 @@
         if (filledCount > 0) {
           updateHUDStatus("done", isScreenshot
             ? `✅ স্ক্রিনশট থেকে ${filledCount}টি উত্তর সিলেক্ট করা হয়েছে! নিচে সঠিক উত্তরসমূহ বোল্ড করে দেখানো হলো, দেখে Next চাপুন।`
-            : `✅ ম্যানুয়াল মোড: ${filledCount}টি উত্তর মানুষের মতো পূরণ সম্পন্ন! আপনি দেখে নিয়ে Next চাপুন।`);
+            : `✅ ১-ক্লিক মোড: ${filledCount}টি উত্তর মানুষের মতো পূরণ সম্পন্ন! আপনি দেখে নিয়ে Next চাপুন।`);
         } else {
           updateHUDStatus("done", `💡 পেজে উত্তর অটো-সিলেক্ট বা টাইপ করা যায়নি—নিচে ও পেজে বোল্ড করে দেখানো হলো: '👉 এটা হবে সঠিক উত্তর'। দেখে সিলেক্ট বা টাইপ করে Next চাপুন।`);
         }
@@ -1328,173 +1297,12 @@
 
     /**
      * =========================================================================
-     * 2. NEXT / SUBMIT BUTTON DETECTION & HUMAN CLICK
+     * 2. NEXT / SUBMIT BUTTON DETECTION & ADVANCED MULTI-PLATFORM ENGINE
+     * Supports Qualtrics, Decipher, Kantar/Lightspeed (sa.ktrmr.com), Confirmit/MrlWeb,
+     * SurveyMonkey, Google Forms, Typeform, Cint/Lucid/PureSpectrum, Toluna,
+     * Dynata, QuestionPro, Alchemer, InnovateMR, and custom SPA icon buttons.
      * =========================================================================
      */
-    function findNextButton() {
-      const nextKeywords = [
-        "next", "continue", "submit", "proceed", "forward", "next page", "পরবর্তী", "চালিয়ে যান", "জমা দিন",
-        "finish", "done", "valider", "suivant", "weiter", "siguiente", "terminar", "avancer",
-        ">", "»", "→", ">>", "chevron_right", "arrow_forward", "forward_arrow"
-      ];
-      const excludeKeywords = ["back", "previous", "পূর্ববর্তী", "retour", "zurück", "atrás", "prev", "<", "«", "←"];
-
-      // Helper: check if element or its children contains right-arrow SVG or icon
-      function hasRightArrowIcon(el) {
-        if (!el) return false;
-        const txt = (el.innerText || el.textContent || "").trim();
-        if (txt === ">" || txt === "»" || txt === "→" || txt === ">>" || txt === "›" || txt === "▶") return true;
-
-        const svgs = el.querySelectorAll("svg, i, span[class*='icon' i], [class*='chevron' i], [class*='arrow' i]");
-        for (const icon of svgs) {
-          const cls = (icon.getAttribute("class") || icon.className || "").toString().toLowerCase();
-          if (cls.includes("right") || cls.includes("forward") || cls.includes("next") || cls.includes("chevron") || cls.includes("arrow")) {
-            return true;
-          }
-          const paths = icon.querySelectorAll("path, polygon, polyline");
-          if (paths.length > 0) return true;
-        }
-        const aria = (el.getAttribute("aria-label") || el.getAttribute("title") || "").toLowerCase();
-        if (aria.includes("next") || aria.includes("forward") || aria.includes("continue") || aria.includes("proceed")) return true;
-        const svgAria = el.querySelector("svg[aria-label*='next' i], svg[title*='next' i], svg[aria-label*='forward' i]");
-        if (svgAria) return true;
-        return false;
-      }
-
-      // 1. Specific button selectors commonly used in survey platforms (MrlWeb, Confirmit, Kantar, Qualtrics, Appinio, Decipher, etc.)
-      const explicitSelectors = [
-        'input[name="_NNext"]', 'button[name="_NNext"]', 'input[name*="Next" i]', 'button[name*="Next" i]',
-        '.mrNext', '.nextNav', '#nextBtn', '#btnNext', '#NextButton', '.NextButton',
-        'input[type="submit"]', 'button[type="submit"]',
-        '.next-btn', '.btn-next', '#next-button', '#btn_next', '.forward-btn', '.btn-forward',
-        '.submit-btn', '.btn-submit', '.survey-page__next-button', '.survey-next', '.survey-submit',
-        '[data-action="next"]', '[data-action="submit"]', '[data-direction="next"]',
-        '[aria-label*="next" i]', '[title*="next" i]', '[aria-label*="continue" i]',
-        'button[class*="next" i]', 'a[class*="next" i]', 'div[class*="next" i][role="button"]'
-      ];
-
-      for (const sel of explicitSelectors) {
-        const matched = document.querySelectorAll(sel);
-        for (const btn of matched) {
-          if (isElementVisible(btn) && !btn.disabled && btn.getAttribute("aria-disabled") !== "true") {
-            const txt = (btn.innerText || btn.value || "").trim().toLowerCase();
-            if (!excludeKeywords.some(kw => txt.includes(kw))) {
-              return btn;
-            }
-          }
-        }
-      }
-
-      // 2. Search bottom navigation / footer bars for arrow or next buttons (e.g. sa.ktrmr.com, Decipher, Appinio)
-      const bottomContainers = document.querySelectorAll(
-        "#mrForm, .survey-footer, .footer, .nav-buttons, .navigation, .bottom-bar, .survey-bottom, .buttonBar, .bottom-nav, .nav-bar, .survey-navigation, [class*='bottom-nav' i], [class*='footer' i], [class*='navigation' i], [class*='nav' i], [class*='action' i]"
-      );
-      for (const container of bottomContainers) {
-        const btns = Array.from(container.querySelectorAll("button, input[type='button'], input[type='submit'], a, div[role='button'], div[class*='btn' i], div[class*='button' i], div[class*='next' i], div[class*='nav' i], span[role='button'], div, span"))
-          .filter(b => isElementVisible(b) && !b.disabled && b.getAttribute("aria-disabled") !== "true" && !b.closest("#jarvis-hud-container"));
-
-        // If container has 2 interactive elements (typical: [Back <] on left and [Next >] on right)
-        if (btns.length === 2) {
-          const firstTxt = (btns[0].innerText || btns[0].value || "").trim().toLowerCase();
-          const secondTxt = (btns[1].innerText || btns[1].value || "").trim().toLowerCase();
-          if (excludeKeywords.some(kw => firstTxt === kw || firstTxt.includes(kw)) || firstTxt.includes("<")) {
-            return btns[1];
-          }
-          if (secondTxt === ">" || hasRightArrowIcon(btns[1]) || nextKeywords.some(kw => secondTxt.includes(kw))) {
-            return btns[1];
-          }
-          const r0 = btns[0].getBoundingClientRect();
-          const r1 = btns[1].getBoundingClientRect();
-          if (r1.left > r0.left) return btns[1];
-        }
-
-        for (const btn of btns) {
-          const txt = (btn.innerText || btn.value || "").trim().toLowerCase();
-          if (txt === ">" || txt === "»" || txt === "→" || txt === ">>" || txt === "›" || hasRightArrowIcon(btn) || nextKeywords.some(kw => txt === kw || txt.includes(kw))) {
-            if (!excludeKeywords.some(kw => txt.includes(kw))) {
-              return btn;
-            }
-          }
-        }
-      }
-
-      // 3. Rightmost or Centered Colored Block in bottom navigation area (Direct fix for Kantar, Decipher, Appinio)
-      // Handles Screenshots 1, 2, 3: full-width blue bar with centered '>' or split footer with '>' on right
-      const bottomElements = Array.from(document.querySelectorAll("div, button, a, footer, [class*='footer' i], [class*='bottom' i], [class*='nav' i]")).filter(el => {
-        if (!isElementVisible(el) || el.closest("#jarvis-hud-container")) return false;
-        const rect = el.getBoundingClientRect();
-        if (rect.bottom >= window.innerHeight * 0.65 && rect.height >= 26) {
-          const txt = (el.innerText || el.textContent || "").trim().toLowerCase();
-          if (excludeKeywords.some(kw => txt === kw || (txt.startsWith(kw) && txt.length < 8))) return false;
-          if (txt === ">" || txt === "»" || txt === "→" || txt === ">>" || txt === "›" || hasRightArrowIcon(el)) {
-            return true;
-          }
-          // Check if styled with blue/primary color (Kantar/Decipher brand colors)
-          const bg = window.getComputedStyle(el).backgroundColor;
-          if (bg && /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.test(bg)) {
-            const [_, r, g, b] = bg.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/).map(Number);
-            if (b > 110 && b > r + 15) {
-              // Centered or right-aligned arrow button inside blue bar
-              if (hasRightArrowIcon(el) || el.querySelector("svg, [class*='arrow' i], [class*='chevron' i], path") || rect.left > window.innerWidth * 0.25) {
-                return true;
-              }
-            }
-          }
-        }
-        return false;
-      });
-
-      if (bottomElements.length > 0) {
-        // Prioritize exact right arrow icon or chevron
-        const withArrow = bottomElements.find(el => hasRightArrowIcon(el) || (el.innerText || "").trim() === ">");
-        if (withArrow) {
-          const innerClickable = withArrow.querySelector("button, [role='button'], a, svg") || withArrow;
-          return innerClickable;
-        }
-        const sorted = bottomElements.sort((a, b) => {
-          const ra = a.getBoundingClientRect();
-          const rb = b.getBoundingClientRect();
-          return rb.left - ra.left; // Rightmost first
-        });
-        return sorted[0];
-      }
-
-      // 4. All clickable buttons and anchors matching next keywords or right arrow
-      const allButtons = document.querySelectorAll("button, input[type='button'], a.btn, a.button, [role='button'], div.button");
-      for (const btn of allButtons) {
-        if (!isElementVisible(btn) || btn.disabled || btn.getAttribute("aria-disabled") === "true") continue;
-        const txt = (btn.innerText || btn.value || "").trim().toLowerCase();
-        if (txt === ">" || txt === "»" || txt === "→" || txt === ">>" || txt === "›" || hasRightArrowIcon(btn) || nextKeywords.some((kw) => txt === kw || txt.includes(kw))) {
-          if (!excludeKeywords.some((kw) => txt.includes(kw))) {
-            return btn;
-          }
-        }
-      }
-
-      // 5. Primary / blue styled action button on bottom half of page (common in modern surveys like Decipher/Appinio)
-      const primaryButtons = Array.from(document.querySelectorAll('.btn-primary, button.primary, [class*="primary" i], .survey-button-next, .c-button--primary')).filter(isElementVisible);
-      for (const pb of primaryButtons) {
-        const rect = pb.getBoundingClientRect();
-        if (rect.top > window.innerHeight * 0.4) {
-          const txt = (pb.innerText || pb.value || "").trim().toLowerCase();
-          if (!excludeKeywords.some(kw => txt.includes(kw)) && (txt === ">" || hasRightArrowIcon(pb) || nextKeywords.some(kw => txt.includes(kw)) || txt === "")) {
-            return pb;
-          }
-        }
-      }
-
-      // 6. Fallback for Qualtrics / Decipher / Toluna specific next elements
-      const platformNext = document.querySelector(
-        "#NextButton, .NextButton, .survey-page__next-button, [aria-label='Next'], [aria-label='Submit'], [title='Next']"
-      );
-      if (platformNext && isElementVisible(platformNext) && !platformNext.disabled) {
-        return platformNext;
-      }
-
-      return null;
-    }
-
-
     function isElementVisible(el) {
       if (!el) return false;
       // CRITICAL: NEVER interact with or scrape Jarvis's own UI elements
@@ -1536,12 +1344,282 @@
       }
     }
 
+    function findNextButton(rootDoc = document, depth = 0) {
+      if (!rootDoc) return null;
+
+      const nextKeywords = [
+        "next", "continue", "submit", "proceed", "forward", "next page", "next question",
+        "suivant", "suivante", "continuer", "valider", "avancer", "terminer", "soumettre",
+        "siguiente", "continuar", "avanzar", "terminar", "enviar",
+        "weiter", "fortfahren", "weitergehen", "fertig", "absenden",
+        "avançar", "prosseguir", "finalizar", "volgende", "dalej",
+        "পরবর্তী", "চালিয়ে যান", "জমা দিন", "এগিয়ে যান", "সামনে", "পরের পেজ", "পরবর্তী প্রশ্ন", "শুরু করুন", "শেষ করুন",
+        "ok", "got it", "i agree", "agree", "accept", "start", "begin", "finish", "done", "complete",
+        ">", "»", "→", ">>", "›", "▶", "►", "➜", "➔", "chevron_right", "arrow_forward", "forward_arrow", "navigate_next"
+      ];
+      const excludeKeywords = ["back", "previous", "prev", "পূর্ববর্তী", "আগের", "পেছনে", "retour", "zurück", "atrás", "<", "«", "←", "◀", "cancel", "বাতিল", "exit", "প্রস্থান"];
+
+      // Helper: check if element or its children contains right-arrow SVG, icon, or icon text
+      function hasRightArrowIcon(el) {
+        if (!el) return false;
+        const txt = (el.innerText || el.textContent || "").trim().toLowerCase();
+        if (txt === ">" || txt === "»" || txt === "→" || txt === ">>" || txt === "›" || txt === "▶" || txt === "►" || txt === "➜" || txt === "➔") return true;
+        if (txt === "chevron_right" || txt === "arrow_forward" || txt === "navigate_next" || txt === "keyboard_arrow_right") return true;
+
+        const svgs = el.querySelectorAll("svg, i, span[class*='icon' i], [class*='chevron' i], [class*='arrow' i], [class*='next' i], [class*='forward' i]");
+        for (const icon of svgs) {
+          const cls = (icon.getAttribute("class") || icon.className || "").toString().toLowerCase();
+          if (cls.includes("right") || cls.includes("forward") || cls.includes("next") || cls.includes("chevron") || cls.includes("arrow") || cls.includes("angle")) {
+            return true;
+          }
+          const iconTxt = (icon.innerText || icon.textContent || "").trim().toLowerCase();
+          if (iconTxt === "chevron_right" || iconTxt === "arrow_forward" || iconTxt === "navigate_next" || iconTxt === ">" || iconTxt === "→") {
+            return true;
+          }
+          const paths = icon.querySelectorAll("path, polygon, polyline");
+          if (paths.length > 0) return true;
+        }
+        const aria = (el.getAttribute("aria-label") || el.getAttribute("title") || "").toLowerCase();
+        if (aria.includes("next") || aria.includes("forward") || aria.includes("continue") || aria.includes("proceed") || aria.includes("submit") || aria.includes("পরবর্তী")) return true;
+        const svgAria = el.querySelector("svg[aria-label*='next' i], svg[title*='next' i], svg[aria-label*='forward' i], svg[aria-label*='continue' i]");
+        if (svgAria) return true;
+        return false;
+      }
+
+      let disabledCandidate = null;
+
+      function checkCandidate(btn) {
+        if (!btn || !isElementVisible(btn)) return null;
+        const txt = (btn.innerText || btn.value || btn.getAttribute("aria-label") || "").trim().toLowerCase();
+        if (excludeKeywords.some(kw => txt === kw || (txt.startsWith(kw) && txt.length < 12))) return null;
+
+        const isDisabled = btn.disabled || btn.getAttribute("aria-disabled") === "true" || btn.classList.contains("disabled");
+        if (isDisabled) {
+          if (!disabledCandidate) disabledCandidate = btn;
+          return null;
+        }
+        return btn;
+      }
+
+      // 1. High-Priority: Known Platform Selectors
+      const explicitSelectors = [
+        // Confirmit, MrlWeb, Kantar, Lightspeed (sa.ktrmr.com)
+        'input[name="_NNext"]', 'button[name="_NNext"]', 'input[name="_NSubmit"]', 'button[name="_NSubmit"]',
+        '#mrNext', '.mrNext', '#mrNextText', '.mrNextText', 'input[name*="Next" i]', 'button[name*="Next" i]',
+        '#mrForm input[type="submit"]', '#mrForm button[type="submit"]', '#mrForm button',
+        '.navigation-button-next', '.btn-forward', '.forward-btn', 'input[id*="Next" i]', 'button[id*="Next" i]',
+        // Qualtrics
+        '#NextButton', '.NextButton', 'input#NextButton', 'input[name="NextButton"]', '#Buttons #NextButton',
+        'input[value="→"]', 'input[value=">>"]', 'input[value="Next"]',
+        // Decipher / Beacon
+        '.survey-navigation .btn-next', 'button.btn-next', 'input.btn-next', 'input.next-btn', '.forward-btn',
+        'button.forward-btn', '.btn-forward', 'input[name="submit_next"]', 'button[name="submit_next"]',
+        'input[name="forward"]', 'button[name="forward"]', '#nav-forward', '#btn_next', '#btnNext',
+        '.nav-button.next', '.nav-button.forward',
+        // SurveyMonkey
+        'button[data-action="next"]', '.user-generated-button-next', '.next-button', 'button.btn.next-button',
+        'button.done-button', 'button[data-action="done"]',
+        // Typeform
+        '[data-qa="ok-button-visible"]', '[data-qa*="ok" i]', '[data-qa*="submit" i]', '[data-qa*="next" i]',
+        'button[data-qa="submit-button"]', 'button[data-qa="button"]',
+        // Toluna & Cint & PureSpectrum & Dynata
+        '.survey-action-next', '.btn-next', '#btnNext', '.next-container button',
+        'button.next', 'button.submit', '.nextBtn', '[data-testid*="next" i]', '[data-testid*="submit" i]',
+        '[data-testid*="continue" i]', 'button[data-direction="next"]', '[data-action="next"]',
+        '[data-automation*="next" i]', '[data-cy*="next" i]',
+        // QuestionPro & Alchemer & InnovateMR
+        '#btn_next', '.btn-next', '#sg_NextButton', '.sg-button-next', 'input[value="Continue"]',
+        '.btn-survey-next', '#next-button', '.survey-nav-next',
+        // Generic submit / action attributes
+        'input[type="submit"]', 'button[type="submit"]',
+        '.next-btn', '.btn-next', '#next-button', '#btn_next',
+        '.submit-btn', '.btn-submit', '.survey-page__next-button', '.survey-next', '.survey-submit',
+        '[data-action="next"]', '[data-action="submit"]', '[data-direction="next"]',
+        '[aria-label*="next" i]', '[title*="next" i]', '[aria-label*="continue" i]', '[aria-label*="পরবর্তী" i]',
+        'button[class*="next" i]', 'a[class*="next" i]', 'div[class*="next" i][role="button"]'
+      ];
+
+      for (const sel of explicitSelectors) {
+        try {
+          const matched = rootDoc.querySelectorAll(sel);
+          for (const btn of matched) {
+            const valid = checkCandidate(btn);
+            if (valid) return valid;
+          }
+        } catch (_) {}
+      }
+
+      // 2. Bottom navigation / footer bars for arrow or next buttons
+      try {
+        const bottomContainers = rootDoc.querySelectorAll(
+          "#mrForm, .survey-footer, .footer, .nav-buttons, .navigation, .bottom-bar, .survey-bottom, .buttonBar, .bottom-nav, .nav-bar, .survey-navigation, [class*='bottom-nav' i], [class*='footer' i], [class*='navigation' i], [class*='nav' i], [class*='action' i]"
+        );
+        for (const container of bottomContainers) {
+          const btns = Array.from(container.querySelectorAll("button, input[type='button'], input[type='submit'], a, div[role='button'], div[class*='btn' i], div[class*='button' i], div[class*='next' i], div[class*='nav' i], span[role='button'], div, span"))
+            .filter(b => isElementVisible(b) && !b.closest("#jarvis-hud-container"));
+
+          // If container has 2 interactive elements (typical: [Back <] on left and [Next >] on right)
+          if (btns.length === 2) {
+            const firstTxt = (btns[0].innerText || btns[0].value || "").trim().toLowerCase();
+            const secondTxt = (btns[1].innerText || btns[1].value || "").trim().toLowerCase();
+            if (excludeKeywords.some(kw => firstTxt === kw || firstTxt.includes(kw)) || firstTxt.includes("<")) {
+              const valid = checkCandidate(btns[1]);
+              if (valid) return valid;
+            }
+            if (secondTxt === ">" || hasRightArrowIcon(btns[1]) || nextKeywords.some(kw => secondTxt.includes(kw))) {
+              const valid = checkCandidate(btns[1]);
+              if (valid) return valid;
+            }
+            const r0 = btns[0].getBoundingClientRect();
+            const r1 = btns[1].getBoundingClientRect();
+            if (r1.left > r0.left) {
+              const valid = checkCandidate(btns[1]);
+              if (valid) return valid;
+            }
+          }
+
+          for (const btn of btns) {
+            const txt = (btn.innerText || btn.value || "").trim().toLowerCase();
+            if (txt === ">" || txt === "»" || txt === "→" || txt === ">>" || txt === "›" || hasRightArrowIcon(btn) || nextKeywords.some(kw => txt === kw || txt.includes(kw))) {
+              const valid = checkCandidate(btn);
+              if (valid) return valid;
+            }
+          }
+        }
+      } catch (_) {}
+
+      // 3. Rightmost or Centered Colored Block in bottom navigation area (Kantar, Decipher, Appinio)
+      try {
+        const bottomElements = Array.from(rootDoc.querySelectorAll("div, button, a, footer, [class*='footer' i], [class*='bottom' i], [class*='nav' i]")).filter(el => {
+          if (!isElementVisible(el) || el.closest("#jarvis-hud-container")) return false;
+          const rect = el.getBoundingClientRect();
+          if (rect.bottom >= window.innerHeight * 0.60 && rect.height >= 26) {
+            const txt = (el.innerText || el.textContent || "").trim().toLowerCase();
+            if (excludeKeywords.some(kw => txt === kw || (txt.startsWith(kw) && txt.length < 8))) return false;
+            if (txt === ">" || txt === "»" || txt === "→" || txt === ">>" || txt === "›" || hasRightArrowIcon(el)) {
+              return true;
+            }
+            const bg = window.getComputedStyle(el).backgroundColor;
+            if (bg && /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.test(bg)) {
+              const [_, r, g, b] = bg.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/).map(Number);
+              if (b > 110 && b > r + 15) {
+                if (hasRightArrowIcon(el) || el.querySelector("svg, [class*='arrow' i], [class*='chevron' i], path") || rect.left > window.innerWidth * 0.25) {
+                  return true;
+                }
+              }
+            }
+          }
+          return false;
+        });
+
+        if (bottomElements.length > 0) {
+          const withArrow = bottomElements.find(el => hasRightArrowIcon(el) || (el.innerText || "").trim() === ">");
+          if (withArrow) {
+            const innerClickable = withArrow.querySelector("button, [role='button'], a, svg") || withArrow;
+            const valid = checkCandidate(innerClickable);
+            if (valid) return valid;
+          }
+          const sorted = bottomElements.sort((a, b) => {
+            const ra = a.getBoundingClientRect();
+            const rb = b.getBoundingClientRect();
+            return rb.left - ra.left;
+          });
+          const valid = checkCandidate(sorted[0]);
+          if (valid) return valid;
+        }
+      } catch (_) {}
+
+      // 4. All clickable buttons and anchors matching next keywords or right arrow
+      try {
+        const allButtons = rootDoc.querySelectorAll("button, input[type='button'], a.btn, a.button, [role='button'], div.button, input[type='submit']");
+        for (const btn of allButtons) {
+          const txt = (btn.innerText || btn.value || "").trim().toLowerCase();
+          if (txt === ">" || txt === "»" || txt === "→" || txt === ">>" || txt === "›" || hasRightArrowIcon(btn) || nextKeywords.some((kw) => txt === kw || txt.includes(kw))) {
+            const valid = checkCandidate(btn);
+            if (valid) return valid;
+          }
+        }
+      } catch (_) {}
+
+      // 5. Primary / blue styled action button on bottom half of page
+      try {
+        const primaryButtons = Array.from(rootDoc.querySelectorAll('.btn-primary, button.primary, [class*="primary" i], .survey-button-next, .c-button--primary, button.submit, button.next')).filter(isElementVisible);
+        for (const pb of primaryButtons) {
+          const rect = pb.getBoundingClientRect();
+          if (rect.top > window.innerHeight * 0.35) {
+            const valid = checkCandidate(pb);
+            if (valid) return valid;
+          }
+        }
+      } catch (_) {}
+
+      // 6. Any form submit button on page
+      try {
+        if (rootDoc.forms && rootDoc.forms.length > 0) {
+          for (let f = 0; f < rootDoc.forms.length; f++) {
+            const form = rootDoc.forms[f];
+            const submitBtn = form.querySelector('input[type="submit"], button[type="submit"], button.btn, button');
+            if (submitBtn) {
+              const valid = checkCandidate(submitBtn);
+              if (valid) return valid;
+            }
+          }
+        }
+      } catch (_) {}
+
+      // 7. Recursive Iframe Search (Top-down)
+      if (depth < 2) {
+        try {
+          const iframes = rootDoc.querySelectorAll("iframe, frame");
+          for (const ifr of iframes) {
+            try {
+              const ifrDoc = ifr.contentDocument || ifr.contentWindow?.document;
+              if (ifrDoc) {
+                const ifrBtn = findNextButton(ifrDoc, depth + 1);
+                if (ifrBtn) return ifrBtn;
+              }
+            } catch (_) {
+              // Cross-origin iframe restricted
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 8. Parent Frame Search (Bottom-up if inside iframe)
+      if (depth === 0 && window !== window.top) {
+        try {
+          const parentDoc = window.parent?.document;
+          if (parentDoc) {
+            const parentBtn = findNextButton(parentDoc, 1);
+            if (parentBtn) return parentBtn;
+          }
+        } catch (_) {}
+      }
+
+      // 9. If disabled candidate was found and no active button found, return it so caller can unlock/poll it!
+      if (disabledCandidate) {
+        return disabledCandidate;
+      }
+
+      return null;
+    }
+
     function clickElementLikeHuman(el) {
       if (!el) return;
+
+      // 1. If element is disabled, forcefully clear disabled attributes to allow click to fire
+      try {
+        if (el.disabled) el.disabled = false;
+        el.removeAttribute("disabled");
+        el.removeAttribute("aria-disabled");
+        el.classList.remove("disabled", "btn-disabled", "is-disabled");
+      } catch (_) {}
+
       try {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
       } catch (_) {}
 
+      // 2. Comprehensive Event Dispatch Sequence (Pointer, Mouse, Focus, Click)
       const opts = { bubbles: true, cancelable: true, view: window, buttons: 1 };
       try {
         el.dispatchEvent(new PointerEvent("pointerover", opts));
@@ -1558,6 +1636,148 @@
         }
       } catch (err) {
         try { el.click(); } catch (_) {}
+      }
+
+      // 3. Form submission trigger
+      try {
+        const form = el.form || el.closest("form");
+        if (form) {
+          if (typeof form.requestSubmit === "function") {
+            try { form.requestSubmit(el); } catch (_) {}
+          } else {
+            try { form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); } catch (_) {}
+          }
+        }
+      } catch (_) {}
+
+      // 4. Enter Key fallback (Conversational / Typeform / SPA navigation)
+      try {
+        const enterOpts = { bubbles: true, cancelable: true, key: "Enter", code: "Enter", keyCode: 13, which: 13 };
+        el.dispatchEvent(new KeyboardEvent("keydown", enterOpts));
+        el.dispatchEvent(new KeyboardEvent("keypress", enterOpts));
+        el.dispatchEvent(new KeyboardEvent("keyup", enterOpts));
+      } catch (_) {}
+    }
+
+    /**
+     * Polls and guarantees Next button is found and clicked like a human
+     * Automatically handles transient disabling and secondary retries
+     */
+    async function findAndClickNextButton(timeoutMs = 4000) {
+      const startTime = Date.now();
+      let btn = null;
+
+      while (Date.now() - startTime < timeoutMs) {
+        btn = findNextButton();
+        if (btn && !btn.disabled && btn.getAttribute("aria-disabled") !== "true") {
+          break;
+        }
+        await sleep(200);
+      }
+
+      if (!btn) {
+        // Last attempt: check for any candidate even if still marked disabled
+        btn = findNextButton();
+      }
+
+      if (!btn) {
+        console.warn("[Jarvis] Next button not detected on page after " + timeoutMs + "ms");
+        return false;
+      }
+
+      // If button was disabled, remove disabled flags
+      if (btn.disabled || btn.getAttribute("aria-disabled") === "true") {
+        try {
+          btn.disabled = false;
+          btn.removeAttribute("disabled");
+          btn.removeAttribute("aria-disabled");
+          btn.classList.remove("disabled");
+        } catch (_) {}
+      }
+
+      addBattleLog("action", "Next বাটনে ক্লিক করা হচ্ছে...", (btn.innerText || btn.value || "").trim().slice(0, 30));
+      clickElementLikeHuman(btn);
+
+      // Verify that navigation or page change actually occurred
+      const initialSig = getQuestionsFingerprint();
+      const initialUrl = window.location.href;
+
+      await sleep(1800);
+
+      // If still stuck on same page after 1.8s, dispatch backup second click
+      if (window.location.href === initialUrl) {
+        const afterSig = getQuestionsFingerprint();
+        if (afterSig && afterSig === initialSig) {
+          const retryBtn = findNextButton();
+          if (retryBtn && isElementVisible(retryBtn)) {
+            console.log("[Jarvis] Page did not advance after first click; dispatching secondary backup click...");
+            addBattleLog("action", "পেজ অগ্রসর হয়নি; দ্বিতীয়বার ব্যাকআপ ক্লিক করা হচ্ছে...");
+            clickElementLikeHuman(retryBtn);
+          }
+        }
+      }
+
+      return true;
+    }
+
+    /**
+     * Universal Smart Auto-Advance:
+     * Observes if survey automatically proceeds after option selection.
+     * If not, detects and clicks Next button with retry resilience.
+     */
+    async function smartAutoAdvance(options = {}) {
+      const maxWaitMs = options.maxWaitMs || 3000;
+      const triggerNext = options.triggerNextCycle !== false;
+      const isManual = !!options.manualMode;
+      const initialSig = getQuestionsFingerprint();
+
+      // Step 1: Wait up to maxWaitMs to observe if page advances automatically
+      if (!isManual) {
+        updateHUDStatus("analyzing", "👀 উত্তর নির্বাচন সম্পন্ন! পর্যবেক্ষণ চলছে স্বয়ংক্রিয়ভাবে নেক্সট পেজ আসে কিনা...");
+      }
+      const watchStart = Date.now();
+      let didAutoAdvance = false;
+
+      while (Date.now() - watchStart < maxWaitMs) {
+        await sleep(200);
+        if (!isAutoPilotActive && !isManual) return false;
+        const currentSig = getQuestionsFingerprint();
+        if (currentSig && currentSig !== initialSig) {
+          didAutoAdvance = true;
+          break;
+        }
+      }
+
+      if (didAutoAdvance) {
+        lastHandledQuestionFingerprint = initialSig;
+        updateHUDStatus("analyzing", "⚡ সার্ভে নিজে থেকেই পরবর্তী প্রশ্নে চলে গেছে!");
+        addBattleLog("success", "সার্ভে নিজে থেকেই পরবর্তী প্রশ্নে চলে গেছে");
+        if (triggerNext && isAutoPilotActive) {
+          setTimeout(() => {
+            if (isAutoPilotActive && !autoPilotRunningCycle) triggerAutoPilotCycle();
+          }, 400);
+        }
+        return true;
+      }
+
+      // Step 2: Survey did not auto-advance, click Next button
+      updateHUDStatus("analyzing", "🤖 স্বয়ংক্রিয়ভাবে Next বাটনে ক্লিক করা হচ্ছে...");
+      const clicked = await findAndClickNextButton(4000);
+      if (clicked) {
+        lastHandledQuestionFingerprint = initialSig;
+        updateHUDStatus("done", options.isFinalPage
+          ? "🛑 লাস্ট পেজ: সাবমিট বাটনে ক্লিক সম্পন্ন!"
+          : "⏭️ Next বাটনে সফলভাবে ক্লিক করা হয়েছে! পরবর্তী পেজে যাওয়া হচ্ছে...");
+        addBattleLog("success", "Next বাটনে সফলভাবে ক্লিক করা হয়েছে!");
+        if (triggerNext && isAutoPilotActive && !options.isFinalPage) {
+          setTimeout(() => {
+            if (isAutoPilotActive && !autoPilotRunningCycle) triggerAutoPilotCycle();
+          }, 1500);
+        }
+        return true;
+      } else {
+        updateHUDStatus("error", "⚠️ Next বাটন খুঁজে পাওয়া যায়নি। আপনি দেখে Next চাপুন।");
+        return false;
       }
     }
 
@@ -3200,11 +3420,11 @@
       return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
-    // Global Hotkey: Alt + S for Instant Manual Page Selection
+    // Global Hotkey: Alt + S for Instant 1-Click Auto-Fill & Next
     window.addEventListener("keydown", (e) => {
       if (e.altKey && (e.key === "s" || e.key === "S" || e.code === "KeyS")) {
         e.preventDefault();
-        runOneClickAutoFillAndNext(false); // Manual mode: fills answers without auto-proceeding
+        runOneClickAutoFillAndNext(true); // Auto-fills and automatically proceeds to Next!
       }
     }, true);
 
@@ -3224,7 +3444,7 @@
             if (isAutoPilotActive && !autoPilotRunningCycle) {
               triggerAutoPilotCycle();
             }
-          }, 3200);
+          }, 2400);
           return;
         }
 
@@ -3244,7 +3464,7 @@
               if (isAutoPilotActive && !autoPilotRunningCycle) {
                 triggerAutoPilotCycle();
               }
-            }, 3500);
+            }, 2600);
           }
         }
       });
@@ -3260,10 +3480,16 @@
       console.debug("Survey observer init:", e);
     }
 
-    // Persistent Autopilot Watchdog Timer (runs every 2.5s to ensure hands-free progress across dynamic SPAs)
-    setInterval(() => {
-      if (!isAutoPilotActive || autoPilotRunningCycle) return;
+    // Persistent Autopilot Watchdog Timer (runs every 2s to guarantee 100% hands-free progress across all pages)
+    let pageStuckCounter = 0;
+    let lastSeenQuestionFingerprint = "";
+
+    setInterval(async () => {
+      if (!isAutoPilotActive || autoPilotRunningCycle || userManuallyInteracting) return;
+
+      const currentSig = getQuestionsFingerprint();
       const questions = extractSurveyQuestions();
+
       if (questions.length > 0) {
         const hasUnanswered = questions.some((q) => {
           if (q.type === "single_choice" || q.type === "matrix_row") {
@@ -3274,12 +3500,49 @@
           }
           return false;
         });
+
         if (hasUnanswered) {
+          pageStuckCounter = 0;
           console.log("[Jarvis Watchdog] Unanswered survey questions detected. Triggering auto cycle...");
           triggerAutoPilotCycle();
+          return;
+        }
+
+        // All questions on page ARE answered! If we are still on this page:
+        if (currentSig && currentSig === lastSeenQuestionFingerprint) {
+          pageStuckCounter++;
+        } else {
+          lastSeenQuestionFingerprint = currentSig;
+          pageStuckCounter = 1;
+        }
+
+        // If answered page has been idling for 2 ticks (approx 3.5s - 4.5s) without auto-advancing, AUTO-CLICK NEXT!
+        if (pageStuckCounter >= 2) {
+          console.log("[Jarvis Watchdog] All questions answered but page hasn't advanced! Auto-clicking Next...");
+          addBattleLog("action", "ওয়াচডগ: সব উত্তর সম্পন্ন, স্বয়ংক্রিয়ভাবে Next বাটনে ক্লিক করা হচ্ছে...");
+          pageStuckCounter = 0;
+          await findAndClickNextButton(3500);
+          setTimeout(() => {
+            if (isAutoPilotActive && !autoPilotRunningCycle) {
+              triggerAutoPilotCycle();
+            }
+          }, 1500);
+        }
+      } else {
+        // Zero questions detected on page: might be an intro, disclosure, completion, or interstitial transition
+        const introNextBtn = findNextButton();
+        if (introNextBtn) {
+          console.log("[Jarvis Watchdog] Transition/Intro page Next button detected. Auto-clicking Next...");
+          addBattleLog("action", "ওয়াচডগ: ইন্ট্রো/ট্রানজিশন পেজের Next বাটনে ক্লিক করা হচ্ছে...");
+          clickElementLikeHuman(introNextBtn);
+          setTimeout(() => {
+            if (isAutoPilotActive && !autoPilotRunningCycle) {
+              triggerAutoPilotCycle();
+            }
+          }, 1600);
         }
       }
-    }, 2500);
+    }, 2000);
 
     /**
      * =========================================================================
@@ -3326,11 +3589,11 @@
 
         <!-- Manual Mode Section -->
         <div id="jarvis-section-manual" class="jarvis-section-block">
-          <button id="jarvis-btn-manual-select" class="jarvis-btn jarvis-btn-manual" title="ম্যানুয়াল মোড: পেজের সঠিক উত্তরগুলো অটো-সিলেক্ট হবে, আপনি নিজে দেখে নিয়ে Next চাপবেন">
-            🎯 পেজের উত্তর সিলেক্ট করুন <span class="hotkey-badge">Alt+S</span>
+          <button id="jarvis-btn-manual-select" class="jarvis-btn jarvis-btn-manual" title="১-ক্লিক অটো-ফিল ও নেক্সট: পেজের উত্তর সিলেক্ট হয়ে স্বয়ংক্রিয়ভাবে Next পেজে চলে যাবে">
+            ⚡ ১-ক্লিক অটো-ফিল ও নেক্সট <span class="hotkey-badge">Alt+S</span>
           </button>
           <div class="jarvis-manual-subtext">
-            পেজের সঠিক উত্তরগুলো অটো-সিলেক্ট হবে, আপনি নিজে দেখে নিয়ে Next চাপবেন।
+            পেজের সঠিক উত্তরগুলো সিলেক্ট হয়ে স্বয়ংক্রিয়ভাবে Next পেজে অগ্রসর হবে।
           </div>
           <div class="jarvis-panel-controls">
             <button id="jarvis-btn-next" class="jarvis-btn jarvis-btn-next" title="Proceed to next survey page">
@@ -3488,18 +3751,18 @@
       trigger.addEventListener("click", () => toggleHUD(!hudVisible));
       closeBtn.addEventListener("click", () => toggleHUD(false));
 
-      // Manual 1-Click Page Auto-Fill
+      // 1-Click Page Auto-Fill & Next
       manualSelectBtn.addEventListener("click", async () => {
         manualSelectBtn.disabled = true;
-        manualSelectBtn.innerHTML = `<span>⏳</span> উত্তর সিলেক্ট হচ্ছে...`;
+        manualSelectBtn.innerHTML = `<span>⏳</span> উত্তর সিলেক্ট ও Next হচ্ছে...`;
         try {
-          const res = await runOneClickAutoFillAndNext(false);
+          const res = await runOneClickAutoFillAndNext(true);
           if (res && res.success) {
-            updateHUDStatus("done", `✅ ম্যানুয়াল মোড: ${res.filledCount}টি উত্তর সিলেক্ট সম্পন্ন! আপনি দেখে নিয়ে Next চাপুন।`);
+            updateHUDStatus("done", `✅ ${res.filledCount}টি উত্তর পূরণ সম্পন্ন এবং Next বাটনে ক্লিক করা হয়েছে!`);
           }
         } finally {
           manualSelectBtn.disabled = false;
-          manualSelectBtn.innerHTML = `🎯 পেজের উত্তর সিলেক্ট করুন <span class="hotkey-badge">Alt+S</span>`;
+          manualSelectBtn.innerHTML = `⚡ ১-ক্লিক অটো-ফিল ও নেক্সট <span class="hotkey-badge">Alt+S</span>`;
         }
       });
 
@@ -3519,13 +3782,18 @@
       });
 
       // Next Button
-      nextBtn.addEventListener("click", () => {
-        const btn = findNextButton();
-        if (btn) {
-          clickElementLikeHuman(btn);
-          updateHUDStatus("done", "Navigating to next page...");
-        } else {
-          updateHUDStatus("error", "Next button not detected on page.");
+      nextBtn.addEventListener("click", async () => {
+        nextBtn.disabled = true;
+        updateHUDStatus("analyzing", "Next বাটন খোঁজা ও ক্লিক করা হচ্ছে...");
+        try {
+          const success = await findAndClickNextButton(3500);
+          if (success) {
+            updateHUDStatus("done", "⏭️ Next বাটনে সফলভাবে ক্লিক করা হয়েছে!");
+          } else {
+            updateHUDStatus("error", "Next বাটন পেজে খুঁজে পাওয়া যায়নি।");
+          }
+        } finally {
+          nextBtn.disabled = false;
         }
       });
 

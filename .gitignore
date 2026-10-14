@@ -1,0 +1,66 @@
+# ===============================================================
+# JARVIS - Root Git Ignore Rules (Security & Build Artifacts)
+# ===============================================================
+
+# --- SECRETS & ENVIRONMENT FILES (NEVER PUSH TO GITHUB!) ---
+.env
+.env.*
+!.env.example
+*.env
+*.env.local
+user_config.json
+*.key
+*.pem
+*.pfx
+*.cert
+uitars_abort.signal
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+.venv/
+venv/
+env/
+ENV/
+verified_python.path
+
+# --- Node.js / React / Next.js ---
+node_modules/
+.next/
+out/
+dist/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Logs & Internal State ---
+*.log
+control_log.txt
+jarvis_service.log
+Jarvis_code/conversations/
+generated_code/
+Jarvis_code/generated_code/
+
+# --- Operating System & IDE Files ---
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# --- Binaries & Build Outputs ---
+Jarvis.exe
+service.exe
+*.bak
+*.apk
+*.zip
+*.crx

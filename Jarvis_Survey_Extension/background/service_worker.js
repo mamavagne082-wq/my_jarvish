@@ -810,10 +810,10 @@ async function executeJarvisVoiceCommand(cmdObj, baseUrl) {
       result.success = true;
       result.message = "Auto-pilot stopped.";
     } else if (command === "ONE_CLICK_AUTOFILL") {
-      const fillRes = await chrome.tabs.sendMessage(activeTab.id, { action: "ONE_CLICK_AUTOFILL_NEXT" });
+      const fillRes = await chrome.tabs.sendMessage(activeTab.id, { action: "ONE_CLICK_AUTOFILL_NEXT", autoProceed: true });
       result.success = fillRes?.success || false;
       result.filledCount = fillRes?.filledCount || 0;
-      result.message = `Selected ${result.filledCount} answers.`;
+      result.message = `Selected ${result.filledCount} answers and proceeded.`;
     } else if (command === "CLICK_NEXT") {
       const nextRes = await chrome.tabs.sendMessage(activeTab.id, { action: "CLICK_NEXT_BUTTON" });
       result.success = nextRes?.success || false;
